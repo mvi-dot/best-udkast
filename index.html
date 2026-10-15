@@ -20,7 +20,8 @@
       if (document.getElementById('cxOv')) return;
       var ov = $('<div class="ov" id="cxOv"><div class="ovbox" role="dialog" aria-modal="true" aria-labelledby="cxT" style="width:min(460px,100%);text-align:left">' +
         '<button class="ovx" id="cxX" type="button" aria-label="Luk">×</button><h3 id="cxT" style="text-align:center">Forbind til Claude</h3>' +
-        '<p style="text-align:center">Udkast bruger Claude til at vælge og sætte sektioner sammen. Vælg én af to måder.</p>' +
+        '<p style="text-align:center">Udkast kan bruges helt uden Claude, eller du kan forbinde Claude for at få udkast, der tager højde for en beskrivelse, og for at kunne bede om ændringer i fritekst.</p>' +
+        '<div style="border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin:0 0 14px;background:var(--soft)"><strong style="font-size:14px">Uden Claude (ingen nøgle)</strong><p style="margin:4px 0 10px;font-size:13px;color:var(--muted)">Siden sætter selv en standardopbygning sammen ud fra jeres templates. Du kan flytte, udskifte og tilføje sektioner med knapperne. Kun fritekst-ønsker kræver Claude.</p><button class="btn primary" id="cxLocal" type="button">Brug uden Claude</button></div>' +
         '<label style="font-weight:600;font-size:13px">Proxy-URL (anbefalet til teamet)</label><input type="text" id="cxProxy" placeholder="https://udkast-proxy.dit-navn.workers.dev" style="width:100%;margin:4px 0 8px">' +
         '<label style="font-weight:600;font-size:13px">Adgangskode til proxyen (hvis den kræver en)</label><input type="password" id="cxCode" autocomplete="off" style="width:100%;margin:4px 0 12px">' +
         '<label style="font-weight:600;font-size:13px">…eller din egen Anthropic API-nøgle</label><input type="password" id="cxKey" placeholder="sk-ant-…" autocomplete="off" style="width:100%;margin:4px 0 6px">' +
@@ -28,19 +29,21 @@
         '<div style="display:flex;gap:8px;justify-content:flex-end"><button class="btn" id="cxCancel" type="button">Annullér</button><button class="btn primary" id="cxSave" type="button">Gem</button></div></div></div>');
       document.body.appendChild(ov);
       document.getElementById('cxProxy').value = ls.get('bo-proxy'); document.getElementById('cxCode').value = ls.get('bo-code'); document.getElementById('cxKey').value = ls.get('bo-key');
-      var close = function (ok) { ov.remove(); var w = waiting; waiting = []; w.forEach(function (x) { ok ? x.resolve() : x.reject(Object.assign(new Error('Afbrudt'), { name: 'AbortError' })); }); };
+      var close = function (ok) { ov.remove(); refreshLink(); var w = waiting; waiting = []; w.forEach(function (x) { ok ? x.resolve() : x.reject(Object.assign(new Error('Afbrudt'), { name: 'AbortError' })); }); };
+      document.getElementById('cxLocal').onclick = function () { ls.set('bo-mode', 'local'); close(true); };
       document.getElementById('cxSave').onclick = function () {
         ls.set('bo-proxy', document.getElementById('cxProxy').value.trim()); ls.set('bo-code', document.getElementById('cxCode').value.trim()); ls.set('bo-key', document.getElementById('cxKey').value.trim());
-        if (hasConn()) close(true); else document.getElementById('cxProxy').focus();
+        if (hasConn()) { ls.set('bo-mode', ''); close(true); } else document.getElementById('cxProxy').focus();
       };
       document.getElementById('cxCancel').onclick = document.getElementById('cxX').onclick = function () { close(false); };
       ov.addEventListener('mousedown', function (e) { if (e.target === ov) close(false); });
       setTimeout(function () { document.getElementById('cxProxy').focus(); }, 30);
     });
   }
+  function refreshLink() { var l = document.getElementById('cxLink'); if (l) l.textContent = ls.get('bo-mode') === 'local' ? 'Uden Claude · forbind Claude' : 'Claude-forbindelse'; }
   window.addEventListener('DOMContentLoaded', function () {
     var b = $('<button type="button" id="cxLink" style="position:fixed;right:14px;bottom:12px;z-index:20;border:0;background:transparent;color:var(--muted);font-size:12px;cursor:pointer;text-decoration:underline;padding:4px">Claude-forbindelse</button>');
-    b.onclick = function () { openSettings().catch(function () { }); }; document.body.appendChild(b);
+    b.onclick = function () { openSettings().catch(function () { }); }; document.body.appendChild(b); refreshLink();
   });
 
   /* ---------- Claude ---------- */
@@ -51,7 +54,8 @@
     throw new Error('Claude svarede ikke med gyldig JSON');
   }
   async function callClaude(prompt, opts) {
-    if (!hasConn()) await openSettings();
+    if (ls.get('bo-mode') === 'local') throw Object.assign(new Error('Kræver Claude'), { code: 'local' });
+    if (!hasConn()) { await openSettings(); if (ls.get('bo-mode') === 'local') throw Object.assign(new Error('Kræver Claude'), { code: 'local' }); }
     var proxy = CFG.proxyUrl || ls.get('bo-proxy'); var key = ls.get('bo-key'); var code = ls.get('bo-code');
     var body = { model: CFG.model, max_tokens: CFG.maxTokens, messages: [{ role: 'user', content: String(prompt) + '\n\nSvar KUN med gyldig JSON. Ingen forklaring, ingen markdown.' }] };
     var headers = { 'content-type': 'application/json' };
@@ -72,6 +76,7 @@
   var downloads = { save: async function (f) { var blob = new Blob([typeof f.data === 'string' ? f.data : JSON.stringify(f.data, null, 2)], { type: 'application/json' }); var a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = f.filename; document.body.appendChild(a); a.click(); setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 500); } };
   var mods = { sample: { json: callClaude }, db: db, user: { id: async function () { return 'lokal'; } }, downloads: downloads, mcp: null };
   window.claude = { use: async function (name) { return mods[name] || null; }, isLocal: true };
+  Object.defineProperty(window.claude, 'mode', { get: function () { return ls.get('bo-mode') === 'local' && !hasConn() ? 'local' : 'claude'; } });
 })();
 </script>
 <meta charset="utf-8">
@@ -1781,6 +1786,36 @@ function fixH1(secs, mode) {
   return { sections: out, fixed, promoted };
 }
 
+
+/* ---------- planlægning uden Claude: standardopbygning ud fra templates ---------- */
+function localPlan(b, LIB, n, existing) {
+  const keys = allowedKeys(LIB, true); const used = new Set([].concat(...(existing || []))); const msg = String((b && b.msg) || '').toLowerCase(); const type = (b && b.sidetype) || 'Forside'; const has = re => re.test(msg);
+  let cats;
+  if (type === 'Hero') cats = ['Header']; else if (type === 'Menu') cats = ['Menu'];
+  else if (type === 'Underside') cats = ['Header', 'Content', 'Ydelser', 'FAQ', 'Kontakt sektion'];
+  else cats = ['Header', 'Ydelser', 'Content', 'Anmeldelser', 'FAQ', 'Kontakt sektion'];
+  const team = has(/medarbejder|team|folk/);
+  if (type !== 'Hero' && type !== 'Menu') {
+    const add = (cat, after) => { if (!cats.includes(cat)) { const i = cats.indexOf(after); cats.splice(i < 0 ? cats.length - 1 : i + 1, 0, cat); } };
+    if (has(/pris|abonnement/)) add('Priser', 'Ydelser');
+    if (has(/\bcase|projekt|reference/)) add('Cases', 'Content');
+    if (has(/galleri|billeder|fotos/) || team) add('Galleri', 'Content');
+    if (has(/uden faq|ingen faq/)) cats = cats.filter(c => c !== 'FAQ');
+    if (has(/uden anmeld|ingen anmeld/)) cats = cats.filter(c => c !== 'Anmeldelser');
+  }
+  const names = ['Klassisk', 'Rolig', 'Luftig', 'Kraftig', 'Enkel']; const base = (existing || []).length; const forslag = [];
+  for (let i = 0; i < n; i++) {
+    const mine = new Set(); const sek = [];
+    for (const c of cats) {
+      let pool = keys.filter(k => categoryOf(k) === c); if (c === 'Galleri') pool = pool.filter(k => (team ? /^medarbejdere/ : /^galleri/).test(k));
+      if (!pool.length) continue; let fresh = pool.filter(k => !used.has(k) && !mine.has(k)); if (!fresh.length) fresh = pool.filter(k => !mine.has(k)); if (!fresh.length) fresh = pool;
+      const k = fresh[Math.floor(Math.random() * fresh.length)]; mine.add(k); sek.push({ tpl: k, hvorfor: 'Standardopbygning' });
+    }
+    mine.forEach(k => used.add(k)); forslag.push({ navn: names[(base + i) % names.length], note: 'Lavet uden Claude', sektioner: sek });
+  }
+  return { forslag };
+}
+
 /* ---------- gentagne blokke ---------- */
 function getGroups(els) {
   const m = mapOf(els); const sig = id => { const e = m[id]; return e ? e.name + '(' + (e.children || []).map(sig).join(',') + ')' : ''; };
@@ -2484,7 +2519,7 @@ REGLER
 Svar KUN med JSON: {"ops":[…],"svar":"1-2 sætninger på dansk om hvad du gjorde, eller hvorfor du ikke kunne"}`;
 }
 
-const API = { clone, esc, stripTags, mapOf, rootsOf, walk, getSlots, applyText, makeSection, applyOps, applyPhone, applyContent, imgSlots, buildExport, validate, renderSections, catalog, buildAiRaw, buildFri, nativize, natRegister, pickArchetypes, pickRegister, archPurpose, AI_ARCH, setStock, stockify, videoify, BS_VIDEO, loremify, loremText, fixH1, newestKeys, groupKeys, STOCK_BASE, makeAi, rebuildAi, normAi, pickCreative, aiConceptPrompt, aiSectionPrompt, aiRepairPrompt, themeDoc, AI_DIRECTIONS, looseJson, sanitizeAiCss, secTitle, aiVarNames, fixExtraH1, planPrompt, contentPrompt, inspirationText, makeFri, normFri, cycleFri, groupInfoSec, setFriClasses, FRI_TYPES, FRI_STIL, SECTION_ONLY, pickSubpage, subpageRefs, makeSections, splitParts, mirrorSections, suggestForOutline, outlineText, outlineFromImport, findSite, featsOf, parsePhone, classPrefix, setEnv, editPrompt, removeSubtree, categoryOf, displayName, describeKey, setMeta, getMissing, variantsOf, nextVariant, allowedKeys, catList, sanitizePlan, TYPE_ORDER, WHOLE_PAGE, cleanSettings, resizeGroup, groupSize, groupInfo, getGroups, siteSummary, siteBlocks, siteImages, FORM_ID, PH_URL, plainToHtml, htmlToPlain, unitFix };
+const API = { clone, esc, stripTags, mapOf, rootsOf, walk, getSlots, applyText, makeSection, applyOps, applyPhone, applyContent, imgSlots, buildExport, validate, renderSections, catalog, buildAiRaw, buildFri, nativize, natRegister, pickArchetypes, pickRegister, archPurpose, AI_ARCH, setStock, stockify, videoify, localPlan, BS_VIDEO, loremify, loremText, fixH1, newestKeys, groupKeys, STOCK_BASE, makeAi, rebuildAi, normAi, pickCreative, aiConceptPrompt, aiSectionPrompt, aiRepairPrompt, themeDoc, AI_DIRECTIONS, looseJson, sanitizeAiCss, secTitle, aiVarNames, fixExtraH1, planPrompt, contentPrompt, inspirationText, makeFri, normFri, cycleFri, groupInfoSec, setFriClasses, FRI_TYPES, FRI_STIL, SECTION_ONLY, pickSubpage, subpageRefs, makeSections, splitParts, mirrorSections, suggestForOutline, outlineText, outlineFromImport, findSite, featsOf, parsePhone, classPrefix, setEnv, editPrompt, removeSubtree, categoryOf, displayName, describeKey, setMeta, getMissing, variantsOf, nextVariant, allowedKeys, catList, sanitizePlan, TYPE_ORDER, WHOLE_PAGE, cleanSettings, resizeGroup, groupSize, groupInfo, getGroups, siteSummary, siteBlocks, siteImages, FORM_ID, PH_URL, plainToHtml, htmlToPlain, unitFix };
 if (typeof module !== 'undefined') module.exports = API;
 
 window.GEN = API;</script>
@@ -2525,7 +2560,7 @@ window.GEN = API;</script>
   /* ---------- hjælpere ---------- */
   const setStatus = (t, kind) => { const el = $('status'); el.textContent = t || ''; el.dataset.kind = kind || ''; };
   const errCopy = e => ({
-    not_granted: 'Du skal tillade at siden bruger Claude, før den kan arbejde.', rate_limited: 'For mange kald lige nu. Vent et øjeblik og prøv igen.',
+    local: 'Det kræver Claude. Tryk "Claude-forbindelse" nederst til højre for at forbinde.', not_granted: 'Du skal tillade at siden bruger Claude, før den kan arbejde.', rate_limited: 'For mange kald lige nu. Vent et øjeblik og prøv igen.',
     invalid_json: 'Claude svarede ikke i det rigtige format. Prøv igen, eller skriv ønsket lidt mere konkret.', cancelled: '', aborted: '',
   })[e && e.code] ?? ('Noget gik galt: ' + ((e && e.message) || e));
   function setBusy(on, label, quiet) { busy = on; $('busy').hidden = !on || !!quiet; $('busyText').textContent = label || ''; for (const el of document.querySelectorAll('[data-lock]')) el.disabled = on; }
@@ -2535,7 +2570,10 @@ window.GEN = API;</script>
     place: ['Henter kundens tekster…', 'Placerer teksterne i skabelonerne…', 'Sætter tekst og billeder sammen…'],
     gen: ['Tænker over en god bestilling…', 'Skriver en prompt til dig…', 'Finder de rigtige ord…'],
   };
+  let retryLocal = false;
+  const localMode = () => !!(window.claude && window.claude.mode === 'local');
   async function ask(prompt, label) {
+    if (localMode()) throw { code: 'local' };
     ctl = new AbortController(); const pool = /udkast/i.test(label || '') ? ASK_MSG.plan : /Forst/i.test(label || '') ? ASK_MSG.edit : /Placerer|indhold/i.test(label || '') ? ASK_MSG.place : ASK_MSG.gen; let n = 0;
     const next = () => { $('busyText').textContent = pool[n % pool.length]; n++; }; setBusy(true, ''); next(); const timer = setInterval(next, 2600);
     try { return await sample.json(prompt, { modelTier: 'default', cache: false, signal: ctl.signal }); }
@@ -2827,7 +2865,8 @@ window.GEN = API;</script>
       if (brief.frihed === 'ai') { setBusy(true, '', true); ctl = new AbortController(); try { made.push(...await generateAi(brief, n, outline && outline.length >= 2 ? outline : null)); } finally { ctl = null; endBuild(); } }
       else {
       const existing = (more ? state.proposals : made).map(p => p.sections.map(s => s.tpl));
-      const res = await ask(E.planPrompt(brief, LIB, USE, SITES, n, existing, site && useSite ? E.siteSummary(site, pageIdx) : null, outline && outline.length >= 2 ? outline : null), 'Laver udkast');
+      let res; if (localMode()) { setBusy(true, 'Sætter siden sammen ud fra jeres templates…'); await new Promise(r => setTimeout(r, 700)); res = E.localPlan(brief, LIB, n, existing); }
+      else res = await ask(E.planPrompt(brief, LIB, USE, SITES, n, existing, site && useSite ? E.siteSummary(site, pageIdx) : null, outline && outline.length >= 2 ? outline : null), 'Laver udkast');
       made.push(...(res.forslag || []).slice(0, n).map((f, i) => ({ id: 'p' + Date.now() + i + 'x', name: f.navn || ('Udkast ' + (state.proposals.length + made.length + i + 1)), note: f.note || '', sections: planToSections(f), usedBlocks: [] })).filter(p => p.sections.length));
       }
       if (!made.length) throw { code: 'invalid_json' };
@@ -2835,7 +2874,7 @@ window.GEN = API;</script>
       state.active = more ? state.proposals.length - 1 : 0;
       if (site && useSite) await applySite(cur());
       setStatus(made.length > 1 ? `${made.length} udkast klar.` : 'Udkast klar.', 'ok');
-    } catch (e) { hist.pop(); ctl = null; const m = errCopy(e); if (m) setStatus(m, 'err'); }
+    } catch (e) { hist.pop(); ctl = null; if (e && e.code === 'local' && !retryLocal) { retryLocal = true; setBusy(false); try { return await generate(more); } finally { retryLocal = false; } } const m = errCopy(e); if (m) setStatus(m, 'err'); }
     setBusy(false); render();
   }
   function burst(btn, e) {
@@ -2968,7 +3007,7 @@ window.GEN = API;</script>
   /* ---------- AI: placér kundens indhold ---------- */
   async function applySite(p, onlyUids) {
     if (!site || !p) return;
-    const secs = p.sections.filter(s => !s.fri && !s.ai && !s.hasContent && (!onlyUids || onlyUids.includes(s.uid))); if (!secs.length) return;
+    const secs = p.sections.filter(s => !s.fri && !s.ai && !s.hasContent && (!onlyUids || onlyUids.includes(s.uid))); if (!secs.length || localMode()) return;
     const res = await ask(E.contentPrompt(state.brief, secs, p.sections, site, pageIdx, p.usedBlocks), 'Placerer kundens indhold');
     const st = E.applyContent(secs, res, site, pageIdx);
     for (const sec of secs) { const r = res && res.sektioner && res.sektioner[sec.uid]; if (r) for (const v of Object.values(r.tekst || {})) (Array.isArray(v) ? v : [v]).forEach(i => { if (Number.isInteger(i) && !p.usedBlocks.includes(i)) p.usedBlocks.push(i); }); sec.hasContent = true; }
@@ -2978,6 +3017,7 @@ window.GEN = API;</script>
   /* ---------- redigér ---------- */
   $('editBtn').onclick = async () => {
     const p = cur(); if (!sample || !p) return; const req = $('editText').value.trim(); if (!req) return;
+    if (localMode()) { setStatus('Fritekst-ønsker kræver Claude. Brug knapperne ved hver sektion, eller tryk "Claude-forbindelse" nederst til højre.', 'warn'); return; }
     setStatus(''); pushHist();
     try {
       const res = await ask(E.editPrompt(state.brief, p, LIB, USE, req), 'Forstår ønsket');
