@@ -340,8 +340,8 @@
       if (brief.frihed === 'ai') { setBusy(true, '', true); ctl = new AbortController(); try { made.push(...await generateAi(brief, n, outline && outline.length >= 2 ? outline : null)); } finally { ctl = null; endBuild(); } }
       else {
       const existing = (more ? state.proposals : made).map(p => p.sections.map(s => s.tpl));
-      let res; if (localMode()) { setBusy(true, 'Sætter siden sammen ud fra jeres templates…'); await new Promise(r => setTimeout(r, 700)); res = E.localPlan(brief, LIB, n, existing, SITES); guessNote = res.branche && res.branche.b ? (res.branche.via === 'dit valg' ? ` Branche: ${res.branche.b}.` : ` Branche gættet: ${res.branche.b}${res.branche.via === 'tilfældigt' ? ' (tilfældigt – vælg Branche ved Designforslag, hvis du vil styre det)' : ''}.`) : ''; }
-      else res = await ask(E.planPrompt(brief, LIB, USE, SITES, n, existing, site && useSite ? E.siteSummary(site, pageIdx) : null, outline && outline.length >= 2 ? outline : null), 'Laver udkast');
+      let res; if (localMode()) { setBusy(true, 'Sætter siden sammen ud fra jeres templates…'); await new Promise(r => setTimeout(r, 700)); res = E.localPlan(more && state.guess && !brief.branche ? Object.assign({}, brief, { branche: state.guess.b }) : brief, LIB, n, existing, SITES); if (more && state.guess && !brief.branche) res.branche = state.guess; if (!more) state.guess = res.branche || null; guessNote = res.branche && res.branche.b ? (res.branche.via === 'dit valg' ? ` Branche: ${res.branche.b}.` : ` Branche gættet: ${res.branche.b}${res.branche.via === 'tilfældigt' ? ' (tilfældigt – vælg Branche ved Designforslag, hvis du vil styre det)' : ''}.`) : ''; }
+      else { if (!more) state.guess = null; res = await ask(E.planPrompt(brief, LIB, USE, SITES, n, existing, site && useSite ? E.siteSummary(site, pageIdx) : null, outline && outline.length >= 2 ? outline : null), 'Laver udkast'); }
       made.push(...(res.forslag || []).slice(0, n).map((f, i) => ({ id: 'p' + Date.now() + i + 'x', name: f.navn || ('Udkast ' + (state.proposals.length + made.length + i + 1)), note: f.note || '', sections: planToSections(f), usedBlocks: [] })).filter(p => p.sections.length));
       }
       if (!made.length) throw { code: 'invalid_json' };
@@ -431,10 +431,17 @@
   const ADMIN_HASH = '8c6976e5b5410415bde908bd4dee15dfb167a9c873fc4bb8a81f6f2ab448a918';
   let unlocked = false;
   async function sha256hex(s) { try { const b = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s)); return [...new Uint8Array(b)].map(x => x.toString(16).padStart(2, '0')).join(''); } catch (_) { return ''; } }
+  const VIA = { 'navnet': 'gættet ud fra navnet', 'konteksten': 'gættet ud fra dine ønsker', 'navnet (ligner et kendt site)': 'gættet: navnet ligner et kendt site', 'tilfældigt': 'gættet tilfældigt', 'dit valg': 'dit valg' };
+  function renderBriefSum() {
+    const el = $('briefSum'); const b = state.brief || {}; const has = !!cur(); el.hidden = !has; if (!has) return;
+    const g = state.guess; const side = b.sidetype && b.sidetype !== 'Forside' ? b.sidetype : 'Forside'; const antal = state.proposals.length;
+    const bran = g && g.b ? `<span class="bchip">${E.esc(g.b)}</span><small>${E.esc(VIA[g.via] || g.via || '')}${g.via === 'tilfældigt' ? ' · vælg selv under "Ret beskrivelsen"' : ''}</small>` : b.branche ? `<span class="bchip">${E.esc(b.branche)}</span><small>dit valg</small>` : '<small>Claude vurderer ud fra navn og ønsker</small>';
+    el.innerHTML = `<div class="bsum-h"><b>Beskrivelse</b></div><dl class="bsum-l"><div><dt>Kunde</dt><dd>${E.esc(b.navn || '')}</dd></div><div><dt>Ønsker</dt><dd>${b.msg ? E.esc(b.msg) : '<em>Intet angivet</em>'}</dd></div><div><dt>Branche</dt><dd>${bran}</dd></div><div><dt>Opbygning</dt><dd>${E.esc(side)} · ${antal} udkast</dd></div><div><dt>Klasser</dt><dd><code>${E.esc($('prefixShow').textContent || '')}</code></dd></div></dl>`;
+  }
   function applyLock() {
     $('soonBody').hidden = !unlocked; $('fbOpen').hidden = !unlocked; $('unlockShow').hidden = unlocked;
     if (!unlocked) { $('siteCard').open = false; $('unlockOv').hidden = true; $('unlockCode').value = ''; $('unlockMsg').textContent = ''; $('fbDialog').hidden = true; $('frihed').value = 'templates'; }
-    $('fbCard').hidden = !(unlocked && !!cur());
+    $('fbCard').hidden = !(unlocked && !!cur()); $('editCard').hidden = !(unlocked && !!cur());
   }
   const openUnlock = () => { $('unlockOv').hidden = false; $('unlockMsg').textContent = ''; $('unlockCode').value = ''; setTimeout(() => $('unlockCode').focus(), 30); };
   const closeUnlock = () => { $('unlockOv').hidden = true; };
@@ -467,7 +474,7 @@
   /* ---------- start forfra ---------- */
   let resetT = null;
   function doReset() {
-    state = { brief: {}, proposals: [], active: 0 }; site = null; useSite = true; pageIdx = 0; hist = []; selUid = null; exp = null; lastHas = false; prefixTouched = false;
+    state = { brief: {}, proposals: [], active: 0, guess: null }; site = null; useSite = true; pageIdx = 0; hist = []; selUid = null; exp = null; lastHas = false; prefixTouched = false;
     for (const id of ['navn', 'prefix', 'msg', 'siteUrl']) $(id).value = ''; $('count').value = '1'; if ($('branche')) $('branche').value = ''; $('frihed').value = 'templates'; syncCount(); unlocked = false; modeUI(); applyLock(); const f = document.querySelector('input[name=sidetype][value=Forside]'); if (f) f.checked = true;
     $('siteCmd').textContent = cmdFor(''); $('siteCard').open = false; $('briefCard').open = true; $('editText').value = '';
     syncPrefix(); $('prefix').hidden = true; setStatus('Startet forfra.', 'ok'); window.scrollTo({ top: 0 }); render();
@@ -691,9 +698,9 @@
   function render() {
     if (building) { drawBuild(); return; }
     const p = cur(); const has = !!p; document.body.classList.toggle('home', !has);
-    $('empty').hidden = has; $('pvOuter').hidden = !has; $('listCard').hidden = !has; $('editCard').hidden = !has; $('notesCard').hidden = !has; $('fbCard').hidden = !(has && unlocked); $('tabs').hidden = !has; $('tabrow').hidden = !has; $('chromeUrl').textContent = ((state.brief || {}).navn || 'Udkast') + ' · ' + ((state.brief || {}).sidetype || 'Forside');
+    $('empty').hidden = has; $('pvOuter').hidden = !has; $('listCard').hidden = !has; $('editCard').hidden = !(has && unlocked); $('notesCard').hidden = !has; $('fbCard').hidden = !(has && unlocked); $('tabs').hidden = !has; $('tabrow').hidden = !has; $('chromeUrl').textContent = ((state.brief || {}).navn || 'Udkast') + ' · ' + ((state.brief || {}).sidetype || 'Forside');
     $('undoBtn').disabled = !hist.length; $('copyBtn').disabled = !has;
-    if (has !== lastHas) { $('briefCard').open = !has; lastHas = has; } renderSite();
+    if (has !== lastHas) { $('briefCard').open = !has; lastHas = has; } renderBriefSum(); $('briefCard').querySelector('summary').textContent = has ? 'Ret beskrivelsen' : 'Beskrivelse'; renderSite();
     if (!has) { exp = null; $('valWrap').hidden = true; $('imgCard').hidden = true; $('tabs').innerHTML = ''; $('size').textContent = ''; return; }
     $('tabs').innerHTML = state.proposals.map((x, i) => `<button class="tab" data-tab="${i}" aria-pressed="${i === state.active}" aria-label="Udkast ${i + 1}">Udkast ${i + 1}</button>`).join('');
     if (state.proposals.length < MAX_PROPOSALS) $('tabs').insertAdjacentHTML('beforeend', `<button class="tab more" id="moreBtn" data-lock>+ Et udkast mere (${state.proposals.length}/${MAX_PROPOSALS})</button>`);
