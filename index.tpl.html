@@ -518,6 +518,7 @@ html[data-theme=dark] .btn.send{background:linear-gradient(110deg,#c15f3c 0%,#d9
 /* ===== v12: online-sektioner ===== */
 .pklink{display:inline-block;margin:0 12px 8px;font-size:12px;color:var(--accent);cursor:pointer;text-decoration:underline;text-underline-offset:2px}.pklink:hover{color:var(--accent-hover)}
 .chip.sm{padding:3px 10px;font-size:12px}.srcl a{color:var(--accent);text-decoration:none}.srcl a:hover{text-decoration:underline}
+#branche{max-width:210px;padding:5px 10px;border:1.5px solid #d8d4c6;border-radius:5px!important;background:#fff;font-size:13px;cursor:pointer}#branche:focus{border-color:var(--accent);outline:none}html[data-theme=dark] #branche{background:#1f1e1c;border-color:#47443c}
 </style>
 </head>
 <body>
@@ -539,6 +540,7 @@ html[data-theme=dark] .btn.send{background:linear-gradient(110deg,#c15f3c 0%,#d9
       <textarea id="msg" class="ctx" rows="2" placeholder="Ønsker du noget bestemt til udkastet ud fra Best Templates? (valgfrit)"></textarea>
       <div class="prefixline">Klasserne starter med <code id="prefixShow">kundens-navn</code> <button class="linkbtn" id="prefixEdit" type="button">ret</button><input type="text" id="prefix" autocomplete="off" placeholder="Fx best-renovering" aria-label="Klasse-præfiks" hidden></div>
       <div class="composer-opts">
+        <div class="opt"><span class="optl">Branche</span><select id="branche" aria-label="Branche (valgfrit)"><option value="">Gæt selv</option></select></div>
         <div class="opt"><span class="optl">Designforslag</span><div class="chips cnt" id="countPills" role="radiogroup" aria-label="Antal designforslag"><label><input type="radio" name="cnt" value="1" checked> 1</label><label><input type="radio" name="cnt" value="2"> 2</label><label><input type="radio" name="cnt" value="3"> 3</label><label><input type="radio" name="cnt" value="4"> 4</label><label><input type="radio" name="cnt" value="5"> 5</label></div></div>
       </div>
       <div id="sidetype" hidden><input type="radio" name="sidetype" value="Forside" checked><input type="radio" name="sidetype" value="Underside"><input type="radio" name="sidetype" value="Hero"></div>

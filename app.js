@@ -59,7 +59,7 @@
   const tlf = () => '';                                   // telefonnummer er droppet: templates beholder deres pladsholder
 
   /* ---------- brief ---------- */
-  function readBrief() { return { navn: $('navn').value.trim(), branche: '', msg: $('msg').value.trim(), sidetype: (document.querySelector('input[name=sidetype]:checked') || {}).value || 'Forside', frihed: $('frihed').value || 'templates', prefix: $('prefix').value.trim().toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/^-+|-+$/g, '') }; }
+  function readBrief() { return { navn: $('navn').value.trim(), branche: ($('branche') && $('branche').value) || '', msg: $('msg').value.trim(), sidetype: (document.querySelector('input[name=sidetype]:checked') || {}).value || 'Forside', frihed: $('frihed').value || 'templates', prefix: $('prefix').value.trim().toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/^-+|-+$/g, '') }; }
   const EXAMPLES = {
     'Hero': ['Hero med formular og tre fordele', 'Hero med stort billede og to knapper', 'Enkel hero med stor overskrift og tællere'],
     'Menu': ['Menu med logo til venstre og knap til højre', 'Enkel menu med telefonnummer'],
@@ -340,7 +340,7 @@
       if (brief.frihed === 'ai') { setBusy(true, '', true); ctl = new AbortController(); try { made.push(...await generateAi(brief, n, outline && outline.length >= 2 ? outline : null)); } finally { ctl = null; endBuild(); } }
       else {
       const existing = (more ? state.proposals : made).map(p => p.sections.map(s => s.tpl));
-      let res; if (localMode()) { setBusy(true, 'Sætter siden sammen ud fra jeres templates…'); await new Promise(r => setTimeout(r, 700)); res = E.localPlan(brief, LIB, n, existing, SITES); guessNote = res.branche && res.branche.b ? ` Branche gættet: ${res.branche.b}${res.branche.via === 'tilfældigt' ? ' (tilfældigt – skriv fx "tømrer" i konteksten for at styre det)' : ''}.` : ''; }
+      let res; if (localMode()) { setBusy(true, 'Sætter siden sammen ud fra jeres templates…'); await new Promise(r => setTimeout(r, 700)); res = E.localPlan(brief, LIB, n, existing, SITES); guessNote = res.branche && res.branche.b ? (res.branche.via === 'dit valg' ? ` Branche: ${res.branche.b}.` : ` Branche gættet: ${res.branche.b}${res.branche.via === 'tilfældigt' ? ' (tilfældigt – vælg Branche ved Designforslag, hvis du vil styre det)' : ''}.`) : ''; }
       else res = await ask(E.planPrompt(brief, LIB, USE, SITES, n, existing, site && useSite ? E.siteSummary(site, pageIdx) : null, outline && outline.length >= 2 ? outline : null), 'Laver udkast');
       made.push(...(res.forslag || []).slice(0, n).map((f, i) => ({ id: 'p' + Date.now() + i + 'x', name: f.navn || ('Udkast ' + (state.proposals.length + made.length + i + 1)), note: f.note || '', sections: planToSections(f), usedBlocks: [] })).filter(p => p.sections.length));
       }
@@ -460,6 +460,7 @@
   function setTheme(th, save) { document.documentElement.dataset.theme = th; for (const id of ['themeBtn', 'themeHome']) $(id).innerHTML = THEME_ICON[th === 'dark' ? 'dark' : 'light'];  }
   { const mq = window.matchMedia ? matchMedia('(prefers-color-scheme: dark)') : null; setTheme(mq && mq.matches ? 'dark' : 'light', false); if (mq) { const f = e => setTheme(e.matches ? 'dark' : 'light', false); if (mq.addEventListener) mq.addEventListener('change', f); else if (mq.addListener) mq.addListener(f); } }
   for (const id of ['themeBtn', 'themeHome']) $(id).onclick = () => setTheme(document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark', false);
+  { const sel = $('branche'); if (sel) sel.insertAdjacentHTML('beforeend', [...new Set(SITES.map(s => s.b))].filter(b => b && !/uklar/i.test(b)).sort((x, y) => x.localeCompare(y, 'da')).map(b => `<option>${E.esc(b)}</option>`).join('')); }
   const greet = () => { const h = new Date().getHours(); const g = h >= 23 || h < 5 ? 'Sent oppe? ' : h < 10 ? 'God morgen. ' : h < 17 ? '' : 'God aften. '; $('hi').textContent = g + (g && h >= 10 && h < 17 ? '' : '') + 'Hvem skal have en ny hjemmeside?'; };
   greet(); syncCount(); if (!matchMedia('(pointer: coarse)').matches) setTimeout(() => { try { $('navn').focus({ preventScroll: true }); } catch (_) { } }, 700);
 
@@ -467,7 +468,7 @@
   let resetT = null;
   function doReset() {
     state = { brief: {}, proposals: [], active: 0 }; site = null; useSite = true; pageIdx = 0; hist = []; selUid = null; exp = null; lastHas = false; prefixTouched = false;
-    for (const id of ['navn', 'prefix', 'msg', 'siteUrl']) $(id).value = ''; $('count').value = '1'; $('frihed').value = 'templates'; syncCount(); unlocked = false; modeUI(); applyLock(); const f = document.querySelector('input[name=sidetype][value=Forside]'); if (f) f.checked = true;
+    for (const id of ['navn', 'prefix', 'msg', 'siteUrl']) $(id).value = ''; $('count').value = '1'; if ($('branche')) $('branche').value = ''; $('frihed').value = 'templates'; syncCount(); unlocked = false; modeUI(); applyLock(); const f = document.querySelector('input[name=sidetype][value=Forside]'); if (f) f.checked = true;
     $('siteCmd').textContent = cmdFor(''); $('siteCard').open = false; $('briefCard').open = true; $('editText').value = '';
     syncPrefix(); $('prefix').hidden = true; setStatus('Startet forfra.', 'ok'); window.scrollTo({ top: 0 }); render();
   }
@@ -558,7 +559,7 @@
     for (const k of keys) {
       const card = document.createElement('button'); card.className = 'pkcard'; card.dataset.k = k;
       const u = USE[k] || [0, 0];
-      card.innerHTML = `<div class="pkprev"></div><div class="pkmeta"><b>${E.esc(E.displayName(k))}</b><small>${(LIB[k] && LIB[k].site) ? E.esc(hostOf(LIB[k].url) + (LIB[k].added ? ' · ' + LIB[k].added : '')) : E.esc(k)}${k === curTpl ? ' · nuværende' : ''}${u[0] ? ' · bruges af ' + u[0] + ' sites' : ''}</small>${(LIB[k] && LIB[k].url) ? `<span class="pklink" role="link" tabindex="0" data-url="${E.esc(LIB[k].url)}">↗ Åbn siden</span>` : ''}${E.describeKey(k) ? `<span class="pkdesc">${E.esc(E.describeKey(k))}</span>` : ''}</div>`;
+      card.innerHTML = `<div class="pkprev"></div><div class="pkmeta"><b>${E.esc(E.displayName(k))}</b>${(LIB[k] && LIB[k].group === 'Online hjemmesider') ? (LIB[k].url ? `<small>${E.esc(hostOf(LIB[k].url))}${k === curTpl ? ' · nuværende' : ''}</small>` : (k === curTpl ? '<small>nuværende</small>' : '')) : `<small>${E.esc(k)}${k === curTpl ? ' · nuværende' : ''}${u[0] ? ' · bruges af ' + u[0] + ' sites' : ''}</small>`}${(LIB[k] && LIB[k].url) ? `<span class="pklink" role="link" tabindex="0" data-url="${E.esc(LIB[k].url)}">↗ Åbn siden</span>` : ''}${E.describeKey(k) ? `<span class="pkdesc">${E.esc(E.describeKey(k))}</span>` : ''}</div>`;
       grid.appendChild(card);
       const host = card.querySelector('.pkprev'); const sh = host.attachShadow({ mode: 'open' });
       const r = E.renderSections([E.makeSection(LIB, k)], CLASSES, VARS);

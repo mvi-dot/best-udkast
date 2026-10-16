@@ -89,8 +89,7 @@ def ingest(data, folder):
             go(r['id']); sub = copy.deepcopy([by[i] for i in ids])
             cat = classify(sub, r.get('label', ''))
             h = hashlib.md5(json.dumps(sub, sort_keys=True).encode()).hexdigest()[:6]; key = f'online-{slug(name)[:22]}-{SHORT.get(cat, "content")}-{h}'
-            L[key] = {'kind': 'content', 'title': f'{SHOWN.get(cat, cat)} · {name}', 'els': sub, 'cat': cat, 'group': 'Online hjemmesider', 'added': day, 'site': name, 'url': url, 'branche': branche,
-                      'desc': 'Fra ' + (host or name) + (' · ' + branche if branche else '')}
+            L[key] = {'kind': 'content', 'title': f'{SHOWN.get(cat, cat)} · {name}', 'els': sub, 'cat': cat, 'group': 'Online hjemmesider', 'added': day, 'site': name, 'url': url, 'branche': branche}
             added.append((key, cat, name))
     return added, skipped
 

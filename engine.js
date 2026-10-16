@@ -37,9 +37,10 @@ const TYPE_ORDER = ['Header', 'Ydelser', 'Anmeldelser', 'Cases', 'Priser', 'FAQ'
 const PREFIX_TYPE = { hero: 'Header', ydelse: 'Ydelser', anmeldelse: 'Anmeldelser', cases: 'Cases', priser: 'Priser', faq: 'FAQ', content: 'Content', kontaktsektion: 'Kontakt sektion', kontakformular: 'CTA', underside: 'Underside', geo: 'Marketing', viden: 'Marketing', seo: 'Marketing', blog: 'Marketing', galleri: 'Galleri', medarbejdere: 'Galleri', cta: 'CTA' };
 const WHOLE_PAGE = new Set(['Underside', 'Marketing', 'Menu', 'Footer']);                   // hele sider: kun hvis der bedes om det
 const SHEET_ALIAS = { underside: 'underside-1', 'seo-underside': 'seo-blogindlg', 'seo-blogindlaeg': 'seo-blogindlg' };
-let META = {}; let MISSING = []; let CATS = {}, TITLES = {};
+let META = {}; let MISSING = []; let CATS = {}, TITLES = {}; let SHEETDATE = {};
 function setMeta(LIB, rows) {
-  META = {}; MISSING = []; CATS = {}; TITLES = {}; DESCS = {}; for (const k of Object.keys(LIB)) { if (LIB[k].cat) CATS[k] = LIB[k].cat; if (LIB[k].title) TITLES[k] = LIB[k].title; if (LIB[k].desc) DESCS[k] = LIB[k].desc; }
+  META = {}; MISSING = []; CATS = {}; TITLES = {}; DESCS = {}; SHEETDATE = {}; for (const k of Object.keys(LIB)) { if (LIB[k].cat) CATS[k] = LIB[k].cat; if (LIB[k].title) TITLES[k] = LIB[k].title; if (LIB[k].desc && !LIB[k].group) DESCS[k] = LIB[k].desc; }
+  (rows || []).forEach((o, ri) => { if (!o) return; let k0 = SHEET_ALIAS[o.s] || o.s; if (!LIB[k0]) k0 = Object.keys(LIB).find(k => k.startsWith(o.s + '-')) || null; const m = String(o.d || '').match(/^(\d{2})-(\d{2})-(\d{4})$/); if (k0 && LIB[k0] && m && !SHEETDATE[k0]) SHEETDATE[k0] = { d: `${m[3]}-${m[2]}-${m[1]}`, i: ri }; });
   for (const o of rows || []) {
     if (!o || /^(Menu|Footer)$/i.test(o.t)) continue;
     let key = SHEET_ALIAS[o.s] || o.s; if (!LIB[key]) key = Object.keys(LIB).find(k => k.startsWith(o.s + '-')) || null;
@@ -1023,8 +1024,7 @@ const stockPrev = o => { if (!o || typeof o !== 'object') return PH_URL; const n
 
 
 /* ---------- picker: nyeste templates og grupper ---------- */
-const dateOf = (LIB, k) => { if (LIB[k] && LIB[k].added) return LIB[k].added; const d = (META[k] && META[k].date) || ''; const m = d.match(/^(\d{2})-(\d{2})-(\d{4})$/); return m ? `${m[3]}-${m[2]}-${m[1]}` : '0000-00-00'; };
-function newestKeys(LIB, n) { const keys = allowedKeys(LIB).filter(k => !(LIB[k] && LIB[k].helper)); const ord = {}; Object.keys(LIB).forEach((k, i) => ord[k] = i); return keys.sort((a, b) => dateOf(LIB, b).localeCompare(dateOf(LIB, a)) || ord[a] - ord[b]).slice(0, n || 10); }
+function newestKeys(LIB, n) { const keys = allowedKeys(LIB).filter(k => !(LIB[k] && (LIB[k].helper || LIB[k].group)) && SHEETDATE[k]); return keys.sort((a, b) => SHEETDATE[b].d.localeCompare(SHEETDATE[a].d) || SHEETDATE[a].i - SHEETDATE[b].i).slice(0, n || 10); }
 const groupKeys = (LIB, g) => allowedKeys(LIB).filter(k => LIB[k] && LIB[k].group === g);
 /* ---------- præcis én H1 pr. side: i heroen. Øvrige H1 bliver H2 ---------- */
 function fixH1(secs, mode) {
@@ -1070,7 +1070,7 @@ const re_test = (kw, b, text) => { const x = kw.find(k => k[0] === b); return !!
 function siteInfo(LIB, k) { const t = LIB && LIB[k]; return t && t.site ? { site: t.site, url: t.url || '', branche: t.branche || '', added: t.added || '' } : null; }
 function localPlan(b, LIB, n, existing, SITES) {
   const keys = allowedKeys(LIB, true); const used = new Set([].concat(...(existing || []))); const msg = String((b && b.msg) || '').toLowerCase(); const type = (b && b.sidetype) || 'Forside'; const has = re => re.test(msg);
-  const gb = guessBranche(b && b.navn, b && b.msg, SITES); const team = has(/medarbejder|team|folk/);
+  const gb = b && b.branche ? { b: b.branche, via: 'dit valg' } : guessBranche(b && b.navn, b && b.msg, SITES); const team = has(/medarbejder|team|folk/);
   const DEF = type === 'Hero' ? ['Header'] : type === 'Menu' ? ['Menu'] : type === 'Underside' ? ['Header', 'Content', 'Ydelser', 'FAQ', 'Kontakt sektion'] : ['Header', 'Ydelser', 'Content', 'Anmeldelser', 'FAQ', 'Kontakt sektion'];
   const OK = new Set(['Header', 'Ydelser', 'Content', 'Anmeldelser', 'FAQ', 'Kontakt sektion', 'Galleri', 'Cases', 'Priser']);
   const sameSites = type === 'Forside' ? (SITES || []).filter(s => s.b === gb.b && Array.isArray(s.c) && s.c.length >= 4) : [];
