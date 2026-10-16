@@ -547,19 +547,24 @@
   $('picker').addEventListener('click', e => { if (e.target === $('picker')) closePicker(); });
   document.addEventListener('keydown', e => { if (e.key === 'Escape' && !$('picker').hidden) closePicker(); });
   const hostOf = u => { try { return new URL(u).hostname.replace(/^www\./, ''); } catch (_) { return 'online'; } };
+  let pkSortPref = 'nyeste';
+  const SORTS = [['nyeste', 'Nyeste først'], ['aeldste', 'Ældste først'], ['navn', 'Navn A–Å'], ['brugt', 'Mest brugt']];
   function renderPicker() {
     $('pkTitle').textContent = pk.mode === 'swap' ? `Vælg anden variant af sektion ${pk.index}` : 'Tilføj sektion';
-    $('pkCats').innerHTML = [...(pk.mode === 'swap' ? [] : ['Nyeste', ...(E.groupKeys(LIB, 'Online hjemmesider').length ? ['Online hjemmesider'] : [])]), ...E.catList(LIB)].map(n => `<button class="chip" aria-pressed="${n === pk.cat}" data-cat="${n}">${n}</button>`).join('');
+    $('pkCats').innerHTML = [...(pk.mode === 'swap' ? [] : ['Nyeste', ...(E.groupKeys(LIB, 'Live sektioner').length ? ['Live sektioner'] : [])]), ...E.catList(LIB)].map(n => `<button class="chip" aria-pressed="${n === pk.cat}" data-cat="${n}">${n}</button>`).join('');
     if (pk.cat === 'Nye sektioner') { renderFriGrid(); return; }
+    pk.sort = pk.sort || pkSortPref; { const so = $('pkSort'); if (so) { so.hidden = pk.cat === 'Nyeste'; so.value = pk.sort; } }
     renderPkFoot();
-    let keys = pk.cat === 'Nyeste' ? E.newestKeys(LIB, 10) : pk.cat === 'Online hjemmesider' ? E.groupKeys(LIB, 'Online hjemmesider') : E.variantsOf(LIB, pk.cat); const grid = $('pkGrid'); grid.innerHTML = '';
-    if (pk.cat === 'Online hjemmesider') { const subs = [...new Set(keys.map(k => E.categoryOf(k)))]; keys = keys.slice().sort((a, b) => String((LIB[b] || {}).added || '').localeCompare(String((LIB[a] || {}).added || ''))); if (pk.sub && subs.includes(pk.sub)) keys = keys.filter(k => E.categoryOf(k) === pk.sub);
+    let keys = pk.cat === 'Nyeste' ? E.newestKeys(LIB, 10) : pk.cat === 'Live sektioner' ? E.groupKeys(LIB, 'Live sektioner') : E.variantsOf(LIB, pk.cat); const grid = $('pkGrid'); grid.innerHTML = '';
+    if (pk.cat !== 'Nyeste' && pk.cat !== 'Live sektioner' && pk.mode !== 'swap') keys = keys.filter(k => !(LIB[k] && LIB[k].group));      // live sektioner har deres egen fane
+    if (pk.cat !== 'Nyeste') keys = E.sortKeys(LIB, keys, pk.sort || 'nyeste', k => (USE[k] || [0])[0]);
+    if (pk.cat === 'Live sektioner') { const subs = [...new Set(keys.map(k => E.categoryOf(k)))]; if (pk.sub && subs.includes(pk.sub)) keys = keys.filter(k => E.categoryOf(k) === pk.sub);
       $('pkCats').insertAdjacentHTML('beforeend', '<div class="pksub" style="flex-basis:100%;display:flex;gap:6px;flex-wrap:wrap;margin-top:6px">' + ['Alle', ...subs].map(sb => `<button class="chip sm" data-sub="${E.esc(sb)}" aria-pressed="${(pk.sub || 'Alle') === sb}">${E.esc(sb)}</button>`).join('') + '</div>'); }
     const p = cur(); const curTpl = pk.mode === 'swap' && p ? p.sections[pk.index - 1].tpl : null;
     for (const k of keys) {
       const card = document.createElement('button'); card.className = 'pkcard'; card.dataset.k = k;
       const u = USE[k] || [0, 0];
-      card.innerHTML = `<div class="pkprev"></div><div class="pkmeta"><b>${E.esc(E.displayName(k))}</b>${(LIB[k] && LIB[k].group === 'Online hjemmesider') ? (LIB[k].url ? `<small>${E.esc(hostOf(LIB[k].url))}${k === curTpl ? ' · nuværende' : ''}</small>` : (k === curTpl ? '<small>nuværende</small>' : '')) : `<small>${E.esc(k)}${k === curTpl ? ' · nuværende' : ''}${u[0] ? ' · bruges af ' + u[0] + ' sites' : ''}</small>`}${(LIB[k] && LIB[k].url) ? `<span class="pklink" role="link" tabindex="0" data-url="${E.esc(LIB[k].url)}">↗ Åbn siden</span>` : ''}${E.describeKey(k) ? `<span class="pkdesc">${E.esc(E.describeKey(k))}</span>` : ''}</div>`;
+      card.innerHTML = `<div class="pkprev"></div><div class="pkmeta"><b>${E.esc(E.displayName(k))}</b>${(LIB[k] && LIB[k].group === 'Live sektioner') ? (LIB[k].url ? `<small>${E.esc(hostOf(LIB[k].url))}${k === curTpl ? ' · nuværende' : ''}</small>` : (k === curTpl ? '<small>nuværende</small>' : '')) : `<small>${E.esc(k)}${k === curTpl ? ' · nuværende' : ''}${u[0] ? ' · bruges af ' + u[0] + ' sites' : ''}</small>`}${(LIB[k] && LIB[k].url) ? `<span class="pklink" role="link" tabindex="0" data-url="${E.esc(LIB[k].url)}">↗ Åbn siden</span>` : ''}${E.describeKey(k) ? `<span class="pkdesc">${E.esc(E.describeKey(k))}</span>` : ''}</div>`;
       grid.appendChild(card);
       const host = card.querySelector('.pkprev'); const sh = host.attachShadow({ mode: 'open' });
       const r = E.renderSections([E.makeSection(LIB, k)], CLASSES, VARS);
@@ -579,6 +584,7 @@
       sh.innerHTML = `<style>${r.css}#f{width:1280px;transform:scale(.234);transform-origin:top left;container-type:inline-size;background:var(--bg-body,#fff)}</style><div id="f">${r.html}</div>`; faApply(sh.getElementById('f'), sh);
     }
   }
+  if ($('pkSort')) $('pkSort').addEventListener('change', e => { if (pk) { pk.sort = pkSortPref = e.target.value; renderPicker(); } });
   $('pkCats').addEventListener('click', e => { const sb = e.target.closest('[data-sub]'); if (sb && pk) { pk.sub = sb.dataset.sub === 'Alle' ? '' : sb.dataset.sub; renderPicker(); return; }
      const b = e.target.closest('[data-cat]'); if (b) { pk.cat = b.dataset.cat; renderPicker(); } });
   $('pkGrid').addEventListener('click', async e => {

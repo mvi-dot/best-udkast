@@ -3,7 +3,7 @@
    python3 build.py                       -> index.html (GitHub Pages / egen hosting)
    python3 build.py artifact              -> dist/udkast-artifact.html (claude.ai, uden adapter)
    python3 build.py github --sektioner D --ud F   (egen mappe/fil, bruges til test)
-Mappen sektioner/ læses hver gang: hver .json-fil dér bliver til sektioner under "Online hjemmesider"."""
+Mappen sektioner/ læses hver gang: hver .json-fil dér bliver til sektioner under "Live sektioner"."""
 import sys, re, json, glob, hashlib, datetime, pathlib, copy, collections
 from urllib.parse import urlparse
 root = pathlib.Path(__file__).resolve().parent; src = root / 'src'
@@ -89,7 +89,7 @@ def ingest(data, folder):
             go(r['id']); sub = copy.deepcopy([by[i] for i in ids])
             cat = classify(sub, r.get('label', ''))
             h = hashlib.md5(json.dumps(sub, sort_keys=True).encode()).hexdigest()[:6]; key = f'online-{slug(name)[:22]}-{SHORT.get(cat, "content")}-{h}'
-            L[key] = {'kind': 'content', 'title': f'{SHOWN.get(cat, cat)} · {name}', 'els': sub, 'cat': cat, 'group': 'Online hjemmesider', 'added': day, 'site': name, 'url': url, 'branche': branche}
+            L[key] = {'kind': 'content', 'title': f'{SHOWN.get(cat, cat)} · {name}', 'els': sub, 'cat': cat, 'group': 'Live sektioner', 'added': day, 'site': name, 'url': url, 'branche': branche}
             added.append((key, cat, name))
     return added, skipped
 

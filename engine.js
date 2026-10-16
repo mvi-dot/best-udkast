@@ -999,7 +999,7 @@ function onlineClean(els) {
   for (const e of els) if (e.settings && typeof e.settings === 'object' && !Array.isArray(e.settings)) fix(e.settings);
   return els;
 }
-const isSiteOnline = (LIB, tpl) => !!(LIB && LIB[tpl] && LIB[tpl].group === 'Online hjemmesider' && LIB[tpl].site);
+const isSiteOnline = (LIB, tpl) => !!(LIB && LIB[tpl] && LIB[tpl].group === 'Live sektioner' && LIB[tpl].site);
 
 /* ---------- Best Stock-billeder: templates bruger altid disse fotos (ikke pladsholdere eller billeder fra andre sites) ---------- */
 let STOCK = [], STOCK_I = 0; const STOCK_BASE = 'https://beststock.kinsta.cloud/wp-content/uploads/2025/05/';
@@ -1024,6 +1024,14 @@ const stockPrev = o => { if (!o || typeof o !== 'object') return PH_URL; const n
 
 
 /* ---------- picker: nyeste templates og grupper ---------- */
+const dateKey = (LIB, k) => (SHEETDATE[k] && SHEETDATE[k].d) || (LIB[k] && LIB[k].added) || '';
+const natNum = k => { const m = String(k).match(/(\d+)/g); return m ? +m[m.length - 1] : 0; };
+function sortKeys(LIB, keys, mode, useFn) {
+  const ord = {}; Object.keys(LIB).forEach((k, i) => ord[k] = i); const idx = k => (SHEETDATE[k] ? SHEETDATE[k].i : 1e6 + ord[k]);
+  const byNew = (a, b) => dateKey(LIB, b).localeCompare(dateKey(LIB, a)) || idx(a) - idx(b);
+  const by = { nyeste: byNew, aeldste: (a, b) => byNew(b, a), navn: (a, b) => displayName(a).localeCompare(displayName(b), 'da', { numeric: true }), brugt: (a, b) => ((useFn && useFn(b)) || 0) - ((useFn && useFn(a)) || 0) || byNew(a, b) };
+  return keys.slice().sort(by[mode] || by.nyeste);
+}
 function newestKeys(LIB, n) { const keys = allowedKeys(LIB).filter(k => !(LIB[k] && (LIB[k].helper || LIB[k].group)) && SHEETDATE[k]); return keys.sort((a, b) => SHEETDATE[b].d.localeCompare(SHEETDATE[a].d) || SHEETDATE[a].i - SHEETDATE[b].i).slice(0, n || 10); }
 const groupKeys = (LIB, g) => allowedKeys(LIB).filter(k => LIB[k] && LIB[k].group === g);
 /* ---------- præcis én H1 pr. side: i heroen. Øvrige H1 bliver H2 ---------- */
@@ -1087,9 +1095,9 @@ function localPlan(b, LIB, n, existing, SITES) {
     }
     const mine = new Set(); const sek = [];
     for (const c of cats) {
-      let pool = keys.filter(k => categoryOf(k) === c); if (c === 'Galleri') pool = pool.filter(k => (team ? /^medarbejdere/ : /^galleri/).test(k) || (LIB[k] && LIB[k].group === 'Online hjemmesider'));
+      let pool = keys.filter(k => categoryOf(k) === c); if (c === 'Galleri') pool = pool.filter(k => (team ? /^medarbejdere/ : /^galleri/).test(k) || (LIB[k] && LIB[k].group === 'Live sektioner'));
       if (!pool.length) continue; let fresh = pool.filter(k => !used.has(k) && !mine.has(k)); if (!fresh.length) fresh = pool.filter(k => !mine.has(k)); if (!fresh.length) fresh = pool;
-      const wts = fresh.map(k => { const t = LIB[k] || {}; return t.group === 'Online hjemmesider' && t.site ? (t.branche && t.branche === gb.b ? 4 : 1.8) : 1; }); const tot = wts.reduce((a, x) => a + x, 0); let r = Math.random() * tot, pick = fresh[0];
+      const wts = fresh.map(k => { const t = LIB[k] || {}; return t.group === 'Live sektioner' && t.site ? (t.branche && t.branche === gb.b ? 4 : 1.8) : 1; }); const tot = wts.reduce((a, x) => a + x, 0); let r = Math.random() * tot, pick = fresh[0];
       for (let q = 0; q < fresh.length; q++) { r -= wts[q]; if (r <= 0) { pick = fresh[q]; break; } }
       mine.add(pick); sek.push({ tpl: pick, hvorfor: LIB[pick] && LIB[pick].site ? 'Rigtig sektion fra ' + LIB[pick].site : 'Standardopbygning' });
     }
@@ -1324,10 +1332,11 @@ function cleanVal(v) {
   return v;
 }
 const stripCssComments = css => String(css).replace(/\/\*[\s\S]*?\*\//g, '').replace(/[ \t]+\n/g, '\n').replace(/\n{2,}/g, '\n').trim();
-function cleanSettings(s) {
+const NATIVE_KEEP = new Set(['_gap', '_flexDirection']);       // gyldige i Bricks-skabeloner (fx accordion), men ugyldigt "affald" fra AI-sektioner
+function cleanSettings(s, native) {
   const out = {}; if (!s || Array.isArray(s)) return out;
   for (const k of Object.keys(s)) {
-    const base = k.split(':')[0]; if (JUNK_KEYS.has(base)) continue; if (base === 'query' && !s.hasLoop) continue;
+    const base = k.split(':')[0]; if (JUNK_KEYS.has(base) && !(native && NATIVE_KEEP.has(base))) continue; if (base === 'query' && !s.hasLoop) continue;
     let v = cleanVal(s[k]); if (v === undefined) continue; if (base === '_cssCustom' && typeof v === 'string') { v = stripCssComments(v); if (!v) continue; } out[k] = v;
   }
   return out;
@@ -1373,7 +1382,7 @@ function buildExport(state, CLASSES, opts) {
       const old = e.id; e.id = idMap[old];
       e.parent = (e.parent === 0 || e.parent === '0') ? 0 : (idMap[e.parent] || 0);
       e.children = (e.children || []).map(c => idMap[c]).filter(Boolean);
-      e.settings = exp_clean ? cleanSettings(e.settings) : (e.settings || {});
+      e.settings = exp_clean ? cleanSettings(e.settings, !(sec.ai || sec.fri)) : (e.settings || {});
       if ('themeStyles' in e) { const ts = cleanVal(e.themeStyles); if (ts === undefined) delete e.themeStyles; else e.themeStyles = ts; }
       let str = JSON.stringify(e.settings);
       if (str.indexOf('brxe-') !== -1) { for (const o of oldIds) str = str.replace(new RegExp('brxe-' + o + '(?![a-z0-9])', 'g'), 'brxe-' + idMap[o]); e.settings = JSON.parse(str); }
@@ -1385,7 +1394,7 @@ function buildExport(state, CLASSES, opts) {
   const allIds = new Set(content.map(e => e.id));
   for (const e of content) { const refs = (JSON.stringify(e.settings).match(/brxe-([a-z0-9]{6})/g) || []).map(x => x.slice(5)).filter(x => !allIds.has(x)); if (refs.length) flags.push(`Et ${e.name}-element${e.label ? ' ("' + e.label + '")' : ''} refererer til element-ID ${[...new Set(refs)].join(', ')}, som ikke findes i templaten. Tjek scriptet efter paste.`); }
   const globalClasses = []; const missing = [];
-  for (const id of classIds) { if (CLASSES[id]) { const c = clone(CLASSES[id]); if (exp_clean) c.settings = cleanSettings(c.settings); globalClasses.push(c); } else missing.push(id); }
+  for (const id of classIds) { if (CLASSES[id]) { const c = clone(CLASSES[id]); if (exp_clean) c.settings = cleanSettings(c.settings, true); globalClasses.push(c); } else missing.push(id); }
   const renamed = (opts && opts.prefix) ? renameClasses(content, globalClasses, opts.prefix) : 0;
   return { json: { content, source: 'bricksCopiedElements', sourceUrl: SOURCE_URL, version: BRICKS_VERSION, globalClasses }, flags, missingClasses: missing, formCount: formSeen, imageUse, renamed, prefix: renamed ? opts.prefix : '', h1Fixed: h1r.fixed, h1Promoted: h1r.promoted };
 }
@@ -1417,8 +1426,8 @@ const vh = v => String(v).replace(/(\d+(?:\.\d+)?)vh/g, (m, n) => Math.round(par
 const px = v => { if (v === undefined || v === null || v === '') return null; if (typeof v === 'number') return v + 'px'; v = String(v).trim(); if (/^-?\d+(\.\d+)?$/.test(v)) return v + 'px'; return vh(v); };
 const colorOf = c => { if (!c) return null; if (typeof c === 'string') return c; return c.raw || c.rgb || c.hsl || c.hex || null; };
 const boxDecl = (o, p) => { const d = []; if (o && typeof o === 'object') for (const s of ['top', 'right', 'bottom', 'left']) { const v = px(o[s]); if (v !== null) d.push(`${p}-${s}:${v}`); } return d; };
-const PLAIN = { _display: 'display', _direction: 'flex-direction', _alignItems: 'align-items', _justifyContent: 'justify-content', _alignSelf: 'align-self', _flexWrap: 'flex-wrap', _objectFit: 'object-fit', _objectPosition: 'object-position', _aspectRatio: 'aspect-ratio', _position: 'position', _zIndex: 'z-index', _overflow: 'overflow', _opacity: 'opacity', _isolation: 'isolation', _gridTemplateColumns: 'grid-template-columns', _gridTemplateRows: 'grid-template-rows', _gridAutoFlow: 'grid-auto-flow', _order: 'order', _flexGrow: 'flex-grow', _flexShrink: 'flex-shrink', _flexBasis: 'flex-basis' };
-const PX = { _rowGap: 'row-gap', _columnGap: 'column-gap', _gridGap: 'gap', _width: 'width', _widthMin: 'min-width', _widthMax: 'max-width', _height: 'height', _heightMin: 'min-height', _heightMax: 'max-height', _top: 'top', _right: 'right', _bottom: 'bottom', _left: 'left' };
+const PLAIN = { _display: 'display', _direction: 'flex-direction', _flexDirection: 'flex-direction', _alignItems: 'align-items', _justifyContent: 'justify-content', _alignSelf: 'align-self', _flexWrap: 'flex-wrap', _objectFit: 'object-fit', _objectPosition: 'object-position', _aspectRatio: 'aspect-ratio', _position: 'position', _zIndex: 'z-index', _overflow: 'overflow', _opacity: 'opacity', _isolation: 'isolation', _gridTemplateColumns: 'grid-template-columns', _gridTemplateRows: 'grid-template-rows', _gridAutoFlow: 'grid-auto-flow', _order: 'order', _flexGrow: 'flex-grow', _flexShrink: 'flex-shrink', _flexBasis: 'flex-basis' };
+const PX = { _gap: 'gap', _rowGap: 'row-gap', _columnGap: 'column-gap', _gridGap: 'gap', _width: 'width', _widthMin: 'min-width', _widthMax: 'max-width', _height: 'height', _heightMin: 'min-height', _heightMax: 'max-height', _top: 'top', _right: 'right', _bottom: 'bottom', _left: 'left' };
 const PH_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600" preserveAspectRatio="xMidYMid slice"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#aab5c2"/><stop offset="1" stop-color="#7b8a9c"/></linearGradient></defs><rect width="800" height="600" fill="url(#g)"/><g fill="#fff" fill-opacity=".38"><circle cx="590" cy="190" r="48"/><path d="M0 600V430l190-170 170 150 120-90 320 200v80z"/></g></svg>`;
 const PH_URL = 'data:image/svg+xml,' + encodeURIComponent(PH_SVG);
 
@@ -1474,8 +1483,15 @@ function overlayCss(sel, s, bp) {
   const g = `linear-gradient(${cs.length === 1 ? cs[0] + ',' + cs[0] : (gr.angle ? gr.angle + 'deg,' : '') + cs.join(',')})`;
   return `:where(${sel}){position:relative}${sel}{isolation:isolate}${sel}::before{content:"";position:absolute;inset:0;z-index:-1;pointer-events:none;background-image:${g}}`;
 }
+function accordionCss(sel, s) {
+  let o = ''; const w = (k, cls) => { const d = s[k] && typeof s[k] === 'object' ? boxDecl(s[k], 'padding') : []; if (d.length) o += `${sel} .${cls}{${d.join(';')}}`; };
+  w('titlePadding', 'accordion-title-wrapper'); w('contentPadding', 'accordion-content-wrapper');
+  const r = s.titleBorder && s.titleBorder.radius; if (r && typeof r === 'object') { const d = boxDecl({ top: r.top, right: r.right, bottom: r.bottom, left: r.left }, 'border-radius'); if (d.length) o += `${sel} .accordion-title-wrapper{${d.join(';')}}`; }
+  const cf = s.contentTypography && s.contentTypography['font-size']; if (cf) o += `${sel} .accordion-content-wrapper{font-size:${cf}}`;
+  return o;
+}
 function cssForSettings(sel, s) {
-  let out = ''; const base = declsFor(s, ''); if (base.length) out += `${sel}{${base.join(';')}}`; out += overlayCss(sel, s, '');
+  let out = ''; const base = declsFor(s, ''); if (base.length) out += `${sel}{${base.join(';')}}`; out += overlayCss(sel, s, ''); out += accordionCss(sel, s);
   for (const bp of BP_ORDER) { const d = declsFor(s, bp); const o = overlayCss(sel, s, bp); if (d.length || o) out += `@container (${BP[bp][0]}-width:${BP[bp][1]}px){${d.length ? `${sel}{${d.join(';')}}` : ''}${o}}`; }
   return out;
 }
@@ -1801,5 +1817,5 @@ REGLER
 Svar KUN med JSON: {"ops":[…],"svar":"1-2 sætninger på dansk om hvad du gjorde, eller hvorfor du ikke kunne"}`;
 }
 
-const API = { clone, esc, stripTags, mapOf, rootsOf, walk, getSlots, applyText, makeSection, applyOps, applyPhone, applyContent, imgSlots, buildExport, validate, renderSections, catalog, buildAiRaw, buildFri, nativize, natRegister, pickArchetypes, pickRegister, archPurpose, AI_ARCH, setStock, stockify, videoify, localPlan, guessBranche, siteInfo, onlineClean, BS_VIDEO, loremify, loremText, fixH1, newestKeys, groupKeys, STOCK_BASE, makeAi, rebuildAi, normAi, pickCreative, aiConceptPrompt, aiSectionPrompt, aiRepairPrompt, themeDoc, AI_DIRECTIONS, looseJson, sanitizeAiCss, secTitle, aiVarNames, fixExtraH1, planPrompt, contentPrompt, inspirationText, makeFri, normFri, cycleFri, groupInfoSec, setFriClasses, FRI_TYPES, FRI_STIL, SECTION_ONLY, pickSubpage, subpageRefs, makeSections, splitParts, mirrorSections, suggestForOutline, outlineText, outlineFromImport, findSite, featsOf, parsePhone, classPrefix, setEnv, editPrompt, removeSubtree, categoryOf, displayName, describeKey, setMeta, getMissing, variantsOf, nextVariant, allowedKeys, catList, sanitizePlan, TYPE_ORDER, WHOLE_PAGE, cleanSettings, resizeGroup, groupSize, groupInfo, getGroups, siteSummary, siteBlocks, siteImages, FORM_ID, PH_URL, plainToHtml, htmlToPlain, unitFix };
+const API = { clone, esc, stripTags, mapOf, rootsOf, walk, getSlots, applyText, makeSection, applyOps, applyPhone, applyContent, imgSlots, buildExport, validate, renderSections, catalog, buildAiRaw, buildFri, nativize, natRegister, pickArchetypes, pickRegister, archPurpose, AI_ARCH, setStock, stockify, videoify, sortKeys, localPlan, guessBranche, siteInfo, onlineClean, BS_VIDEO, loremify, loremText, fixH1, newestKeys, groupKeys, STOCK_BASE, makeAi, rebuildAi, normAi, pickCreative, aiConceptPrompt, aiSectionPrompt, aiRepairPrompt, themeDoc, AI_DIRECTIONS, looseJson, sanitizeAiCss, secTitle, aiVarNames, fixExtraH1, planPrompt, contentPrompt, inspirationText, makeFri, normFri, cycleFri, groupInfoSec, setFriClasses, FRI_TYPES, FRI_STIL, SECTION_ONLY, pickSubpage, subpageRefs, makeSections, splitParts, mirrorSections, suggestForOutline, outlineText, outlineFromImport, findSite, featsOf, parsePhone, classPrefix, setEnv, editPrompt, removeSubtree, categoryOf, displayName, describeKey, setMeta, getMissing, variantsOf, nextVariant, allowedKeys, catList, sanitizePlan, TYPE_ORDER, WHOLE_PAGE, cleanSettings, resizeGroup, groupSize, groupInfo, getGroups, siteSummary, siteBlocks, siteImages, FORM_ID, PH_URL, plainToHtml, htmlToPlain, unitFix };
 if (typeof module !== 'undefined') module.exports = API;

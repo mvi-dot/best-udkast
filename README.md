@@ -39,7 +39,7 @@ Siden kan bruge **rigtige sektioner fra sider, der er kommet online**, og ikke k
 2. Læg filen i mappen **`sektioner/`** på GitHub (*Add file → Upload files*). Giv den gerne navnet `kundens-domæne.dk--beskrivelse.json`, fx `mv-hansen.dk--forside-hero.json`, så linket til siden bliver rigtigt. Er filen kopieret fra en rigtig side, står adressen allerede i JSON'en.
 3. Det er det hele. GitHub bygger og udgiver selv siden på 1-2 minutter.
 
-Siden sorterer sektionen efter, hvad der står i den (hero, ydelser, anmeldelser, FAQ, kontakt, priser, cases, galleri, content), gætter branchen ud fra teksten og lægger den under **Tilføj sektion → Online hjemmesider**. Her hedder sektionen fx `FAQ · MV Hansen`, har et link **↗ Åbn siden**, og kan filtreres pr. kategori. Kundens billeder, tekster, links, telefonnumre og mails bliver erstattet med Best Stock-billeder og Lorem ipsum.
+Siden sorterer sektionen efter, hvad der står i den (hero, ydelser, anmeldelser, FAQ, kontakt, priser, cases, galleri, content), gætter branchen ud fra teksten og lægger den under **Tilføj sektion → Live sektioner**. Her hedder sektionen fx `FAQ · MV Hansen`, har et link **↗ Åbn siden**, og kan filtreres pr. kategori. Kundens billeder, tekster, links, telefonnumre og mails bliver erstattet med Best Stock-billeder og Lorem ipsum.
 
 **Uden Claude** gætter siden branchen ud fra kundens navn (og kontekstfeltet), vælger en tilfældig rigtig side i samme branche og kopierer dens opbygning. Hver sektion bliver enten en template eller en rigtig online-sektion fra samme branche. Står navnet ikke til at gætte (fx "MV Hansen"), vælger den tilfældigt og siger det i statuslinjen. Skriv fx "tømrer" i konteksten for at styre det.
 
