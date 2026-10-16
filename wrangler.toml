@@ -1,0 +1,7 @@
+name = "udkast-proxy"
+main = "worker.js"
+compatibility_date = "2025-01-01"
+
+# Hemmeligheder sættes med: npx wrangler secret put ANTHROPIC_API_KEY  (og ACCESS_CODE)
+[vars]
+ALLOWED_ORIGINS = "https://DIT-BRUGERNAVN.github.io"

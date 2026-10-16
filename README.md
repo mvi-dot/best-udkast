@@ -9,9 +9,11 @@ Internt værktøj der laver Bricks-udkast (forside, underside, hero, menu…) ud
 3. Gå til **Settings → Pages → Build and deployment → Source: GitHub Actions**.
 4. Vent et minut. Siden ligger på `https://DIT-BRUGERNAVN.github.io/udkast/`. Det er den URL, du deler.
 
-## Forbind til Claude
+## Forbind til Claude (valgfrit)
 
-Siden bruger Claude til at vælge og sætte sektioner sammen. Uden for claude.ai skal den forbindes på én af to måder (knappen **Claude-forbindelse** nede i højre hjørne, eller den åbner selv første gang du trykker "Lav udkast"):
+Siden virker **uden Claude og uden nøgle**: du behøver ikke at gøre noget. Siden sætter selv en standardopbygning sammen ud fra jeres templates (hero, ydelser, content, anmeldelser, FAQ, kontakt, og ord som "priser", "galleri" eller "medarbejdere" i kontekstfeltet tilføjer sektioner). Du kan flytte, udskifte og tilføje sektioner med knapperne. Kun fritekst-ønsker ("Ret i udkastet") kræver Claude.
+
+Vil du have Claude med, så forbind den på én af to måder (knappen **Forbind Claude** nede i højre hjørne):
 
 **A. Din egen API-nøgle (hurtigst).** Hver bruger indsætter sin egen Anthropic API-nøgle. Den gemmes kun i browseren (localStorage) og sendes direkte til Anthropic.
 
@@ -27,6 +29,21 @@ npx wrangler secret put ACCESS_CODE        # valgfri
 Ret `ALLOWED_ORIGINS` i `worker/wrangler.toml` til jeres GitHub Pages-adresse. Vil du slippe for at skrive URL'en, så læg den i `config.js` (`proxyUrl`).
 
 > Læg aldrig en API-nøgle i selve repoet.
+
+
+## Ugens nye sektioner (rigtige sider)
+
+Siden kan bruge **rigtige sektioner fra sider, der er kommet online**, og ikke kun templates.
+
+1. I Bricks: kopiér en sektion, du kan lide, fra en kundes side, og gem den som en `.json`-fil.
+2. Læg filen i mappen **`sektioner/`** på GitHub (*Add file → Upload files*). Giv den gerne navnet `kundens-domæne.dk--beskrivelse.json`, fx `mv-hansen.dk--forside-hero.json`, så linket til siden bliver rigtigt. Er filen kopieret fra en rigtig side, står adressen allerede i JSON'en.
+3. Det er det hele. GitHub bygger og udgiver selv siden på 1-2 minutter.
+
+Siden sorterer sektionen efter, hvad der står i den (hero, ydelser, anmeldelser, FAQ, kontakt, priser, cases, galleri, content), gætter branchen ud fra teksten og lægger den under **Tilføj sektion → Online hjemmesider**. Her hedder sektionen fx `FAQ · MV Hansen`, har et link **↗ Åbn siden**, og kan filtreres pr. kategori. Kundens billeder, tekster, links, telefonnumre og mails bliver erstattet med Best Stock-billeder og Lorem ipsum.
+
+**Uden Claude** gætter siden branchen ud fra kundens navn (og kontekstfeltet), vælger en tilfældig rigtig side i samme branche og kopierer dens opbygning. Hver sektion bliver enten en template eller en rigtig online-sektion fra samme branche. Står navnet ikke til at gætte (fx "MV Hansen"), vælger den tilfældigt og siger det i statuslinjen. Skriv fx "tømrer" i konteksten for at styre det.
+
+**Første gang:** Workflowen i `.github/workflows/` skal være den fra denne pakke. Er der en `static.yml` på GitHub i forvejen, så åbn den, tryk blyanten, og erstat hele indholdet med indholdet af `pages.yml`.
 
 ## Ret og opdatér
 

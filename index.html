@@ -590,6 +590,10 @@ html[data-theme=dark] #countPills label.hov{background:var(--accent-soft);border
 @keyframes sendSquish{0%{transform:scale(1)}35%{transform:scale(.9,1.08)}70%{transform:scale(1.08,.94)}100%{transform:scale(1)}}
 @keyframes sendSpin{to{transform:rotate(360deg)}}
 html[data-theme=dark] .btn.send{background:linear-gradient(110deg,#c15f3c 0%,#d9774f 45%,#c15f3c 100%);background-size:220% 100%}
+
+/* ===== v12: online-sektioner ===== */
+.pklink{display:inline-block;margin:0 12px 8px;font-size:12px;color:var(--accent);cursor:pointer;text-decoration:underline;text-underline-offset:2px}.pklink:hover{color:var(--accent-hover)}
+.chip.sm{padding:3px 10px;font-size:12px}.srcl a{color:var(--accent);text-decoration:none}.srcl a:hover{text-decoration:underline}
 </style>
 </head>
 <body>
@@ -1702,9 +1706,9 @@ function splitParts(els) {
 }
 function makeSections(LIB, tpl, why, tlf) {
   const parts = WHOLE_PAGE.has(categoryOf(tpl)) ? [LIB[tpl].els] : splitParts(LIB[tpl].els);
-  return parts.map((els, i) => { const s = { uid: 's' + (++UID) + Math.random().toString(36).slice(2, 5), tpl, why: i === 0 ? (why || '') : '', els: clone(els), part: i + 1, parts: parts.length }; if (tlf) applyPhone(s.els, tlf); loremify(s.els); stockify(s.els); return s; });
+  return parts.map((els, i) => { const s = { uid: 's' + (++UID) + Math.random().toString(36).slice(2, 5), tpl, why: i === 0 ? (why || '') : '', els: clone(els), part: i + 1, parts: parts.length }; if (tlf) applyPhone(s.els, tlf); if (isSiteOnline(LIB, tpl)) { onlineClean(s.els); loremify(s.els, true); stockify(s.els, true); } else { loremify(s.els); stockify(s.els); } return s; });
 }
-function makeSection(LIB, tpl, why, tlf) { const s = { uid: 's' + (++UID) + Math.random().toString(36).slice(2, 5), tpl, why: why || '', els: clone(LIB[tpl].els) }; if (tlf) applyPhone(s.els, tlf); loremify(s.els); stockify(s.els); return s; }
+function makeSection(LIB, tpl, why, tlf) { const s = { uid: 's' + (++UID) + Math.random().toString(36).slice(2, 5), tpl, why: why || '', els: clone(LIB[tpl].els) }; if (tlf) applyPhone(s.els, tlf); if (isSiteOnline(LIB, tpl)) { onlineClean(s.els); loremify(s.els, true); stockify(s.els, true); } else { loremify(s.els); stockify(s.els); } return s; }
 
 
 
@@ -1717,9 +1721,11 @@ function loremText(t) {
   let i = 0, prevEnd = true;
   return t.split(/(\s+)/).map(tok => { if (!/[A-Za-zÆØÅæøå]/.test(tok)) return tok; const m = tok.match(/^([^A-Za-zÆØÅæøå]*)([A-Za-zÆØÅæøå][\wÆØÅæøå'’-]*)(.*)$/); if (!m) return tok; let w = LOREM_POOL[i++ % LOREM_POOL.length]; if (prevEnd || /^[A-ZÆØÅ]/.test(m[2])) w = w.charAt(0).toUpperCase() + w.slice(1); prevEnd = /[.!?]$/.test(m[3]); return m[1] + w + m[3]; }).join('');
 }
-const loremNode = t => { const plain = t.replace(/&nbsp;/g, ' ').trim(); if (!plain || !/[A-Za-zÆØÅæøå]/.test(plain) || KEEP_RE.test(plain) || !DANISH_RE.test(plain)) return t; return loremText(t); };
+let LOREM_ALL = false;
+const loremNode = t => { const plain = t.replace(/&nbsp;/g, ' ').trim(); if (!plain || !/[A-Za-zÆØÅæøå]/.test(plain) || KEEP_RE.test(plain) || (!LOREM_ALL && !DANISH_RE.test(plain))) return t; return loremText(t); };
 const loremHtml = h => (typeof h === 'string' ? h.replace(/(^|>)([^<]+)(?=<|$)/g, (m, a, t) => a + loremNode(t)) : h);
-function loremify(els) {
+function loremify(els, all) {
+  LOREM_ALL = !!all;
   for (const e of els) {
     const s = e.settings; if (!s || typeof s !== 'object') continue;
     if (typeof s.text === 'string' && ['heading', 'text-basic', 'text', 'button', 'text-link'].includes(e.name)) s.text = loremHtml(s.text);
@@ -1727,7 +1733,7 @@ function loremify(els) {
     if (Array.isArray(s.accordions)) s.accordions = s.accordions.map(it => (it && typeof it === 'object' ? Object.assign({}, it, typeof it.title === 'string' ? { title: loremHtml(it.title) } : {}, typeof it.content === 'string' ? { content: loremHtml(it.content) } : {}) : it));
     if (typeof s.content === 'string' && e.name === 'icon-box') s.content = loremHtml(s.content);
   }
-  return els;
+  LOREM_ALL = false; return els;
 }
 
 
@@ -1741,21 +1747,38 @@ function videoify(els) {
   return els;
 }
 
+
+/* ---------- rigtige sektioner fra online sider: neutraliser kundens billeder, links og kontaktdata ---------- */
+const PHONE_RE = /(?:\+?45[\s-]?)?(?:\d{2}[\s.-]?){3}\d{2}(?!\d)/g, MAIL_RE = /[\w.+-]+@[\w-]+\.[\w.-]+/g;
+function onlineClean(els) {
+  const fix = o => { if (!o || typeof o !== 'object') return; for (const k of Object.keys(o)) { const v = o[k];
+      if (typeof v === 'string') {
+        if (k === 'url' && /^https?:/i.test(v) && !/beststock\.kinsta\.cloud|youtu|vimeo/i.test(v) && !/\.(jpe?g|png|webp|svg|mp4)(\?|$)/i.test(v)) o[k] = '#';
+        else if (/^tel:/i.test(v)) o[k] = 'tel:+4588888888'; else if (/^mailto:/i.test(v)) o[k] = 'mailto:FIRMA@MAIL.DK';
+        else if (/^(text|title|label|description|ariaLabel|altText|placeholder)$/.test(k) && v.length < 600) o[k] = v.replace(MAIL_RE, 'FIRMA@MAIL.DK').replace(PHONE_RE, '88 88 88 88');
+      } else fix(v); } };
+  for (const e of els) if (e.settings && typeof e.settings === 'object' && !Array.isArray(e.settings)) fix(e.settings);
+  return els;
+}
+const isSiteOnline = (LIB, tpl) => !!(LIB && LIB[tpl] && LIB[tpl].group === 'Online hjemmesider' && LIB[tpl].site);
+
 /* ---------- Best Stock-billeder: templates bruger altid disse fotos (ikke pladsholdere eller billeder fra andre sites) ---------- */
 let STOCK = [], STOCK_I = 0; const STOCK_BASE = 'https://beststock.kinsta.cloud/wp-content/uploads/2025/05/';
 function setStock(list) { STOCK = list || []; STOCK_I = Math.floor(Math.random() * Math.max(1, STOCK.length)); }
 const stockUrl = it => STOCK_BASE + it.n + '.jpg';
 const stockObj = it => ({ url: stockUrl(it), full: stockUrl(it), filename: it.n + '.jpg', size: 'full' });
 const nextStock = () => (STOCK.length ? STOCK[STOCK_I++ % STOCK.length] : null);
-const isLibPhoto = o => !!o && typeof o === 'object' && !o.external && (o.isPlaceholder === true || /^(0U2A\d+(-\d+x\d+)?|img-placeholder[\w-]*|placeholder-image[\w-]*)\.(jpe?g|png|webp)$/i.test(String(o.filename || fileOf(o.url || o.full || ''))));
-function stockify(els) {
-  videoify(els); if (!STOCK.length) return els;
+let STOCK_ALL = false;
+const isLibPhoto = o => !!o && typeof o === 'object' && !o.external && ((STOCK_ALL && (o.url || o.full) && !/\.svg(\?|$)|logo|icon|avatar|person-placeholder|placeholder-logo|stars|favicon/i.test(String(o.filename || fileOf(o.url || o.full || '')))) || o.isPlaceholder === true || /^(0U2A\d+(-\d+x\d+)?|img-placeholder[\w-]*|placeholder-image[\w-]*)\.(jpe?g|png|webp)$/i.test(String(o.filename || fileOf(o.url || o.full || ''))));
+function stockify(els, all) {
+  videoify(els); if (!STOCK.length) return els; STOCK_ALL = !!all; try {
   for (const e of els) {
     const s = e.settings; if (!s) continue;
     if (e.name === 'image' && isLibPhoto(s.image)) s.image = stockObj(nextStock());
     let pick = null; for (const k of Object.keys(s)) if (k === '_background' || k.startsWith('_background:')) { const bg = s[k]; if (bg && typeof bg === 'object' && isLibPhoto(bg.image)) { pick = pick || nextStock(); bg.image = stockObj(pick); } }
     if (e.name === 'image-gallery' && s.items && Array.isArray(s.items.images)) s.items.images = s.items.images.map(im => isLibPhoto(im) ? stockObj(nextStock()) : im);
   }
+  } finally { STOCK_ALL = false; }
   return els;
 }
 const stockPrev = o => { if (!o || typeof o !== 'object') return PH_URL; const nm = String(o.filename || fileOf(o.url || o.full || '')).replace(/\.\w+$/, ''); const it = STOCK.find(x => x.n === nm); return it ? it.d : PH_URL; };
@@ -1785,35 +1808,58 @@ function fixH1(secs, mode) {
 }
 
 
-/* ---------- planlægning uden Claude: standardopbygning ud fra templates ---------- */
-function localPlan(b, LIB, n, existing) {
+/* ---------- planlægning uden Claude: gæt branche, kopiér opbygning fra en rigtig side, brug templates og online-sektioner ---------- */
+const BRANCH_KW = [
+  ['Tømrer / Snedker', /tømrer|snedker|træ|tag|byg\b|carport|terrasse|vindue|dør/], ['Murer / Entreprise', /murer|entrepr|beton|facade|mursten|totalenterpr|byggefirma/],
+  ['VVS / Kloak / Blik', /vvs|kloak|blik|rør|varme|vand|installatør|sanitet/], ['El / Teknik', /\bel\b|el-|elektr|teknik|solcelle|batteri|ladestander|data/],
+  ['Maler', /maler|male|farve|spartel|facademaling/], ['Auto', /auto|bil|dæk|værksted|motor|lakering|autoværksted/],
+  ['Anlæg / Have / Skov', /anlæg|have|skov|træfæld|landskab|brolægn|græs|hegn/], ['Klinik / Sundhed', /klinik|læge|tand|sundhed|fysio|psykiatri|kiropraktor|zone|behandl/],
+  ['Service / Rengøring / Ejendom', /rengør|service|ejendom|facility|vinduespoler|rens|vagt/], ['Køreskole', /køre|køreskole|kørekort|trafik/],
+  ['Skønhed / Fitness', /frisør|skønhed|fitness|salon|kosmetik|massage|spa|neg/], ['Gulv / Beton', /gulv|parket|epoxy|slibning|beton/],
+  ['Specialhåndværk / Overflade', /overflade|lak|pulver|sandblæs|special|metal|smed/], ['B2B / Industri / Produkter', /industri|produkt|maskin|b2b|fabrik|grossist|automation/],
+  ['Detail / Mad / Event / Rejse', /restaurant|café|cafe|mad|event|rejse|butik|bager|kro/], ['Udlejning / Logistik', /udlej|logistik|transport|kran|lift|container|fragt/],
+  ['Rådgivning / Virksomhed', /rådgiv|advokat|revisor|konsulent|bureau|regnskab|ejendomsmægler/], ['Terapi / Coaching', /terapi|coach|psykolog|mindful|samtale/]
+];
+function guessBranche(name, msg, SITES) {
+  const nm = String(name || '').toLowerCase(), mg = String(msg || '').toLowerCase(); const score = {};
+  for (const [b, re] of BRANCH_KW) { let s = 0; if (re.test(mg)) s += 4; if (re.test(nm)) s += 3; if (s) score[b] = s; }
+  const best = Object.entries(score).sort((a, b) => b[1] - a[1])[0]; if (best) return { b: best[0], via: re_test(BRANCH_KW, best[0], mg) ? 'konteksten' : 'navnet' };
+  const words = nm.split(/[^a-zæøå0-9]+/).filter(w => w.length >= 3); const pool = (SITES || []).filter(s => s.b && !/uklar/i.test(s.b));
+  const hit = pool.filter(s => words.some(w => String(s.n).toLowerCase().includes(w))); if (hit.length) return { b: hit[Math.floor(Math.random() * hit.length)].b, via: 'navnet (ligner et kendt site)' };
+  const all = pool.map(s => s.b); return all.length ? { b: all[Math.floor(Math.random() * all.length)], via: 'tilfældigt' } : { b: '', via: 'tilfældigt' };
+}
+const re_test = (kw, b, text) => { const x = kw.find(k => k[0] === b); return !!(x && x[1].test(text)); };
+function siteInfo(LIB, k) { const t = LIB && LIB[k]; return t && t.site ? { site: t.site, url: t.url || '', branche: t.branche || '', added: t.added || '' } : null; }
+function localPlan(b, LIB, n, existing, SITES) {
   const keys = allowedKeys(LIB, true); const used = new Set([].concat(...(existing || []))); const msg = String((b && b.msg) || '').toLowerCase(); const type = (b && b.sidetype) || 'Forside'; const has = re => re.test(msg);
-  let cats;
-  if (type === 'Hero') cats = ['Header']; else if (type === 'Menu') cats = ['Menu'];
-  else if (type === 'Underside') cats = ['Header', 'Content', 'Ydelser', 'FAQ', 'Kontakt sektion'];
-  else cats = ['Header', 'Ydelser', 'Content', 'Anmeldelser', 'FAQ', 'Kontakt sektion'];
-  const team = has(/medarbejder|team|folk/);
-  if (type !== 'Hero' && type !== 'Menu') {
-    const add = (cat, after) => { if (!cats.includes(cat)) { const i = cats.indexOf(after); cats.splice(i < 0 ? cats.length - 1 : i + 1, 0, cat); } };
-    if (has(/pris|abonnement/)) add('Priser', 'Ydelser');
-    if (has(/\bcase|projekt|reference/)) add('Cases', 'Content');
-    if (has(/galleri|billeder|fotos/) || team) add('Galleri', 'Content');
-    if (has(/uden faq|ingen faq/)) cats = cats.filter(c => c !== 'FAQ');
-    if (has(/uden anmeld|ingen anmeld/)) cats = cats.filter(c => c !== 'Anmeldelser');
-  }
-  const names = ['Klassisk', 'Rolig', 'Luftig', 'Kraftig', 'Enkel']; const base = (existing || []).length; const forslag = [];
+  const gb = guessBranche(b && b.navn, b && b.msg, SITES); const team = has(/medarbejder|team|folk/);
+  const DEF = type === 'Hero' ? ['Header'] : type === 'Menu' ? ['Menu'] : type === 'Underside' ? ['Header', 'Content', 'Ydelser', 'FAQ', 'Kontakt sektion'] : ['Header', 'Ydelser', 'Content', 'Anmeldelser', 'FAQ', 'Kontakt sektion'];
+  const OK = new Set(['Header', 'Ydelser', 'Content', 'Anmeldelser', 'FAQ', 'Kontakt sektion', 'Galleri', 'Cases', 'Priser']);
+  const sameSites = type === 'Forside' ? (SITES || []).filter(s => s.b === gb.b && Array.isArray(s.c) && s.c.length >= 4) : [];
+  const names = ['Klassisk', 'Rolig', 'Luftig', 'Kraftig', 'Enkel']; const base = (existing || []).length; const forslag = []; const usedSites = new Set();
   for (let i = 0; i < n; i++) {
+    let cats = DEF.slice(), basis = '';
+    if (sameSites.length) { const fresh = sameSites.filter(s => !usedSites.has(s.n)); const s = (fresh.length ? fresh : sameSites)[Math.floor(Math.random() * (fresh.length ? fresh : sameSites).length)]; usedSites.add(s.n);
+      let c = s.c.filter(x => OK.has(x)); const out = []; for (const x of c) { if (out[out.length - 1] !== x) out.push(x); } while (out.length > 8) out.splice(1 + Math.floor(Math.random() * (out.length - 2)), 1);
+      if (out.length >= 4) { if (out[0] !== 'Header') out.unshift('Header'); if (out[out.length - 1] !== 'Kontakt sektion') out.push('Kontakt sektion'); cats = out; basis = s.n; } }
+    if (type !== 'Hero' && type !== 'Menu') {
+      const add = (cat, after) => { if (!cats.includes(cat)) { const k = cats.indexOf(after); cats.splice(k < 0 ? cats.length - 1 : k + 1, 0, cat); } };
+      if (has(/pris|abonnement/)) add('Priser', 'Ydelser'); if (has(/\bcase|projekt|reference/)) add('Cases', 'Content'); if (has(/galleri|billeder|fotos/) || team) add('Galleri', 'Content');
+      if (has(/uden faq|ingen faq/)) cats = cats.filter(c => c !== 'FAQ'); if (has(/uden anmeld|ingen anmeld/)) cats = cats.filter(c => c !== 'Anmeldelser');
+    }
     const mine = new Set(); const sek = [];
     for (const c of cats) {
-      let pool = keys.filter(k => categoryOf(k) === c); if (c === 'Galleri') pool = pool.filter(k => (team ? /^medarbejdere/ : /^galleri/).test(k));
+      let pool = keys.filter(k => categoryOf(k) === c); if (c === 'Galleri') pool = pool.filter(k => (team ? /^medarbejdere/ : /^galleri/).test(k) || (LIB[k] && LIB[k].group === 'Online hjemmesider'));
       if (!pool.length) continue; let fresh = pool.filter(k => !used.has(k) && !mine.has(k)); if (!fresh.length) fresh = pool.filter(k => !mine.has(k)); if (!fresh.length) fresh = pool;
-      const k = fresh[Math.floor(Math.random() * fresh.length)]; mine.add(k); sek.push({ tpl: k, hvorfor: 'Standardopbygning' });
+      const wts = fresh.map(k => { const t = LIB[k] || {}; return t.group === 'Online hjemmesider' && t.site ? (t.branche && t.branche === gb.b ? 4 : 1.8) : 1; }); const tot = wts.reduce((a, x) => a + x, 0); let r = Math.random() * tot, pick = fresh[0];
+      for (let q = 0; q < fresh.length; q++) { r -= wts[q]; if (r <= 0) { pick = fresh[q]; break; } }
+      mine.add(pick); sek.push({ tpl: pick, hvorfor: LIB[pick] && LIB[pick].site ? 'Rigtig sektion fra ' + LIB[pick].site : 'Standardopbygning' });
     }
-    mine.forEach(k => used.add(k)); forslag.push({ navn: names[(base + i) % names.length], note: 'Lavet uden Claude', sektioner: sek });
+    mine.forEach(k => used.add(k));
+    forslag.push({ navn: names[(base + i) % names.length], note: 'Lavet uden Claude · branche gættet: ' + (gb.b || 'ukendt') + ' (ud fra ' + gb.via + ')' + (basis ? ' · opbygning som ' + basis : ''), sektioner: sek, gaet: gb });
   }
-  return { forslag };
+  return { forslag, branche: gb };
 }
-
 /* ---------- gentagne blokke ---------- */
 function getGroups(els) {
   const m = mapOf(els); const sig = id => { const e = m[id]; return e ? e.name + '(' + (e.children || []).map(sig).join(',') + ')' : ''; };
@@ -2517,7 +2563,7 @@ REGLER
 Svar KUN med JSON: {"ops":[…],"svar":"1-2 sætninger på dansk om hvad du gjorde, eller hvorfor du ikke kunne"}`;
 }
 
-const API = { clone, esc, stripTags, mapOf, rootsOf, walk, getSlots, applyText, makeSection, applyOps, applyPhone, applyContent, imgSlots, buildExport, validate, renderSections, catalog, buildAiRaw, buildFri, nativize, natRegister, pickArchetypes, pickRegister, archPurpose, AI_ARCH, setStock, stockify, videoify, localPlan, BS_VIDEO, loremify, loremText, fixH1, newestKeys, groupKeys, STOCK_BASE, makeAi, rebuildAi, normAi, pickCreative, aiConceptPrompt, aiSectionPrompt, aiRepairPrompt, themeDoc, AI_DIRECTIONS, looseJson, sanitizeAiCss, secTitle, aiVarNames, fixExtraH1, planPrompt, contentPrompt, inspirationText, makeFri, normFri, cycleFri, groupInfoSec, setFriClasses, FRI_TYPES, FRI_STIL, SECTION_ONLY, pickSubpage, subpageRefs, makeSections, splitParts, mirrorSections, suggestForOutline, outlineText, outlineFromImport, findSite, featsOf, parsePhone, classPrefix, setEnv, editPrompt, removeSubtree, categoryOf, displayName, describeKey, setMeta, getMissing, variantsOf, nextVariant, allowedKeys, catList, sanitizePlan, TYPE_ORDER, WHOLE_PAGE, cleanSettings, resizeGroup, groupSize, groupInfo, getGroups, siteSummary, siteBlocks, siteImages, FORM_ID, PH_URL, plainToHtml, htmlToPlain, unitFix };
+const API = { clone, esc, stripTags, mapOf, rootsOf, walk, getSlots, applyText, makeSection, applyOps, applyPhone, applyContent, imgSlots, buildExport, validate, renderSections, catalog, buildAiRaw, buildFri, nativize, natRegister, pickArchetypes, pickRegister, archPurpose, AI_ARCH, setStock, stockify, videoify, localPlan, guessBranche, siteInfo, onlineClean, BS_VIDEO, loremify, loremText, fixH1, newestKeys, groupKeys, STOCK_BASE, makeAi, rebuildAi, normAi, pickCreative, aiConceptPrompt, aiSectionPrompt, aiRepairPrompt, themeDoc, AI_DIRECTIONS, looseJson, sanitizeAiCss, secTitle, aiVarNames, fixExtraH1, planPrompt, contentPrompt, inspirationText, makeFri, normFri, cycleFri, groupInfoSec, setFriClasses, FRI_TYPES, FRI_STIL, SECTION_ONLY, pickSubpage, subpageRefs, makeSections, splitParts, mirrorSections, suggestForOutline, outlineText, outlineFromImport, findSite, featsOf, parsePhone, classPrefix, setEnv, editPrompt, removeSubtree, categoryOf, displayName, describeKey, setMeta, getMissing, variantsOf, nextVariant, allowedKeys, catList, sanitizePlan, TYPE_ORDER, WHOLE_PAGE, cleanSettings, resizeGroup, groupSize, groupInfo, getGroups, siteSummary, siteBlocks, siteImages, FORM_ID, PH_URL, plainToHtml, htmlToPlain, unitFix };
 if (typeof module !== 'undefined') module.exports = API;
 
 window.GEN = API;</script>
@@ -2859,11 +2905,11 @@ window.GEN = API;</script>
     const brief = more ? state.brief : b; const n = more ? 1 : +$('count').value;
     setStatus(''); pushHist();
     try {
-      const made = []; const outline = site && useSite ? E.outlineFromImport(site, pageIdx) : null;
+      const made = []; let guessNote = ''; const outline = site && useSite ? E.outlineFromImport(site, pageIdx) : null;
       if (brief.frihed === 'ai') { setBusy(true, '', true); ctl = new AbortController(); try { made.push(...await generateAi(brief, n, outline && outline.length >= 2 ? outline : null)); } finally { ctl = null; endBuild(); } }
       else {
       const existing = (more ? state.proposals : made).map(p => p.sections.map(s => s.tpl));
-      let res; if (localMode()) { setBusy(true, 'Sætter siden sammen ud fra jeres templates…'); await new Promise(r => setTimeout(r, 700)); res = E.localPlan(brief, LIB, n, existing); }
+      let res; if (localMode()) { setBusy(true, 'Sætter siden sammen ud fra jeres templates…'); await new Promise(r => setTimeout(r, 700)); res = E.localPlan(brief, LIB, n, existing, SITES); guessNote = res.branche && res.branche.b ? ` Branche gættet: ${res.branche.b}${res.branche.via === 'tilfældigt' ? ' (tilfældigt – skriv fx "tømrer" i konteksten for at styre det)' : ''}.` : ''; }
       else res = await ask(E.planPrompt(brief, LIB, USE, SITES, n, existing, site && useSite ? E.siteSummary(site, pageIdx) : null, outline && outline.length >= 2 ? outline : null), 'Laver udkast');
       made.push(...(res.forslag || []).slice(0, n).map((f, i) => ({ id: 'p' + Date.now() + i + 'x', name: f.navn || ('Udkast ' + (state.proposals.length + made.length + i + 1)), note: f.note || '', sections: planToSections(f), usedBlocks: [] })).filter(p => p.sections.length));
       }
@@ -2871,7 +2917,7 @@ window.GEN = API;</script>
       if (!more) state.proposals = made; else state.proposals.push(...made);
       state.active = more ? state.proposals.length - 1 : 0;
       if (site && useSite) await applySite(cur());
-      setStatus(made.length > 1 ? `${made.length} udkast klar.` : 'Udkast klar.', 'ok');
+      setStatus((made.length > 1 ? `${made.length} udkast klar.` : 'Udkast klar.') + guessNote, 'ok');
     } catch (e) { hist.pop(); ctl = null; if (e && e.code === 'local' && !retryLocal) { retryLocal = true; setBusy(false); try { return await generate(more); } finally { retryLocal = false; } } const m = errCopy(e); if (m) setStatus(m, 'err'); }
     setBusy(false); render();
   }
@@ -3068,17 +3114,20 @@ window.GEN = API;</script>
   $('pkClose').onclick = closePicker;
   $('picker').addEventListener('click', e => { if (e.target === $('picker')) closePicker(); });
   document.addEventListener('keydown', e => { if (e.key === 'Escape' && !$('picker').hidden) closePicker(); });
+  const hostOf = u => { try { return new URL(u).hostname.replace(/^www\./, ''); } catch (_) { return 'online'; } };
   function renderPicker() {
     $('pkTitle').textContent = pk.mode === 'swap' ? `Vælg anden variant af sektion ${pk.index}` : 'Tilføj sektion';
     $('pkCats').innerHTML = [...(pk.mode === 'swap' ? [] : ['Nyeste', ...(E.groupKeys(LIB, 'Online hjemmesider').length ? ['Online hjemmesider'] : [])]), ...E.catList(LIB)].map(n => `<button class="chip" aria-pressed="${n === pk.cat}" data-cat="${n}">${n}</button>`).join('');
     if (pk.cat === 'Nye sektioner') { renderFriGrid(); return; }
     renderPkFoot();
-    const keys = pk.cat === 'Nyeste' ? E.newestKeys(LIB, 10) : pk.cat === 'Online hjemmesider' ? E.groupKeys(LIB, 'Online hjemmesider') : E.variantsOf(LIB, pk.cat); const grid = $('pkGrid'); grid.innerHTML = '';
+    let keys = pk.cat === 'Nyeste' ? E.newestKeys(LIB, 10) : pk.cat === 'Online hjemmesider' ? E.groupKeys(LIB, 'Online hjemmesider') : E.variantsOf(LIB, pk.cat); const grid = $('pkGrid'); grid.innerHTML = '';
+    if (pk.cat === 'Online hjemmesider') { const subs = [...new Set(keys.map(k => E.categoryOf(k)))]; keys = keys.slice().sort((a, b) => String((LIB[b] || {}).added || '').localeCompare(String((LIB[a] || {}).added || ''))); if (pk.sub && subs.includes(pk.sub)) keys = keys.filter(k => E.categoryOf(k) === pk.sub);
+      $('pkCats').insertAdjacentHTML('beforeend', '<div class="pksub" style="flex-basis:100%;display:flex;gap:6px;flex-wrap:wrap;margin-top:6px">' + ['Alle', ...subs].map(sb => `<button class="chip sm" data-sub="${E.esc(sb)}" aria-pressed="${(pk.sub || 'Alle') === sb}">${E.esc(sb)}</button>`).join('') + '</div>'); }
     const p = cur(); const curTpl = pk.mode === 'swap' && p ? p.sections[pk.index - 1].tpl : null;
     for (const k of keys) {
       const card = document.createElement('button'); card.className = 'pkcard'; card.dataset.k = k;
       const u = USE[k] || [0, 0];
-      card.innerHTML = `<div class="pkprev"></div><div class="pkmeta"><b>${E.esc(E.displayName(k))}</b><small>${E.esc(k)}${k === curTpl ? ' · nuværende' : ''}${u[0] ? ' · bruges af ' + u[0] + ' sites' : ''}</small>${E.describeKey(k) ? `<span class="pkdesc">${E.esc(E.describeKey(k))}</span>` : ''}</div>`;
+      card.innerHTML = `<div class="pkprev"></div><div class="pkmeta"><b>${E.esc(E.displayName(k))}</b><small>${(LIB[k] && LIB[k].site) ? E.esc(hostOf(LIB[k].url) + (LIB[k].added ? ' · ' + LIB[k].added : '')) : E.esc(k)}${k === curTpl ? ' · nuværende' : ''}${u[0] ? ' · bruges af ' + u[0] + ' sites' : ''}</small>${(LIB[k] && LIB[k].url) ? `<span class="pklink" role="link" tabindex="0" data-url="${E.esc(LIB[k].url)}">↗ Åbn siden</span>` : ''}${E.describeKey(k) ? `<span class="pkdesc">${E.esc(E.describeKey(k))}</span>` : ''}</div>`;
       grid.appendChild(card);
       const host = card.querySelector('.pkprev'); const sh = host.attachShadow({ mode: 'open' });
       const r = E.renderSections([E.makeSection(LIB, k)], CLASSES, VARS);
@@ -3098,8 +3147,10 @@ window.GEN = API;</script>
       sh.innerHTML = `<style>${r.css}#f{width:1280px;transform:scale(.234);transform-origin:top left;container-type:inline-size;background:var(--bg-body,#fff)}</style><div id="f">${r.html}</div>`; faApply(sh.getElementById('f'), sh);
     }
   }
-  $('pkCats').addEventListener('click', e => { const b = e.target.closest('[data-cat]'); if (b) { pk.cat = b.dataset.cat; renderPicker(); } });
+  $('pkCats').addEventListener('click', e => { const sb = e.target.closest('[data-sub]'); if (sb && pk) { pk.sub = sb.dataset.sub === 'Alle' ? '' : sb.dataset.sub; renderPicker(); return; }
+     const b = e.target.closest('[data-cat]'); if (b) { pk.cat = b.dataset.cat; renderPicker(); } });
   $('pkGrid').addEventListener('click', async e => {
+    const lk = e.target.closest('.pklink'); if (lk) { e.stopPropagation(); window.open(lk.dataset.url, '_blank', 'noopener'); return; }
     const c = e.target.closest('.pkcard'); if (!c || !pk) return;
     if (c.dataset.fri) { closePicker(); const p = cur(); pushHist(); plog(p).added.push('fri:' + c.dataset.fri); E.applyOps(p, [{ op: 'add', fri: Object.assign({ fri: c.dataset.fri }, FRI_DEMO[c.dataset.fri]) }], LIB, tlf(), CLASSES); render(); return; }
     const k = c.dataset.k, o = pk; closePicker();
@@ -3213,7 +3264,7 @@ window.GEN = API;</script>
     $('valWrap').hidden = !fails.length; const vb = $('valBadge'); vb.dataset.ok = fails.length ? 'no' : 'yes'; vb.textContent = (fails.length ? `⚠ ${fails.length} tjek fejler` : `✓ Klar til Bricks · ${val.length}/${val.length} tjek`) + (h1bad ? ' · ⚠ H1' : '');
     $('valList').innerHTML = val.map(v => `<li data-p="${v.pass}"><span>${v.pass ? '✓' : '✗'}</span> ${E.esc(v.name)}${v.pass ? '' : ' – ' + E.esc(v.detail)}</li>`).join('') + (pageLike ? `<li data-p="${!h1bad}"><span>${h1bad ? '⚠' : '✓'}</span> Præcis én H1 (SEO)${h1bad ? ' – ' + E.esc(h1msg) : ''}</li>` : '');
     const prevUids = lastUids; lastUids = new Set(p.sections.map(s => s.uid));
-    $('list').innerHTML = p.sections.map((s, i) => `<li draggable="true" data-i="${i + 1}" data-uid="${s.uid}" class="${s.uid === selUid ? 'sel ' : ''}${s.part > 1 ? 'cont ' : ''}${prevUids.has(s.uid) ? '' : 'new'}"><span class="grip" aria-hidden="true">⠿</span><span class="n">${i + 1}</span><div class="t"><b>${E.esc(E.secTitle(s))}${s.parts > 1 ? ` <em class="part" title="${E.esc(E.displayName(s.tpl))} består af ${s.parts} sektioner i Bricks. De kan flyttes eller fjernes hver for sig.">sektion ${s.part} af ${s.parts}</em>` : ''}</b><small>${E.esc(s.tpl)} · ${E.esc(E.categoryOf(s.tpl) || '')}</small>${s.why ? `<small class="why">${E.esc(s.why)}</small>` : ''}${(() => { const gi = E.groupInfoSec(s); return gi && gi.adjustable ? `<span class="cnt" title="Antal ${gi.label} i sektionen. Layoutet tilpasser sig selv"><button data-a="dec" data-i="${i + 1}" data-lock aria-label="Et færre">−</button><b>${gi.n}</b><button data-a="inc" data-i="${i + 1}" data-lock aria-label="Et mere">+</button><em>${gi.label}</em></span>` : ''; })()}</div><div class="ac">
+    $('list').innerHTML = p.sections.map((s, i) => `<li draggable="true" data-i="${i + 1}" data-uid="${s.uid}" class="${s.uid === selUid ? 'sel ' : ''}${s.part > 1 ? 'cont ' : ''}${prevUids.has(s.uid) ? '' : 'new'}"><span class="grip" aria-hidden="true">⠿</span><span class="n">${i + 1}</span><div class="t"><b>${E.esc(E.secTitle(s))}${s.parts > 1 ? ` <em class="part" title="${E.esc(E.displayName(s.tpl))} består af ${s.parts} sektioner i Bricks. De kan flyttes eller fjernes hver for sig.">sektion ${s.part} af ${s.parts}</em>` : ''}</b><small>${E.esc(s.tpl)} · ${E.esc(E.categoryOf(s.tpl) || '')}</small>${(LIB[s.tpl] && LIB[s.tpl].url) ? `<small class="srcl"><a href="${E.esc(LIB[s.tpl].url)}" target="_blank" rel="noopener" title="Åbn den rigtige side">↗ ${E.esc(hostOf(LIB[s.tpl].url))}</a></small>` : ''}${s.why ? `<small class="why">${E.esc(s.why)}</small>` : ''}${(() => { const gi = E.groupInfoSec(s); return gi && gi.adjustable ? `<span class="cnt" title="Antal ${gi.label} i sektionen. Layoutet tilpasser sig selv"><button data-a="dec" data-i="${i + 1}" data-lock aria-label="Et færre">−</button><b>${gi.n}</b><button data-a="inc" data-i="${i + 1}" data-lock aria-label="Et mere">+</button><em>${gi.label}</em></span>` : ''; })()}</div><div class="ac">
       <button data-a="up" data-i="${i + 1}" ${i === 0 ? 'disabled' : ''} data-lock aria-label="Flyt op" title="Flyt op"><svg viewBox="0 0 24 24"><path d="M12 19V5M5.5 11.5 12 5l6.5 6.5"/></svg></button><button data-a="down" data-i="${i + 1}" ${i === p.sections.length - 1 ? 'disabled' : ''} data-lock aria-label="Flyt ned" title="Flyt ned"><svg viewBox="0 0 24 24"><path d="M12 5v14M5.5 12.5 12 19l6.5-6.5"/></svg></button>
       <button data-a="variant" data-i="${i + 1}" data-lock ${s.part > 1 ? 'disabled' : ''} aria-label="Prøv en anden variant" title="${s.ai ? 'Ny version (AI laver sektionen om)' : s.fri ? 'Skift stil og layout' : s.part > 1 ? 'Er en del af ' + E.esc(E.displayName(s.tpl)) + '. Skift på del 1.' : 'Prøv næste variant (fx en anden hero)'}"><svg viewBox="0 0 24 24"><path d="M20 11a8 8 0 0 0-14.3-4.6L4 8.5M4 4v4.5h4.5M4 13a8 8 0 0 0 14.3 4.6L20 15.5M20 20v-4.5h-4.5"/></svg></button><button data-a="pick" data-i="${i + 1}" data-lock ${s.part > 1 || s.fri || s.ai ? 'disabled' : ''} aria-label="Vælg variant" title="${s.part > 1 ? 'Er en del af ' + E.esc(E.displayName(s.tpl)) + '. Skift på del 1.' : 'Vælg variant med billeder'}"><svg viewBox="0 0 24 24"><rect x="4" y="4" width="7" height="7" rx="1.8"/><rect x="13" y="4" width="7" height="7" rx="1.8"/><rect x="4" y="13" width="7" height="7" rx="1.8"/><rect x="13" y="13" width="7" height="7" rx="1.8"/></svg></button><button data-a="copy" data-i="${i + 1}" aria-label="Kopiér sektionens JSON" title="Kopiér denne sektions JSON"><svg viewBox="0 0 24 24"><rect x="8.5" y="8.5" width="11" height="11" rx="2.2"/><path d="M15.5 8.5V6.7a2.2 2.2 0 0 0-2.2-2.2H6.7a2.2 2.2 0 0 0-2.2 2.2v6.6a2.2 2.2 0 0 0 2.2 2.2h1.8"/></svg></button><span class="gap"></span><button data-a="del" data-i="${i + 1}" data-lock aria-label="Fjern" title="Fjern sektion"><svg viewBox="0 0 24 24"><path d="M4.5 7h15M9.5 7V4.5h5V7M6.5 7l.8 12.2a1.5 1.5 0 0 0 1.5 1.3h6.4a1.5 1.5 0 0 0 1.5-1.3L17.5 7M10 11v6M14 11v6"/></svg></button></div></li>`).join('');
     if (pendingAnim) { const pa = pendingAnim; pendingAnim = null; const li = $('list').querySelector(`li[data-i="${pa.i}"]`); if (li) { if (pa.a === 'up' || pa.a === 'down') li.classList.add('moved'); const bt = li.querySelector(`button[data-a="${pa.a}"]`); if (bt && (pa.a === 'variant' || pa.a === 'pick')) bt.classList.add('spin'); } }
