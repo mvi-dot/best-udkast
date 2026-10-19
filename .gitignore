@@ -1,2 +1,5 @@
 preview.html
 index.html
+dist/
+node_modules/
+.DS_Store
