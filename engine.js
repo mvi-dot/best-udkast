@@ -1032,7 +1032,7 @@ function sortKeys(LIB, keys, mode, useFn) {
   const by = { nyeste: byNew, aeldste: (a, b) => byNew(b, a), navn: (a, b) => displayName(a).localeCompare(displayName(b), 'da', { numeric: true }), brugt: (a, b) => ((useFn && useFn(b)) || 0) - ((useFn && useFn(a)) || 0) || byNew(a, b) };
   return keys.slice().sort(by[mode] || by.nyeste);
 }
-function newestKeys(LIB, n) { const keys = allowedKeys(LIB).filter(k => !(LIB[k] && (LIB[k].helper || LIB[k].group)) && SHEETDATE[k]); return keys.sort((a, b) => SHEETDATE[b].d.localeCompare(SHEETDATE[a].d) || SHEETDATE[a].i - SHEETDATE[b].i).slice(0, n || 10); }
+function newestKeys(LIB, n) { const keys = allowedKeys(LIB).filter(k => !(LIB[k] && (LIB[k].helper || LIB[k].group)) && (SHEETDATE[k] || (LIB[k] && LIB[k].added))); const idx = k => (SHEETDATE[k] ? SHEETDATE[k].i : -1); return keys.sort((a, b) => dateKey(LIB, b).localeCompare(dateKey(LIB, a)) || idx(a) - idx(b)).slice(0, n || 10); }
 const groupKeys = (LIB, g) => allowedKeys(LIB).filter(k => LIB[k] && LIB[k].group === g);
 /* ---------- præcis én H1 pr. side: i heroen. Øvrige H1 bliver H2 ---------- */
 function fixH1(secs, mode) {

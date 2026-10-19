@@ -122,6 +122,8 @@ def ingest_templates(data, folder):
             entry.update({'kind': 'content', 'cat': classify(els, pre)}); print(f'  ? {key}: ny type uden søskende - brugte standardværdier, tjek at den vises rigtigt')
         t = (base or {}).get('title') or ''
         entry['title'] = re.sub(r'#\s*\d+', f'#{num}', t) if re.search(r'#\s*\d+', t) else f'{nice(pre.replace("-", " "))} #{num}'
+        dm = re.search(r'(\d{4}-\d{2}-\d{2})$', p.stem)   # dato i filnavnet vinder, ellers filens dato
+        entry['added'] = dm.group(1) if dm else datetime.date.fromtimestamp(p.stat().st_mtime).isoformat()
         entry['els'] = copy.deepcopy(els)
         if key in L and json.dumps(L[key].get('els'), sort_keys=True) == json.dumps(els, sort_keys=True): same.append(key)
         else: (upd if key in L else new).append(key)
