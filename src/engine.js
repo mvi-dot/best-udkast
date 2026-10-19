@@ -37,9 +37,10 @@ const TYPE_ORDER = ['Header', 'Ydelser', 'Anmeldelser', 'Cases', 'Priser', 'FAQ'
 const PREFIX_TYPE = { hero: 'Header', ydelse: 'Ydelser', anmeldelse: 'Anmeldelser', cases: 'Cases', priser: 'Priser', faq: 'FAQ', content: 'Content', kontaktsektion: 'Kontakt sektion', kontakformular: 'CTA', underside: 'Underside', geo: 'Marketing', viden: 'Marketing', seo: 'Marketing', blog: 'Marketing', galleri: 'Galleri', medarbejdere: 'Galleri', cta: 'CTA' };
 const WHOLE_PAGE = new Set(['Underside', 'Marketing', 'Menu', 'Footer']);                   // hele sider: kun hvis der bedes om det
 const SHEET_ALIAS = { underside: 'underside-1', 'seo-underside': 'seo-blogindlg', 'seo-blogindlaeg': 'seo-blogindlg' };
-let META = {}; let MISSING = []; let CATS = {}, TITLES = {};
+let META = {}; let MISSING = []; let CATS = {}, TITLES = {}; let SHEETDATE = {};
 function setMeta(LIB, rows) {
-  META = {}; MISSING = []; CATS = {}; TITLES = {}; DESCS = {}; for (const k of Object.keys(LIB)) { if (LIB[k].cat) CATS[k] = LIB[k].cat; if (LIB[k].title) TITLES[k] = LIB[k].title; if (LIB[k].desc) DESCS[k] = LIB[k].desc; }
+  META = {}; MISSING = []; CATS = {}; TITLES = {}; DESCS = {}; SHEETDATE = {}; for (const k of Object.keys(LIB)) { if (LIB[k].cat) CATS[k] = LIB[k].cat; if (LIB[k].title) TITLES[k] = LIB[k].title; if (LIB[k].desc && !LIB[k].group) DESCS[k] = LIB[k].desc; }
+  (rows || []).forEach((o, ri) => { if (!o) return; let k0 = SHEET_ALIAS[o.s] || o.s; if (!LIB[k0]) k0 = Object.keys(LIB).find(k => k.startsWith(o.s + '-')) || null; const m = String(o.d || '').match(/^(\d{2})-(\d{2})-(\d{4})$/); if (k0 && LIB[k0] && m && !SHEETDATE[k0]) SHEETDATE[k0] = { d: `${m[3]}-${m[2]}-${m[1]}`, i: ri }; });
   for (const o of rows || []) {
     if (!o || /^(Menu|Footer)$/i.test(o.t)) continue;
     let key = SHEET_ALIAS[o.s] || o.s; if (!LIB[key]) key = Object.keys(LIB).find(k => k.startsWith(o.s + '-')) || null;
@@ -944,9 +945,9 @@ function splitParts(els) {
 }
 function makeSections(LIB, tpl, why, tlf) {
   const parts = WHOLE_PAGE.has(categoryOf(tpl)) ? [LIB[tpl].els] : splitParts(LIB[tpl].els);
-  return parts.map((els, i) => { const s = { uid: 's' + (++UID) + Math.random().toString(36).slice(2, 5), tpl, why: i === 0 ? (why || '') : '', els: clone(els), part: i + 1, parts: parts.length }; if (tlf) applyPhone(s.els, tlf); loremify(s.els); stockify(s.els); return s; });
+  return parts.map((els, i) => { const s = { uid: 's' + (++UID) + Math.random().toString(36).slice(2, 5), tpl, why: i === 0 ? (why || '') : '', els: clone(els), part: i + 1, parts: parts.length }; if (tlf) applyPhone(s.els, tlf); if (isSiteOnline(LIB, tpl)) { onlineClean(s.els); loremify(s.els, true); stockify(s.els, true); } else { loremify(s.els); stockify(s.els); } return s; });
 }
-function makeSection(LIB, tpl, why, tlf) { const s = { uid: 's' + (++UID) + Math.random().toString(36).slice(2, 5), tpl, why: why || '', els: clone(LIB[tpl].els) }; if (tlf) applyPhone(s.els, tlf); loremify(s.els); stockify(s.els); return s; }
+function makeSection(LIB, tpl, why, tlf) { const s = { uid: 's' + (++UID) + Math.random().toString(36).slice(2, 5), tpl, why: why || '', els: clone(LIB[tpl].els) }; if (tlf) applyPhone(s.els, tlf); if (isSiteOnline(LIB, tpl)) { onlineClean(s.els); loremify(s.els, true); stockify(s.els, true); } else { loremify(s.els); stockify(s.els); } return s; }
 
 
 
@@ -959,9 +960,11 @@ function loremText(t) {
   let i = 0, prevEnd = true;
   return t.split(/(\s+)/).map(tok => { if (!/[A-Za-zÆØÅæøå]/.test(tok)) return tok; const m = tok.match(/^([^A-Za-zÆØÅæøå]*)([A-Za-zÆØÅæøå][\wÆØÅæøå'’-]*)(.*)$/); if (!m) return tok; let w = LOREM_POOL[i++ % LOREM_POOL.length]; if (prevEnd || /^[A-ZÆØÅ]/.test(m[2])) w = w.charAt(0).toUpperCase() + w.slice(1); prevEnd = /[.!?]$/.test(m[3]); return m[1] + w + m[3]; }).join('');
 }
-const loremNode = t => { const plain = t.replace(/&nbsp;/g, ' ').trim(); if (!plain || !/[A-Za-zÆØÅæøå]/.test(plain) || KEEP_RE.test(plain) || !DANISH_RE.test(plain)) return t; return loremText(t); };
+let LOREM_ALL = false;
+const loremNode = t => { const plain = t.replace(/&nbsp;/g, ' ').trim(); if (!plain || !/[A-Za-zÆØÅæøå]/.test(plain) || KEEP_RE.test(plain) || (!LOREM_ALL && !DANISH_RE.test(plain))) return t; return loremText(t); };
 const loremHtml = h => (typeof h === 'string' ? h.replace(/(^|>)([^<]+)(?=<|$)/g, (m, a, t) => a + loremNode(t)) : h);
-function loremify(els) {
+function loremify(els, all) {
+  LOREM_ALL = !!all;
   for (const e of els) {
     const s = e.settings; if (!s || typeof s !== 'object') continue;
     if (typeof s.text === 'string' && ['heading', 'text-basic', 'text', 'button', 'text-link'].includes(e.name)) s.text = loremHtml(s.text);
@@ -969,7 +972,7 @@ function loremify(els) {
     if (Array.isArray(s.accordions)) s.accordions = s.accordions.map(it => (it && typeof it === 'object' ? Object.assign({}, it, typeof it.title === 'string' ? { title: loremHtml(it.title) } : {}, typeof it.content === 'string' ? { content: loremHtml(it.content) } : {}) : it));
     if (typeof s.content === 'string' && e.name === 'icon-box') s.content = loremHtml(s.content);
   }
-  return els;
+  LOREM_ALL = false; return els;
 }
 
 
@@ -983,29 +986,53 @@ function videoify(els) {
   return els;
 }
 
+
+/* ---------- rigtige sektioner fra online sider: neutraliser kundens billeder, links og kontaktdata ---------- */
+const PHONE_RE = /(?:\+?45[\s-]?)?(?:\d{2}[\s.-]?){3}\d{2}(?!\d)/g, MAIL_RE = /[\w.+-]+@[\w-]+\.[\w.-]+/g;
+function onlineClean(els) {
+  const fix = o => { if (!o || typeof o !== 'object') return; for (const k of Object.keys(o)) { const v = o[k];
+      if (typeof v === 'string') {
+        if (k === 'url' && /^https?:/i.test(v) && !/beststock\.kinsta\.cloud|youtu|vimeo/i.test(v) && !/\.(jpe?g|png|webp|svg|mp4)(\?|$)/i.test(v)) o[k] = '#';
+        else if (/^tel:/i.test(v)) o[k] = 'tel:+4588888888'; else if (/^mailto:/i.test(v)) o[k] = 'mailto:FIRMA@MAIL.DK';
+        else if (/^(text|title|label|description|ariaLabel|altText|placeholder)$/.test(k) && v.length < 600) o[k] = v.replace(MAIL_RE, 'FIRMA@MAIL.DK').replace(PHONE_RE, '88 88 88 88');
+      } else fix(v); } };
+  for (const e of els) if (e.settings && typeof e.settings === 'object' && !Array.isArray(e.settings)) fix(e.settings);
+  return els;
+}
+const isSiteOnline = (LIB, tpl) => !!(LIB && LIB[tpl] && LIB[tpl].group === 'Live sektioner' && LIB[tpl].site);
+
 /* ---------- Best Stock-billeder: templates bruger altid disse fotos (ikke pladsholdere eller billeder fra andre sites) ---------- */
 let STOCK = [], STOCK_I = 0; const STOCK_BASE = 'https://beststock.kinsta.cloud/wp-content/uploads/2025/05/';
 function setStock(list) { STOCK = list || []; STOCK_I = Math.floor(Math.random() * Math.max(1, STOCK.length)); }
 const stockUrl = it => STOCK_BASE + it.n + '.jpg';
 const stockObj = it => ({ url: stockUrl(it), full: stockUrl(it), filename: it.n + '.jpg', size: 'full' });
 const nextStock = () => (STOCK.length ? STOCK[STOCK_I++ % STOCK.length] : null);
-const isLibPhoto = o => !!o && typeof o === 'object' && !o.external && (o.isPlaceholder === true || /^(0U2A\d+(-\d+x\d+)?|img-placeholder[\w-]*|placeholder-image[\w-]*)\.(jpe?g|png|webp)$/i.test(String(o.filename || fileOf(o.url || o.full || ''))));
-function stockify(els) {
-  videoify(els); if (!STOCK.length) return els;
+let STOCK_ALL = false;
+const isLibPhoto = o => !!o && typeof o === 'object' && !o.external && ((STOCK_ALL && (o.url || o.full) && !/\.svg(\?|$)|logo|icon|avatar|person-placeholder|placeholder-logo|stars|favicon/i.test(String(o.filename || fileOf(o.url || o.full || '')))) || o.isPlaceholder === true || /^(0U2A\d+(-\d+x\d+)?|img-placeholder[\w-]*|placeholder-image[\w-]*)\.(jpe?g|png|webp)$/i.test(String(o.filename || fileOf(o.url || o.full || ''))));
+function stockify(els, all) {
+  videoify(els); if (!STOCK.length) return els; STOCK_ALL = !!all; try {
   for (const e of els) {
     const s = e.settings; if (!s) continue;
     if (e.name === 'image' && isLibPhoto(s.image)) s.image = stockObj(nextStock());
     let pick = null; for (const k of Object.keys(s)) if (k === '_background' || k.startsWith('_background:')) { const bg = s[k]; if (bg && typeof bg === 'object' && isLibPhoto(bg.image)) { pick = pick || nextStock(); bg.image = stockObj(pick); } }
     if (e.name === 'image-gallery' && s.items && Array.isArray(s.items.images)) s.items.images = s.items.images.map(im => isLibPhoto(im) ? stockObj(nextStock()) : im);
   }
+  } finally { STOCK_ALL = false; }
   return els;
 }
 const stockPrev = o => { if (!o || typeof o !== 'object') return PH_URL; const nm = String(o.filename || fileOf(o.url || o.full || '')).replace(/\.\w+$/, ''); const it = STOCK.find(x => x.n === nm); return it ? it.d : PH_URL; };
 
 
 /* ---------- picker: nyeste templates og grupper ---------- */
-const dateOf = (LIB, k) => { if (LIB[k] && LIB[k].added) return LIB[k].added; const d = (META[k] && META[k].date) || ''; const m = d.match(/^(\d{2})-(\d{2})-(\d{4})$/); return m ? `${m[3]}-${m[2]}-${m[1]}` : '0000-00-00'; };
-function newestKeys(LIB, n) { const keys = allowedKeys(LIB).filter(k => !(LIB[k] && LIB[k].helper)); const ord = {}; Object.keys(LIB).forEach((k, i) => ord[k] = i); return keys.sort((a, b) => dateOf(LIB, b).localeCompare(dateOf(LIB, a)) || ord[a] - ord[b]).slice(0, n || 10); }
+const dateKey = (LIB, k) => (SHEETDATE[k] && SHEETDATE[k].d) || (LIB[k] && LIB[k].added) || '';
+const natNum = k => { const m = String(k).match(/(\d+)/g); return m ? +m[m.length - 1] : 0; };
+function sortKeys(LIB, keys, mode, useFn) {
+  const ord = {}; Object.keys(LIB).forEach((k, i) => ord[k] = i); const idx = k => (SHEETDATE[k] ? SHEETDATE[k].i : 1e6 + ord[k]);
+  const byNew = (a, b) => dateKey(LIB, b).localeCompare(dateKey(LIB, a)) || idx(a) - idx(b);
+  const by = { nyeste: byNew, aeldste: (a, b) => byNew(b, a), navn: (a, b) => displayName(a).localeCompare(displayName(b), 'da', { numeric: true }), brugt: (a, b) => ((useFn && useFn(b)) || 0) - ((useFn && useFn(a)) || 0) || byNew(a, b) };
+  return keys.slice().sort(by[mode] || by.nyeste);
+}
+function newestKeys(LIB, n) { const keys = allowedKeys(LIB).filter(k => !(LIB[k] && (LIB[k].helper || LIB[k].group)) && (SHEETDATE[k] || (LIB[k] && LIB[k].added))); const idx = k => (SHEETDATE[k] ? SHEETDATE[k].i : -1); return keys.sort((a, b) => dateKey(LIB, b).localeCompare(dateKey(LIB, a)) || idx(a) - idx(b)).slice(0, n || 10); }
 const groupKeys = (LIB, g) => allowedKeys(LIB).filter(k => LIB[k] && LIB[k].group === g);
 /* ---------- præcis én H1 pr. side: i heroen. Øvrige H1 bliver H2 ---------- */
 function fixH1(secs, mode) {
@@ -1026,6 +1053,59 @@ function fixH1(secs, mode) {
   return { sections: out, fixed, promoted };
 }
 
+
+/* ---------- planlægning uden Claude: gæt branche, kopiér opbygning fra en rigtig side, brug templates og online-sektioner ---------- */
+const BRANCH_KW = [
+  ['Tømrer / Snedker', /tømrer|snedker|træ|tag|byg\b|carport|terrasse|vindue|dør/], ['Murer / Entreprise', /murer|entrepr|beton|facade|mursten|totalenterpr|byggefirma/],
+  ['VVS / Kloak / Blik', /vvs|kloak|blik|rør|varme|vand|installatør|sanitet/], ['El / Teknik', /\bel\b|el-|elektr|teknik|solcelle|batteri|ladestander|data/],
+  ['Maler', /maler|male|farve|spartel|facademaling/], ['Auto', /auto|bil|dæk|værksted|motor|lakering|autoværksted/],
+  ['Anlæg / Have / Skov', /anlæg|have|skov|træfæld|landskab|brolægn|græs|hegn/], ['Klinik / Sundhed', /klinik|læge|tand|sundhed|fysio|psykiatri|kiropraktor|zone|behandl/],
+  ['Service / Rengøring / Ejendom', /rengør|service|ejendom|facility|vinduespoler|rens|vagt/], ['Køreskole', /køre|køreskole|kørekort|trafik/],
+  ['Skønhed / Fitness', /frisør|skønhed|fitness|salon|kosmetik|massage|spa|neg/], ['Gulv / Beton', /gulv|parket|epoxy|slibning|beton/],
+  ['Specialhåndværk / Overflade', /overflade|lak|pulver|sandblæs|special|metal|smed/], ['B2B / Industri / Produkter', /industri|produkt|maskin|b2b|fabrik|grossist|automation/],
+  ['Detail / Mad / Event / Rejse', /restaurant|café|cafe|mad|event|rejse|butik|bager|kro/], ['Udlejning / Logistik', /udlej|logistik|transport|kran|lift|container|fragt/],
+  ['Rådgivning / Virksomhed', /rådgiv|advokat|revisor|konsulent|bureau|regnskab|ejendomsmægler/], ['Terapi / Coaching', /terapi|coach|psykolog|mindful|samtale/]
+];
+function guessBranche(name, msg, SITES) {
+  const nm = String(name || '').toLowerCase(), mg = String(msg || '').toLowerCase(); const score = {};
+  for (const [b, re] of BRANCH_KW) { let s = 0; if (re.test(mg)) s += 4; if (re.test(nm)) s += 3; if (s) score[b] = s; }
+  const best = Object.entries(score).sort((a, b) => b[1] - a[1])[0]; if (best) return { b: best[0], via: re_test(BRANCH_KW, best[0], mg) ? 'konteksten' : 'navnet' };
+  const words = nm.split(/[^a-zæøå0-9]+/).filter(w => w.length >= 3); const pool = (SITES || []).filter(s => s.b && !/uklar/i.test(s.b));
+  const hit = pool.filter(s => words.some(w => String(s.n).toLowerCase().includes(w))); if (hit.length) return { b: hit[Math.floor(Math.random() * hit.length)].b, via: 'navnet (ligner et kendt site)' };
+  const all = pool.map(s => s.b); return all.length ? { b: all[Math.floor(Math.random() * all.length)], via: 'tilfældigt' } : { b: '', via: 'tilfældigt' };
+}
+const re_test = (kw, b, text) => { const x = kw.find(k => k[0] === b); return !!(x && x[1].test(text)); };
+function siteInfo(LIB, k) { const t = LIB && LIB[k]; return t && t.site ? { site: t.site, url: t.url || '', branche: t.branche || '', added: t.added || '' } : null; }
+function localPlan(b, LIB, n, existing, SITES) {
+  const keys = allowedKeys(LIB, true); const used = new Set([].concat(...(existing || []))); const msg = String((b && b.msg) || '').toLowerCase(); const type = (b && b.sidetype) || 'Forside'; const has = re => re.test(msg);
+  const gb = b && b.branche ? { b: b.branche, via: 'dit valg' } : guessBranche(b && b.navn, b && b.msg, SITES); const team = has(/medarbejder|team|folk/);
+  const DEF = type === 'Hero' ? ['Header'] : type === 'Menu' ? ['Menu'] : type === 'Underside' ? ['Header', 'Content', 'Ydelser', 'FAQ', 'Kontakt sektion'] : ['Header', 'Ydelser', 'Content', 'Anmeldelser', 'FAQ', 'Kontakt sektion'];
+  const OK = new Set(['Header', 'Ydelser', 'Content', 'Anmeldelser', 'FAQ', 'Kontakt sektion', 'Galleri', 'Cases', 'Priser']);
+  const sameSites = type === 'Forside' ? (SITES || []).filter(s => s.b === gb.b && Array.isArray(s.c) && s.c.length >= 4) : [];
+  const names = ['Klassisk', 'Rolig', 'Luftig', 'Kraftig', 'Enkel']; const base = (existing || []).length; const forslag = []; const usedSites = new Set();
+  for (let i = 0; i < n; i++) {
+    let cats = DEF.slice(), basis = '';
+    if (sameSites.length) { const fresh = sameSites.filter(s => !usedSites.has(s.n)); const s = (fresh.length ? fresh : sameSites)[Math.floor(Math.random() * (fresh.length ? fresh : sameSites).length)]; usedSites.add(s.n);
+      let c = s.c.filter(x => OK.has(x)); const out = []; for (const x of c) { if (out[out.length - 1] !== x) out.push(x); } while (out.length > 8) out.splice(1 + Math.floor(Math.random() * (out.length - 2)), 1);
+      if (out.length >= 4) { if (out[0] !== 'Header') out.unshift('Header'); if (out[out.length - 1] !== 'Kontakt sektion') out.push('Kontakt sektion'); cats = out; basis = s.n; } }
+    if (type !== 'Hero' && type !== 'Menu') {
+      const add = (cat, after) => { if (!cats.includes(cat)) { const k = cats.indexOf(after); cats.splice(k < 0 ? cats.length - 1 : k + 1, 0, cat); } };
+      if (has(/pris|abonnement/)) add('Priser', 'Ydelser'); if (has(/\bcase|projekt|reference/)) add('Cases', 'Content'); if (has(/galleri|billeder|fotos/) || team) add('Galleri', 'Content');
+      if (has(/uden faq|ingen faq/)) cats = cats.filter(c => c !== 'FAQ'); if (has(/uden anmeld|ingen anmeld/)) cats = cats.filter(c => c !== 'Anmeldelser');
+    }
+    const mine = new Set(); const sek = [];
+    for (const c of cats) {
+      let pool = keys.filter(k => categoryOf(k) === c); if (c === 'Galleri') pool = pool.filter(k => (team ? /^medarbejdere/ : /^galleri/).test(k) || (LIB[k] && LIB[k].group === 'Live sektioner'));
+      if (!pool.length) continue; let fresh = pool.filter(k => !used.has(k) && !mine.has(k)); if (!fresh.length) fresh = pool.filter(k => !mine.has(k)); if (!fresh.length) fresh = pool;
+      const wts = fresh.map(k => { const t = LIB[k] || {}; return t.group === 'Live sektioner' && t.site ? (t.branche && t.branche === gb.b ? 4 : 1.8) : 1; }); const tot = wts.reduce((a, x) => a + x, 0); let r = Math.random() * tot, pick = fresh[0];
+      for (let q = 0; q < fresh.length; q++) { r -= wts[q]; if (r <= 0) { pick = fresh[q]; break; } }
+      mine.add(pick); sek.push({ tpl: pick, hvorfor: LIB[pick] && LIB[pick].site ? 'Rigtig sektion fra ' + LIB[pick].site : 'Standardopbygning' });
+    }
+    mine.forEach(k => used.add(k));
+    forslag.push({ navn: names[(base + i) % names.length], note: 'Lavet uden Claude · branche gættet: ' + (gb.b || 'ukendt') + ' (ud fra ' + gb.via + ')' + (basis ? ' · opbygning som ' + basis : ''), sektioner: sek, gaet: gb });
+  }
+  return { forslag, branche: gb };
+}
 /* ---------- gentagne blokke ---------- */
 function getGroups(els) {
   const m = mapOf(els); const sig = id => { const e = m[id]; return e ? e.name + '(' + (e.children || []).map(sig).join(',') + ')' : ''; };
@@ -1252,10 +1332,11 @@ function cleanVal(v) {
   return v;
 }
 const stripCssComments = css => String(css).replace(/\/\*[\s\S]*?\*\//g, '').replace(/[ \t]+\n/g, '\n').replace(/\n{2,}/g, '\n').trim();
-function cleanSettings(s) {
+const NATIVE_KEEP = new Set(['_gap', '_flexDirection']);       // gyldige i Bricks-skabeloner (fx accordion), men ugyldigt "affald" fra AI-sektioner
+function cleanSettings(s, native) {
   const out = {}; if (!s || Array.isArray(s)) return out;
   for (const k of Object.keys(s)) {
-    const base = k.split(':')[0]; if (JUNK_KEYS.has(base)) continue; if (base === 'query' && !s.hasLoop) continue;
+    const base = k.split(':')[0]; if (JUNK_KEYS.has(base) && !(native && NATIVE_KEEP.has(base))) continue; if (base === 'query' && !s.hasLoop) continue;
     let v = cleanVal(s[k]); if (v === undefined) continue; if (base === '_cssCustom' && typeof v === 'string') { v = stripCssComments(v); if (!v) continue; } out[k] = v;
   }
   return out;
@@ -1301,7 +1382,7 @@ function buildExport(state, CLASSES, opts) {
       const old = e.id; e.id = idMap[old];
       e.parent = (e.parent === 0 || e.parent === '0') ? 0 : (idMap[e.parent] || 0);
       e.children = (e.children || []).map(c => idMap[c]).filter(Boolean);
-      e.settings = exp_clean ? cleanSettings(e.settings) : (e.settings || {});
+      e.settings = exp_clean ? cleanSettings(e.settings, !(sec.ai || sec.fri)) : (e.settings || {});
       if ('themeStyles' in e) { const ts = cleanVal(e.themeStyles); if (ts === undefined) delete e.themeStyles; else e.themeStyles = ts; }
       let str = JSON.stringify(e.settings);
       if (str.indexOf('brxe-') !== -1) { for (const o of oldIds) str = str.replace(new RegExp('brxe-' + o + '(?![a-z0-9])', 'g'), 'brxe-' + idMap[o]); e.settings = JSON.parse(str); }
@@ -1313,7 +1394,7 @@ function buildExport(state, CLASSES, opts) {
   const allIds = new Set(content.map(e => e.id));
   for (const e of content) { const refs = (JSON.stringify(e.settings).match(/brxe-([a-z0-9]{6})/g) || []).map(x => x.slice(5)).filter(x => !allIds.has(x)); if (refs.length) flags.push(`Et ${e.name}-element${e.label ? ' ("' + e.label + '")' : ''} refererer til element-ID ${[...new Set(refs)].join(', ')}, som ikke findes i templaten. Tjek scriptet efter paste.`); }
   const globalClasses = []; const missing = [];
-  for (const id of classIds) { if (CLASSES[id]) { const c = clone(CLASSES[id]); if (exp_clean) c.settings = cleanSettings(c.settings); globalClasses.push(c); } else missing.push(id); }
+  for (const id of classIds) { if (CLASSES[id]) { const c = clone(CLASSES[id]); if (exp_clean) c.settings = cleanSettings(c.settings, true); globalClasses.push(c); } else missing.push(id); }
   const renamed = (opts && opts.prefix) ? renameClasses(content, globalClasses, opts.prefix) : 0;
   return { json: { content, source: 'bricksCopiedElements', sourceUrl: SOURCE_URL, version: BRICKS_VERSION, globalClasses }, flags, missingClasses: missing, formCount: formSeen, imageUse, renamed, prefix: renamed ? opts.prefix : '', h1Fixed: h1r.fixed, h1Promoted: h1r.promoted };
 }
@@ -1345,8 +1426,8 @@ const vh = v => String(v).replace(/(\d+(?:\.\d+)?)vh/g, (m, n) => Math.round(par
 const px = v => { if (v === undefined || v === null || v === '') return null; if (typeof v === 'number') return v + 'px'; v = String(v).trim(); if (/^-?\d+(\.\d+)?$/.test(v)) return v + 'px'; return vh(v); };
 const colorOf = c => { if (!c) return null; if (typeof c === 'string') return c; return c.raw || c.rgb || c.hsl || c.hex || null; };
 const boxDecl = (o, p) => { const d = []; if (o && typeof o === 'object') for (const s of ['top', 'right', 'bottom', 'left']) { const v = px(o[s]); if (v !== null) d.push(`${p}-${s}:${v}`); } return d; };
-const PLAIN = { _display: 'display', _direction: 'flex-direction', _alignItems: 'align-items', _justifyContent: 'justify-content', _alignSelf: 'align-self', _flexWrap: 'flex-wrap', _objectFit: 'object-fit', _objectPosition: 'object-position', _aspectRatio: 'aspect-ratio', _position: 'position', _zIndex: 'z-index', _overflow: 'overflow', _opacity: 'opacity', _isolation: 'isolation', _gridTemplateColumns: 'grid-template-columns', _gridTemplateRows: 'grid-template-rows', _gridAutoFlow: 'grid-auto-flow', _order: 'order', _flexGrow: 'flex-grow', _flexShrink: 'flex-shrink', _flexBasis: 'flex-basis' };
-const PX = { _rowGap: 'row-gap', _columnGap: 'column-gap', _gridGap: 'gap', _width: 'width', _widthMin: 'min-width', _widthMax: 'max-width', _height: 'height', _heightMin: 'min-height', _heightMax: 'max-height', _top: 'top', _right: 'right', _bottom: 'bottom', _left: 'left' };
+const PLAIN = { _display: 'display', _direction: 'flex-direction', _flexDirection: 'flex-direction', _alignItems: 'align-items', _justifyContent: 'justify-content', _alignSelf: 'align-self', _flexWrap: 'flex-wrap', _objectFit: 'object-fit', _objectPosition: 'object-position', _aspectRatio: 'aspect-ratio', _position: 'position', _zIndex: 'z-index', _overflow: 'overflow', _opacity: 'opacity', _isolation: 'isolation', _gridTemplateColumns: 'grid-template-columns', _gridTemplateRows: 'grid-template-rows', _gridAutoFlow: 'grid-auto-flow', _order: 'order', _flexGrow: 'flex-grow', _flexShrink: 'flex-shrink', _flexBasis: 'flex-basis' };
+const PX = { _gap: 'gap', _rowGap: 'row-gap', _columnGap: 'column-gap', _gridGap: 'gap', _width: 'width', _widthMin: 'min-width', _widthMax: 'max-width', _height: 'height', _heightMin: 'min-height', _heightMax: 'max-height', _top: 'top', _right: 'right', _bottom: 'bottom', _left: 'left' };
 const PH_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600" preserveAspectRatio="xMidYMid slice"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#aab5c2"/><stop offset="1" stop-color="#7b8a9c"/></linearGradient></defs><rect width="800" height="600" fill="url(#g)"/><g fill="#fff" fill-opacity=".38"><circle cx="590" cy="190" r="48"/><path d="M0 600V430l190-170 170 150 120-90 320 200v80z"/></g></svg>`;
 const PH_URL = 'data:image/svg+xml,' + encodeURIComponent(PH_SVG);
 
@@ -1402,8 +1483,15 @@ function overlayCss(sel, s, bp) {
   const g = `linear-gradient(${cs.length === 1 ? cs[0] + ',' + cs[0] : (gr.angle ? gr.angle + 'deg,' : '') + cs.join(',')})`;
   return `:where(${sel}){position:relative}${sel}{isolation:isolate}${sel}::before{content:"";position:absolute;inset:0;z-index:-1;pointer-events:none;background-image:${g}}`;
 }
+function accordionCss(sel, s) {
+  let o = ''; const w = (k, cls) => { const d = s[k] && typeof s[k] === 'object' ? boxDecl(s[k], 'padding') : []; if (d.length) o += `${sel} .${cls}{${d.join(';')}}`; };
+  w('titlePadding', 'accordion-title-wrapper'); w('contentPadding', 'accordion-content-wrapper');
+  const r = s.titleBorder && s.titleBorder.radius; if (r && typeof r === 'object') { const d = boxDecl({ top: r.top, right: r.right, bottom: r.bottom, left: r.left }, 'border-radius'); if (d.length) o += `${sel} .accordion-title-wrapper{${d.join(';')}}`; }
+  const cf = s.contentTypography && s.contentTypography['font-size']; if (cf) o += `${sel} .accordion-content-wrapper{font-size:${cf}}`;
+  return o;
+}
 function cssForSettings(sel, s) {
-  let out = ''; const base = declsFor(s, ''); if (base.length) out += `${sel}{${base.join(';')}}`; out += overlayCss(sel, s, '');
+  let out = ''; const base = declsFor(s, ''); if (base.length) out += `${sel}{${base.join(';')}}`; out += overlayCss(sel, s, ''); out += accordionCss(sel, s);
   for (const bp of BP_ORDER) { const d = declsFor(s, bp); const o = overlayCss(sel, s, bp); if (d.length || o) out += `@container (${BP[bp][0]}-width:${BP[bp][1]}px){${d.length ? `${sel}{${d.join(';')}}` : ''}${o}}`; }
   return out;
 }
@@ -1729,5 +1817,5 @@ REGLER
 Svar KUN med JSON: {"ops":[…],"svar":"1-2 sætninger på dansk om hvad du gjorde, eller hvorfor du ikke kunne"}`;
 }
 
-const API = { clone, esc, stripTags, mapOf, rootsOf, walk, getSlots, applyText, makeSection, applyOps, applyPhone, applyContent, imgSlots, buildExport, validate, renderSections, catalog, buildAiRaw, buildFri, nativize, natRegister, pickArchetypes, pickRegister, archPurpose, AI_ARCH, setStock, stockify, videoify, BS_VIDEO, loremify, loremText, fixH1, newestKeys, groupKeys, STOCK_BASE, makeAi, rebuildAi, normAi, pickCreative, aiConceptPrompt, aiSectionPrompt, aiRepairPrompt, themeDoc, AI_DIRECTIONS, looseJson, sanitizeAiCss, secTitle, aiVarNames, fixExtraH1, planPrompt, contentPrompt, inspirationText, makeFri, normFri, cycleFri, groupInfoSec, setFriClasses, FRI_TYPES, FRI_STIL, SECTION_ONLY, pickSubpage, subpageRefs, makeSections, splitParts, mirrorSections, suggestForOutline, outlineText, outlineFromImport, findSite, featsOf, parsePhone, classPrefix, setEnv, editPrompt, removeSubtree, categoryOf, displayName, describeKey, setMeta, getMissing, variantsOf, nextVariant, allowedKeys, catList, sanitizePlan, TYPE_ORDER, WHOLE_PAGE, cleanSettings, resizeGroup, groupSize, groupInfo, getGroups, siteSummary, siteBlocks, siteImages, FORM_ID, PH_URL, plainToHtml, htmlToPlain, unitFix };
+const API = { clone, esc, stripTags, mapOf, rootsOf, walk, getSlots, applyText, makeSection, applyOps, applyPhone, applyContent, imgSlots, buildExport, validate, renderSections, catalog, buildAiRaw, buildFri, nativize, natRegister, pickArchetypes, pickRegister, archPurpose, AI_ARCH, setStock, stockify, videoify, sortKeys, localPlan, guessBranche, siteInfo, onlineClean, BS_VIDEO, loremify, loremText, fixH1, newestKeys, groupKeys, STOCK_BASE, makeAi, rebuildAi, normAi, pickCreative, aiConceptPrompt, aiSectionPrompt, aiRepairPrompt, themeDoc, AI_DIRECTIONS, looseJson, sanitizeAiCss, secTitle, aiVarNames, fixExtraH1, planPrompt, contentPrompt, inspirationText, makeFri, normFri, cycleFri, groupInfoSec, setFriClasses, FRI_TYPES, FRI_STIL, SECTION_ONLY, pickSubpage, subpageRefs, makeSections, splitParts, mirrorSections, suggestForOutline, outlineText, outlineFromImport, findSite, featsOf, parsePhone, classPrefix, setEnv, editPrompt, removeSubtree, categoryOf, displayName, describeKey, setMeta, getMissing, variantsOf, nextVariant, allowedKeys, catList, sanitizePlan, TYPE_ORDER, WHOLE_PAGE, cleanSettings, resizeGroup, groupSize, groupInfo, getGroups, siteSummary, siteBlocks, siteImages, FORM_ID, PH_URL, plainToHtml, htmlToPlain, unitFix };
 if (typeof module !== 'undefined') module.exports = API;

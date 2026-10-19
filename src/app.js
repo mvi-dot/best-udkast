@@ -35,8 +35,8 @@
   /* ---------- hjælpere ---------- */
   const setStatus = (t, kind) => { const el = $('status'); el.textContent = t || ''; el.dataset.kind = kind || ''; };
   const errCopy = e => ({
-    not_granted: 'Du skal tillade at siden bruger Claude, før den kan arbejde.', rate_limited: 'For mange kald lige nu. Vent et øjeblik og prøv igen.',
-    invalid_json: 'Claude svarede ikke i det rigtige format. Prøv igen, eller skriv ønsket lidt mere konkret.', cancelled: '', aborted: '',
+    local: 'Den funktion er ikke tilgængelig.', not_granted: 'Ikke tilladt.', rate_limited: 'For mange kald lige nu. Vent et øjeblik og prøv igen.',
+    invalid_json: 'Det gik ikke helt rigtigt. Prøv igen.', cancelled: '', aborted: '',
   })[e && e.code] ?? ('Noget gik galt: ' + ((e && e.message) || e));
   function setBusy(on, label, quiet) { busy = on; $('busy').hidden = !on || !!quiet; $('busyText').textContent = label || ''; for (const el of document.querySelectorAll('[data-lock]')) el.disabled = on; }
   const ASK_MSG = {
@@ -45,7 +45,10 @@
     place: ['Henter kundens tekster…', 'Placerer teksterne i skabelonerne…', 'Sætter tekst og billeder sammen…'],
     gen: ['Tænker over en god bestilling…', 'Skriver en prompt til dig…', 'Finder de rigtige ord…'],
   };
+  let retryLocal = false;
+  const localMode = () => !!(window.claude && window.claude.mode === 'local');
   async function ask(prompt, label) {
+    if (localMode()) throw { code: 'local' };
     ctl = new AbortController(); const pool = /udkast/i.test(label || '') ? ASK_MSG.plan : /Forst/i.test(label || '') ? ASK_MSG.edit : /Placerer|indhold/i.test(label || '') ? ASK_MSG.place : ASK_MSG.gen; let n = 0;
     const next = () => { $('busyText').textContent = pool[n % pool.length]; n++; }; setBusy(true, ''); next(); const timer = setInterval(next, 2600);
     try { return await sample.json(prompt, { modelTier: 'default', cache: false, signal: ctl.signal }); }
@@ -56,7 +59,7 @@
   const tlf = () => '';                                   // telefonnummer er droppet: templates beholder deres pladsholder
 
   /* ---------- brief ---------- */
-  function readBrief() { return { navn: $('navn').value.trim(), branche: '', msg: $('msg').value.trim(), sidetype: (document.querySelector('input[name=sidetype]:checked') || {}).value || 'Forside', frihed: $('frihed').value || 'templates', prefix: $('prefix').value.trim().toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/^-+|-+$/g, '') }; }
+  function readBrief() { return { navn: $('navn').value.trim(), branche: ($('branche') && $('branche').value) || '', msg: $('msg').value.trim(), sidetype: (document.querySelector('input[name=sidetype]:checked') || {}).value || 'Forside', frihed: $('frihed').value || 'templates', prefix: $('prefix').value.trim().toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/^-+|-+$/g, '') }; }
   const EXAMPLES = {
     'Hero': ['Hero med formular og tre fordele', 'Hero med stort billede og to knapper', 'Enkel hero med stor overskrift og tællere'],
     'Menu': ['Menu med logo til venstre og knap til højre', 'Enkel menu med telefonnummer'],
@@ -333,19 +336,20 @@
     const brief = more ? state.brief : b; const n = more ? 1 : +$('count').value;
     setStatus(''); pushHist();
     try {
-      const made = []; const outline = site && useSite ? E.outlineFromImport(site, pageIdx) : null;
+      const made = []; let guessNote = ''; const outline = site && useSite ? E.outlineFromImport(site, pageIdx) : null;
       if (brief.frihed === 'ai') { setBusy(true, '', true); ctl = new AbortController(); try { made.push(...await generateAi(brief, n, outline && outline.length >= 2 ? outline : null)); } finally { ctl = null; endBuild(); } }
       else {
       const existing = (more ? state.proposals : made).map(p => p.sections.map(s => s.tpl));
-      const res = await ask(E.planPrompt(brief, LIB, USE, SITES, n, existing, site && useSite ? E.siteSummary(site, pageIdx) : null, outline && outline.length >= 2 ? outline : null), 'Laver udkast');
+      let res; if (localMode()) { setBusy(true, 'Sætter siden sammen ud fra jeres templates…'); await new Promise(r => setTimeout(r, 700)); res = E.localPlan(more && state.guess && !brief.branche ? Object.assign({}, brief, { branche: state.guess.b }) : brief, LIB, n, existing, SITES); if (more && state.guess && !brief.branche) res.branche = state.guess; if (!more) state.guess = res.branche || null; guessNote = res.branche && res.branche.b ? (res.branche.via === 'dit valg' ? ` Branche: ${res.branche.b}.` : ` Branche gættet: ${res.branche.b}${res.branche.via === 'tilfældigt' ? ' (tilfældigt – vælg Branche ved Designforslag, hvis du vil styre det)' : ''}.`) : ''; }
+      else { if (!more) state.guess = null; res = await ask(E.planPrompt(brief, LIB, USE, SITES, n, existing, site && useSite ? E.siteSummary(site, pageIdx) : null, outline && outline.length >= 2 ? outline : null), 'Laver udkast'); }
       made.push(...(res.forslag || []).slice(0, n).map((f, i) => ({ id: 'p' + Date.now() + i + 'x', name: f.navn || ('Udkast ' + (state.proposals.length + made.length + i + 1)), note: f.note || '', sections: planToSections(f), usedBlocks: [] })).filter(p => p.sections.length));
       }
       if (!made.length) throw { code: 'invalid_json' };
       if (!more) state.proposals = made; else state.proposals.push(...made);
       state.active = more ? state.proposals.length - 1 : 0;
       if (site && useSite) await applySite(cur());
-      setStatus(made.length > 1 ? `${made.length} udkast klar.` : 'Udkast klar.', 'ok');
-    } catch (e) { hist.pop(); ctl = null; const m = errCopy(e); if (m) setStatus(m, 'err'); }
+      setStatus((made.length > 1 ? `${made.length} udkast klar.` : 'Udkast klar.') + guessNote, 'ok');
+    } catch (e) { hist.pop(); ctl = null; if (e && e.code === 'local' && !retryLocal) { retryLocal = true; setBusy(false); try { return await generate(more); } finally { retryLocal = false; } } const m = errCopy(e); if (m) setStatus(m, 'err'); }
     setBusy(false); render();
   }
   function burst(btn, e) {
@@ -357,6 +361,7 @@
     btn.classList.remove('go'); void btn.offsetWidth; btn.classList.add('go'); setTimeout(() => btn.classList.remove('go'), 1600);
   }
   $('genBtn').onclick = e => { burst($('genBtn'), e); generate(false); };
+  $('navn').addEventListener('keydown', e => { if (e.key === 'Enter' && !e.isComposing && !e.shiftKey) { e.preventDefault(); $('genBtn').click(); } });
   $('stopBtn').onclick = () => { if (ctl) ctl.abort(); };
   $('bpStop').onclick = () => { if (ctl) ctl.abort(); };
 
@@ -427,10 +432,17 @@
   const ADMIN_HASH = '8c6976e5b5410415bde908bd4dee15dfb167a9c873fc4bb8a81f6f2ab448a918';
   let unlocked = false;
   async function sha256hex(s) { try { const b = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s)); return [...new Uint8Array(b)].map(x => x.toString(16).padStart(2, '0')).join(''); } catch (_) { return ''; } }
+  const VIA = { 'navnet': 'gættet ud fra navnet', 'konteksten': 'gættet ud fra dine ønsker', 'navnet (ligner et kendt site)': 'gættet: navnet ligner et kendt site', 'tilfældigt': 'gættet tilfældigt', 'dit valg': 'dit valg' };
+  function renderBriefSum() {
+    const el = $('briefSum'); const b = state.brief || {}; const has = !!cur(); el.hidden = !has; if (!has) return;
+    const g = state.guess; const side = b.sidetype && b.sidetype !== 'Forside' ? b.sidetype : 'Forside'; const antal = state.proposals.length;
+    const bran = g && g.b ? `<span class="bchip">${E.esc(g.b)}</span><small>${E.esc(VIA[g.via] || g.via || '')}${g.via === 'tilfældigt' ? ' · vælg selv under "Ret beskrivelsen"' : ''}</small>` : b.branche ? `<span class="bchip">${E.esc(b.branche)}</span><small>dit valg</small>` : '<small>gættes ud fra navnet</small>';
+    el.innerHTML = `<div class="bsum-h"><b>Beskrivelse</b></div><dl class="bsum-l"><div><dt>Kunde</dt><dd>${E.esc(b.navn || '')}</dd></div><div><dt>Ønsker</dt><dd>${b.msg ? E.esc(b.msg) : '<em>Intet angivet</em>'}</dd></div><div><dt>Branche</dt><dd>${bran}</dd></div><div><dt>Opbygning</dt><dd>${E.esc(side)} · ${antal} udkast</dd></div><div><dt>Klasser</dt><dd><code>${E.esc($('prefixShow').textContent || '')}</code></dd></div></dl>`;
+  }
   function applyLock() {
     $('soonBody').hidden = !unlocked; $('fbOpen').hidden = !unlocked; $('unlockShow').hidden = unlocked;
     if (!unlocked) { $('siteCard').open = false; $('unlockOv').hidden = true; $('unlockCode').value = ''; $('unlockMsg').textContent = ''; $('fbDialog').hidden = true; $('frihed').value = 'templates'; }
-    $('fbCard').hidden = !(unlocked && !!cur());
+    $('fbCard').hidden = !(unlocked && !!cur()); $('editCard').hidden = true;
   }
   const openUnlock = () => { $('unlockOv').hidden = false; $('unlockMsg').textContent = ''; $('unlockCode').value = ''; setTimeout(() => $('unlockCode').focus(), 30); };
   const closeUnlock = () => { $('unlockOv').hidden = true; };
@@ -456,14 +468,15 @@
   function setTheme(th, save) { document.documentElement.dataset.theme = th; for (const id of ['themeBtn', 'themeHome']) $(id).innerHTML = THEME_ICON[th === 'dark' ? 'dark' : 'light'];  }
   { const mq = window.matchMedia ? matchMedia('(prefers-color-scheme: dark)') : null; setTheme(mq && mq.matches ? 'dark' : 'light', false); if (mq) { const f = e => setTheme(e.matches ? 'dark' : 'light', false); if (mq.addEventListener) mq.addEventListener('change', f); else if (mq.addListener) mq.addListener(f); } }
   for (const id of ['themeBtn', 'themeHome']) $(id).onclick = () => setTheme(document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark', false);
+  { const sel = $('branche'); if (sel) sel.insertAdjacentHTML('beforeend', [...new Set(SITES.map(s => s.b))].filter(b => b && !/uklar/i.test(b)).sort((x, y) => x.localeCompare(y, 'da')).map(b => `<option>${E.esc(b)}</option>`).join('')); }
   const greet = () => { const h = new Date().getHours(); const g = h >= 23 || h < 5 ? 'Sent oppe? ' : h < 10 ? 'God morgen. ' : h < 17 ? '' : 'God aften. '; $('hi').textContent = g + (g && h >= 10 && h < 17 ? '' : '') + 'Hvem skal have en ny hjemmeside?'; };
   greet(); syncCount(); if (!matchMedia('(pointer: coarse)').matches) setTimeout(() => { try { $('navn').focus({ preventScroll: true }); } catch (_) { } }, 700);
 
   /* ---------- start forfra ---------- */
   let resetT = null;
   function doReset() {
-    state = { brief: {}, proposals: [], active: 0 }; site = null; useSite = true; pageIdx = 0; hist = []; selUid = null; exp = null; lastHas = false; prefixTouched = false;
-    for (const id of ['navn', 'prefix', 'msg', 'siteUrl']) $(id).value = ''; $('count').value = '1'; $('frihed').value = 'templates'; syncCount(); unlocked = false; modeUI(); applyLock(); const f = document.querySelector('input[name=sidetype][value=Forside]'); if (f) f.checked = true;
+    state = { brief: {}, proposals: [], active: 0, guess: null }; site = null; useSite = true; pageIdx = 0; hist = []; selUid = null; exp = null; lastHas = false; prefixTouched = false;
+    for (const id of ['navn', 'prefix', 'msg', 'siteUrl']) $(id).value = ''; $('count').value = '1'; if ($('branche')) $('branche').value = ''; $('frihed').value = 'templates'; syncCount(); unlocked = false; modeUI(); applyLock(); const f = document.querySelector('input[name=sidetype][value=Forside]'); if (f) f.checked = true;
     $('siteCmd').textContent = cmdFor(''); $('siteCard').open = false; $('briefCard').open = true; $('editText').value = '';
     syncPrefix(); $('prefix').hidden = true; setStatus('Startet forfra.', 'ok'); window.scrollTo({ top: 0 }); render();
   }
@@ -478,7 +491,7 @@
   /* ---------- AI: placér kundens indhold ---------- */
   async function applySite(p, onlyUids) {
     if (!site || !p) return;
-    const secs = p.sections.filter(s => !s.fri && !s.ai && !s.hasContent && (!onlyUids || onlyUids.includes(s.uid))); if (!secs.length) return;
+    const secs = p.sections.filter(s => !s.fri && !s.ai && !s.hasContent && (!onlyUids || onlyUids.includes(s.uid))); if (!secs.length || localMode()) return;
     const res = await ask(E.contentPrompt(state.brief, secs, p.sections, site, pageIdx, p.usedBlocks), 'Placerer kundens indhold');
     const st = E.applyContent(secs, res, site, pageIdx);
     for (const sec of secs) { const r = res && res.sektioner && res.sektioner[sec.uid]; if (r) for (const v of Object.values(r.tekst || {})) (Array.isArray(v) ? v : [v]).forEach(i => { if (Number.isInteger(i) && !p.usedBlocks.includes(i)) p.usedBlocks.push(i); }); sec.hasContent = true; }
@@ -488,6 +501,7 @@
   /* ---------- redigér ---------- */
   $('editBtn').onclick = async () => {
     const p = cur(); if (!sample || !p) return; const req = $('editText').value.trim(); if (!req) return;
+    if (localMode()) { setStatus('Brug knapperne ved hver sektion.', 'warn'); return; }
     setStatus(''); pushHist();
     try {
       const res = await ask(E.editPrompt(state.brief, p, LIB, USE, req), 'Forstår ønsket');
@@ -540,17 +554,25 @@
   $('pkClose').onclick = closePicker;
   $('picker').addEventListener('click', e => { if (e.target === $('picker')) closePicker(); });
   document.addEventListener('keydown', e => { if (e.key === 'Escape' && !$('picker').hidden) closePicker(); });
+  const hostOf = u => { try { return new URL(u).hostname.replace(/^www\./, ''); } catch (_) { return 'online'; } };
+  let pkSortPref = 'nyeste';
+  const SORTS = [['nyeste', 'Nyeste først'], ['aeldste', 'Ældste først'], ['navn', 'Navn A–Å'], ['brugt', 'Mest brugt']];
   function renderPicker() {
     $('pkTitle').textContent = pk.mode === 'swap' ? `Vælg anden variant af sektion ${pk.index}` : 'Tilføj sektion';
-    $('pkCats').innerHTML = [...(pk.mode === 'swap' ? [] : ['Nyeste', ...(E.groupKeys(LIB, 'Online hjemmesider').length ? ['Online hjemmesider'] : [])]), ...E.catList(LIB)].map(n => `<button class="chip" aria-pressed="${n === pk.cat}" data-cat="${n}">${n}</button>`).join('');
+    $('pkCats').innerHTML = [...(pk.mode === 'swap' ? [] : ['Nyeste', ...(E.groupKeys(LIB, 'Live sektioner').length ? ['Live sektioner'] : [])]), ...E.catList(LIB)].map(n => `<button class="chip" aria-pressed="${n === pk.cat}" data-cat="${n}">${n}</button>`).join('');
     if (pk.cat === 'Nye sektioner') { renderFriGrid(); return; }
+    pk.sort = pk.sort || pkSortPref; { const so = $('pkSort'); if (so) { so.hidden = pk.cat === 'Nyeste'; so.value = pk.sort; } }
     renderPkFoot();
-    const keys = pk.cat === 'Nyeste' ? E.newestKeys(LIB, 10) : pk.cat === 'Online hjemmesider' ? E.groupKeys(LIB, 'Online hjemmesider') : E.variantsOf(LIB, pk.cat); const grid = $('pkGrid'); grid.innerHTML = '';
+    let keys = pk.cat === 'Nyeste' ? E.newestKeys(LIB, 10) : pk.cat === 'Live sektioner' ? E.groupKeys(LIB, 'Live sektioner') : E.variantsOf(LIB, pk.cat); const grid = $('pkGrid'); grid.innerHTML = '';
+    if (pk.cat !== 'Nyeste' && pk.cat !== 'Live sektioner' && pk.mode !== 'swap') keys = keys.filter(k => !(LIB[k] && LIB[k].group));      // live sektioner har deres egen fane
+    if (pk.cat !== 'Nyeste') keys = E.sortKeys(LIB, keys, pk.sort || 'nyeste', k => (USE[k] || [0])[0]);
+    if (pk.cat === 'Live sektioner') { const subs = [...new Set(keys.map(k => E.categoryOf(k)))]; if (pk.sub && subs.includes(pk.sub)) keys = keys.filter(k => E.categoryOf(k) === pk.sub);
+      $('pkCats').insertAdjacentHTML('beforeend', '<div class="pksub" style="flex-basis:100%;display:flex;gap:6px;flex-wrap:wrap;margin-top:6px">' + ['Alle', ...subs].map(sb => `<button class="chip sm" data-sub="${E.esc(sb)}" aria-pressed="${(pk.sub || 'Alle') === sb}">${E.esc(sb)}</button>`).join('') + '</div>'); }
     const p = cur(); const curTpl = pk.mode === 'swap' && p ? p.sections[pk.index - 1].tpl : null;
     for (const k of keys) {
       const card = document.createElement('button'); card.className = 'pkcard'; card.dataset.k = k;
       const u = USE[k] || [0, 0];
-      card.innerHTML = `<div class="pkprev"></div><div class="pkmeta"><b>${E.esc(E.displayName(k))}</b><small>${E.esc(k)}${k === curTpl ? ' · nuværende' : ''}${u[0] ? ' · bruges af ' + u[0] + ' sites' : ''}</small>${E.describeKey(k) ? `<span class="pkdesc">${E.esc(E.describeKey(k))}</span>` : ''}</div>`;
+      card.innerHTML = `<div class="pkprev"></div><div class="pkmeta"><b>${E.esc(E.displayName(k))}</b>${(LIB[k] && LIB[k].group === 'Live sektioner') ? (LIB[k].url ? `<small>${E.esc(hostOf(LIB[k].url))}${k === curTpl ? ' · nuværende' : ''}</small>` : (k === curTpl ? '<small>nuværende</small>' : '')) : `<small>${E.esc(k)}${k === curTpl ? ' · nuværende' : ''}${u[0] ? ' · bruges af ' + u[0] + ' sites' : ''}</small>`}${(LIB[k] && LIB[k].url) ? `<span class="pklink" role="link" tabindex="0" data-url="${E.esc(LIB[k].url)}">↗ Åbn siden</span>` : ''}${E.describeKey(k) ? `<span class="pkdesc">${E.esc(E.describeKey(k))}</span>` : ''}</div>`;
       grid.appendChild(card);
       const host = card.querySelector('.pkprev'); const sh = host.attachShadow({ mode: 'open' });
       const r = E.renderSections([E.makeSection(LIB, k)], CLASSES, VARS);
@@ -570,8 +592,11 @@
       sh.innerHTML = `<style>${r.css}#f{width:1280px;transform:scale(.234);transform-origin:top left;container-type:inline-size;background:var(--bg-body,#fff)}</style><div id="f">${r.html}</div>`; faApply(sh.getElementById('f'), sh);
     }
   }
-  $('pkCats').addEventListener('click', e => { const b = e.target.closest('[data-cat]'); if (b) { pk.cat = b.dataset.cat; renderPicker(); } });
+  if ($('pkSort')) $('pkSort').addEventListener('change', e => { if (pk) { pk.sort = pkSortPref = e.target.value; renderPicker(); } });
+  $('pkCats').addEventListener('click', e => { const sb = e.target.closest('[data-sub]'); if (sb && pk) { pk.sub = sb.dataset.sub === 'Alle' ? '' : sb.dataset.sub; renderPicker(); return; }
+     const b = e.target.closest('[data-cat]'); if (b) { pk.cat = b.dataset.cat; renderPicker(); } });
   $('pkGrid').addEventListener('click', async e => {
+    const lk = e.target.closest('.pklink'); if (lk) { e.stopPropagation(); window.open(lk.dataset.url, '_blank', 'noopener'); return; }
     const c = e.target.closest('.pkcard'); if (!c || !pk) return;
     if (c.dataset.fri) { closePicker(); const p = cur(); pushHist(); plog(p).added.push('fri:' + c.dataset.fri); E.applyOps(p, [{ op: 'add', fri: Object.assign({ fri: c.dataset.fri }, FRI_DEMO[c.dataset.fri]) }], LIB, tlf(), CLASSES); render(); return; }
     const k = c.dataset.k, o = pk; closePicker();
@@ -614,11 +639,12 @@
       const res = E.setMeta(LIB, out); sheetNote = `Skabelonliste: hentet fra arket lige nu (${out.length} rækker, ${res.matched} med JSON)`;
       setStatus(`Hentede ${out.length} skabeloner fra arket.`, 'ok'); renderPicker(); render();
     } catch (e) {
-      const m = { server_not_connected: 'Google Drive er ikke tilføjet. Tilføj det under Indstillinger → Connectors i Claude.', needs_reauth: 'Google Drive skal logges ind igen under Indstillinger → Connectors.', not_in_manifest: 'Du har ikke givet siden lov til at læse fra Google Drive.', approval_required: 'Siden skal have din godkendelse til at læse arket.', unavailable: 'Kan ikke læse arket her. Åbn siden i claude.ai.', format: 'Arket havde ikke det forventede format.', tool_error: 'Google Drive kunne ikke læse arket (har du adgang til det?).' }[e && e.code];
+      const m = { server_not_connected: 'Google Drive er ikke tilføjet. Tilføj det under Indstillinger → Connectors i Claude.', needs_reauth: 'Google Drive skal logges ind igen under Indstillinger → Connectors.', not_in_manifest: 'Du har ikke givet siden lov til at læse fra Google Drive.', approval_required: 'Siden skal have din godkendelse til at læse arket.', unavailable: 'Arket kan ikke hentes her. Den indbyggede liste bruges.', format: 'Arket havde ikke det forventede format.', tool_error: 'Google Drive kunne ikke læse arket (har du adgang til det?).' }[e && e.code];
       setStatus(m || 'Kunne ikke hente arket lige nu. Den indbyggede liste bruges.', 'warn');
     } finally { btn.disabled = false; btn.textContent = old; }
   }
   $('pkSync').onclick = syncSheet;
+  $('pkSync').hidden = true;
 
   /* ---------- faner (udkast) ---------- */
   $('tabs').addEventListener('click', async e => {
@@ -674,9 +700,9 @@
   function render() {
     if (building) { drawBuild(); return; }
     const p = cur(); const has = !!p; document.body.classList.toggle('home', !has);
-    $('empty').hidden = has; $('pvOuter').hidden = !has; $('listCard').hidden = !has; $('editCard').hidden = !has; $('notesCard').hidden = !has; $('fbCard').hidden = !(has && unlocked); $('tabs').hidden = !has; $('tabrow').hidden = !has; $('chromeUrl').textContent = ((state.brief || {}).navn || 'Udkast') + ' · ' + ((state.brief || {}).sidetype || 'Forside');
+    $('empty').hidden = has; $('pvOuter').hidden = !has; $('listCard').hidden = !has; $('editCard').hidden = !(has && unlocked); $('notesCard').hidden = !has; $('fbCard').hidden = !(has && unlocked); $('tabs').hidden = !has; $('tabrow').hidden = !has; $('chromeUrl').textContent = ((state.brief || {}).navn || 'Udkast') + ' · ' + ((state.brief || {}).sidetype || 'Forside');
     $('undoBtn').disabled = !hist.length; $('copyBtn').disabled = !has;
-    if (has !== lastHas) { $('briefCard').open = !has; lastHas = has; } renderSite();
+    if (has !== lastHas) { $('briefCard').open = !has; lastHas = has; } renderBriefSum(); $('briefCard').querySelector('summary').textContent = has ? 'Ret beskrivelsen' : 'Beskrivelse'; renderSite();
     if (!has) { exp = null; $('valWrap').hidden = true; $('imgCard').hidden = true; $('tabs').innerHTML = ''; $('size').textContent = ''; return; }
     $('tabs').innerHTML = state.proposals.map((x, i) => `<button class="tab" data-tab="${i}" aria-pressed="${i === state.active}" aria-label="Udkast ${i + 1}">Udkast ${i + 1}</button>`).join('');
     if (state.proposals.length < MAX_PROPOSALS) $('tabs').insertAdjacentHTML('beforeend', `<button class="tab more" id="moreBtn" data-lock>+ Et udkast mere (${state.proposals.length}/${MAX_PROPOSALS})</button>`);
@@ -685,7 +711,7 @@
     $('valWrap').hidden = !fails.length; const vb = $('valBadge'); vb.dataset.ok = fails.length ? 'no' : 'yes'; vb.textContent = (fails.length ? `⚠ ${fails.length} tjek fejler` : `✓ Klar til Bricks · ${val.length}/${val.length} tjek`) + (h1bad ? ' · ⚠ H1' : '');
     $('valList').innerHTML = val.map(v => `<li data-p="${v.pass}"><span>${v.pass ? '✓' : '✗'}</span> ${E.esc(v.name)}${v.pass ? '' : ' – ' + E.esc(v.detail)}</li>`).join('') + (pageLike ? `<li data-p="${!h1bad}"><span>${h1bad ? '⚠' : '✓'}</span> Præcis én H1 (SEO)${h1bad ? ' – ' + E.esc(h1msg) : ''}</li>` : '');
     const prevUids = lastUids; lastUids = new Set(p.sections.map(s => s.uid));
-    $('list').innerHTML = p.sections.map((s, i) => `<li draggable="true" data-i="${i + 1}" data-uid="${s.uid}" class="${s.uid === selUid ? 'sel ' : ''}${s.part > 1 ? 'cont ' : ''}${prevUids.has(s.uid) ? '' : 'new'}"><span class="grip" aria-hidden="true">⠿</span><span class="n">${i + 1}</span><div class="t"><b>${E.esc(E.secTitle(s))}${s.parts > 1 ? ` <em class="part" title="${E.esc(E.displayName(s.tpl))} består af ${s.parts} sektioner i Bricks. De kan flyttes eller fjernes hver for sig.">sektion ${s.part} af ${s.parts}</em>` : ''}</b><small>${E.esc(s.tpl)} · ${E.esc(E.categoryOf(s.tpl) || '')}</small>${s.why ? `<small class="why">${E.esc(s.why)}</small>` : ''}${(() => { const gi = E.groupInfoSec(s); return gi && gi.adjustable ? `<span class="cnt" title="Antal ${gi.label} i sektionen. Layoutet tilpasser sig selv"><button data-a="dec" data-i="${i + 1}" data-lock aria-label="Et færre">−</button><b>${gi.n}</b><button data-a="inc" data-i="${i + 1}" data-lock aria-label="Et mere">+</button><em>${gi.label}</em></span>` : ''; })()}</div><div class="ac">
+    $('list').innerHTML = p.sections.map((s, i) => `<li draggable="true" data-i="${i + 1}" data-uid="${s.uid}" class="${s.uid === selUid ? 'sel ' : ''}${s.part > 1 ? 'cont ' : ''}${prevUids.has(s.uid) ? '' : 'new'}"><span class="grip" aria-hidden="true">⠿</span><span class="n">${i + 1}</span><div class="t"><b>${E.esc(E.secTitle(s))}${s.parts > 1 ? ` <em class="part" title="${E.esc(E.displayName(s.tpl))} består af ${s.parts} sektioner i Bricks. De kan flyttes eller fjernes hver for sig.">sektion ${s.part} af ${s.parts}</em>` : ''}</b><small>${E.esc(s.tpl)} · ${E.esc(E.categoryOf(s.tpl) || '')}</small>${(LIB[s.tpl] && LIB[s.tpl].url) ? `<small class="srcl"><a href="${E.esc(LIB[s.tpl].url)}" target="_blank" rel="noopener" title="Åbn den rigtige side">↗ ${E.esc(hostOf(LIB[s.tpl].url))}</a></small>` : ''}${s.why ? `<small class="why">${E.esc(s.why)}</small>` : ''}${(() => { const gi = E.groupInfoSec(s); return gi && gi.adjustable ? `<span class="cnt" title="Antal ${gi.label} i sektionen. Layoutet tilpasser sig selv"><button data-a="dec" data-i="${i + 1}" data-lock aria-label="Et færre">−</button><b>${gi.n}</b><button data-a="inc" data-i="${i + 1}" data-lock aria-label="Et mere">+</button><em>${gi.label}</em></span>` : ''; })()}</div><div class="ac">
       <button data-a="up" data-i="${i + 1}" ${i === 0 ? 'disabled' : ''} data-lock aria-label="Flyt op" title="Flyt op"><svg viewBox="0 0 24 24"><path d="M12 19V5M5.5 11.5 12 5l6.5 6.5"/></svg></button><button data-a="down" data-i="${i + 1}" ${i === p.sections.length - 1 ? 'disabled' : ''} data-lock aria-label="Flyt ned" title="Flyt ned"><svg viewBox="0 0 24 24"><path d="M12 5v14M5.5 12.5 12 19l6.5-6.5"/></svg></button>
       <button data-a="variant" data-i="${i + 1}" data-lock ${s.part > 1 ? 'disabled' : ''} aria-label="Prøv en anden variant" title="${s.ai ? 'Ny version (AI laver sektionen om)' : s.fri ? 'Skift stil og layout' : s.part > 1 ? 'Er en del af ' + E.esc(E.displayName(s.tpl)) + '. Skift på del 1.' : 'Prøv næste variant (fx en anden hero)'}"><svg viewBox="0 0 24 24"><path d="M20 11a8 8 0 0 0-14.3-4.6L4 8.5M4 4v4.5h4.5M4 13a8 8 0 0 0 14.3 4.6L20 15.5M20 20v-4.5h-4.5"/></svg></button><button data-a="pick" data-i="${i + 1}" data-lock ${s.part > 1 || s.fri || s.ai ? 'disabled' : ''} aria-label="Vælg variant" title="${s.part > 1 ? 'Er en del af ' + E.esc(E.displayName(s.tpl)) + '. Skift på del 1.' : 'Vælg variant med billeder'}"><svg viewBox="0 0 24 24"><rect x="4" y="4" width="7" height="7" rx="1.8"/><rect x="13" y="4" width="7" height="7" rx="1.8"/><rect x="4" y="13" width="7" height="7" rx="1.8"/><rect x="13" y="13" width="7" height="7" rx="1.8"/></svg></button><button data-a="copy" data-i="${i + 1}" aria-label="Kopiér sektionens JSON" title="Kopiér denne sektions JSON"><svg viewBox="0 0 24 24"><rect x="8.5" y="8.5" width="11" height="11" rx="2.2"/><path d="M15.5 8.5V6.7a2.2 2.2 0 0 0-2.2-2.2H6.7a2.2 2.2 0 0 0-2.2 2.2v6.6a2.2 2.2 0 0 0 2.2 2.2h1.8"/></svg></button><span class="gap"></span><button data-a="del" data-i="${i + 1}" data-lock aria-label="Fjern" title="Fjern sektion"><svg viewBox="0 0 24 24"><path d="M4.5 7h15M9.5 7V4.5h5V7M6.5 7l.8 12.2a1.5 1.5 0 0 0 1.5 1.3h6.4a1.5 1.5 0 0 0 1.5-1.3L17.5 7M10 11v6M14 11v6"/></svg></button></div></li>`).join('');
     if (pendingAnim) { const pa = pendingAnim; pendingAnim = null; const li = $('list').querySelector(`li[data-i="${pa.i}"]`); if (li) { if (pa.a === 'up' || pa.a === 'down') li.classList.add('moved'); const bt = li.querySelector(`button[data-a="${pa.a}"]`); if (bt && (pa.a === 'variant' || pa.a === 'pick')) bt.classList.add('spin'); } }
