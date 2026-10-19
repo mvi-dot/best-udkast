@@ -105,11 +105,18 @@ def ingest_templates(data, folder):
         except Exception: skipped.append((p.name, 'ugyldig JSON')); continue
         els = d.get('content') if isinstance(d, dict) else None
         if not isinstance(els, list) or not els: skipped.append((p.name, 'ingen "content"')); continue
-        stem = p.stem.lower().replace('æ', 'ae').replace('ø', 'oe').replace('å', 'aa')
-        stem = re.sub(r'[\s_#]+', '-', stem); stem = re.sub(r'-?\d{4}-\d{2}-\d{2}$', '', stem); stem = re.sub(r'^templates?-', '', stem).strip('-')
-        m = re.match(r'^(.+?)-(\d+)$', stem)
-        if not m: skipped.append((p.name, 'filnavnet skal ligne template-ydelse-12.json')); continue
-        pre, num = m.group(1), int(m.group(2)); key = f'{pre}-{num}'
+        # 1) indholdet: "name":"ydelse-12" eller "title":"Ydelse #12"  2) reserve: filnavnet (datoen skæres fra)
+        def _key_from(txt):
+            t = str(txt or '').strip().lower().replace('æ', 'ae').replace('ø', 'oe').replace('å', 'aa')
+            m = re.match(r'^([a-z0-9-]+?)\s*#\s*(\d+)$', t) or re.match(r'^([a-z0-9-]+?)-(\d+)$', re.sub(r'[\s_]+', '-', t))
+            return (m.group(1).strip('-'), int(m.group(2))) if m else None
+        fil = re.sub(r'-?\d{4}-\d{2}-\d{2}$', '', re.sub(r'[\s_#]+', '-', p.stem.lower().replace('æ', 'ae').replace('ø', 'oe').replace('å', 'aa')))
+        fil = re.sub(r'^templates?-', '', fil).strip('-')
+        from_file = _key_from(fil); from_json = _key_from(d.get('name')) or _key_from(d.get('title'))
+        ident = from_json or from_file
+        if not ident: skipped.append((p.name, 'kan ikke finde navn/# hverken i indholdet eller filnavnet')); continue
+        pre, num = ident; key = f'{pre}-{num}'
+        if from_json and from_file and from_json != from_file: print(f'  ! {p.name}: filnavnet siger {from_file[0]}-{from_file[1]}, men indholdet siger {key}. Bruger indholdet.')
         for c in (d.get('globalClasses') or d.get('global_classes') or []):
             if not isinstance(c, dict) or not c.get('id'): continue
             e = dict(c); e['_exists'] = (C.get(c['id']) or {}).get('_exists', False); C[c['id']] = e
@@ -134,8 +141,8 @@ data = json.loads(rd('data.json'))
 tfold = pathlib.Path(opt.get('--templates') or (root / 'templates'))
 if tfold.is_dir():
     tn, tu, ts, tk = ingest_templates(data, tfold)
-    for k in tn: print(f'  + NY template      {k}')
-    for k in tu: print(f'  ~ opdateret        {k}')
+    for k in tn: print(f'  + NY template      {k}  (#{k.rsplit("-", 1)[1]})')
+    for k in tu: print(f'  ~ opdateret        {k}  (#{k.rsplit("-", 1)[1]})')
     for n, why in tk: print(f'  ! sprunget over: {n} ({why})')
     print(f'Templates: {len(tn)} nye, {len(tu)} opdateret, {len(ts)} uændrede fra {tfold.name}/')
 fold = pathlib.Path(opt.get('--sektioner') or (root / 'sektioner'))

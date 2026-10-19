@@ -1093,6 +1093,7 @@ function localPlan(b, LIB, n, existing, SITES) {
       if (has(/pris|abonnement/)) add('Priser', 'Ydelser'); if (has(/\bcase|projekt|reference/)) add('Cases', 'Content'); if (has(/galleri|billeder|fotos/) || team) add('Galleri', 'Content');
       if (has(/uden faq|ingen faq/)) cats = cats.filter(c => c !== 'FAQ'); if (has(/uden anmeld|ingen anmeld/)) cats = cats.filter(c => c !== 'Anmeldelser');
     }
+    { let sawRev = false; cats = cats.filter(c => c !== 'Anmeldelser' || (!sawRev && (sawRev = true))); }          // kun 1 anmeldelses-sektion pr. udkast
     const mine = new Set(); const sek = [];
     for (const c of cats) {
       let pool = keys.filter(k => categoryOf(k) === c); if (c === 'Galleri') pool = pool.filter(k => (team ? /^medarbejdere/ : /^galleri/).test(k) || (LIB[k] && LIB[k].group === 'Live sektioner'));
@@ -1671,6 +1672,7 @@ function sanitizePlan(list, LIB) {
     if (x && x.fri && FRI_TYPES[x.fri]) { if (normFri(x)) out.push(x); continue; }
     if (!x || !LIB[x.tpl] || categoryOf(x.tpl) === 'CTA') continue;
     if (out.length && out[out.length - 1].tpl === x.tpl) continue;                        // ingen to ens lige efter hinanden
+    if (categoryOf(x.tpl) === 'Anmeldelser' && out.some(o => o.tpl && categoryOf(o.tpl) === 'Anmeldelser')) continue;   // kun 1 anmeldelses-sektion pr. side
     count[x.tpl] = (count[x.tpl] || 0) + 1; if (count[x.tpl] > 2) continue; out.push(x);
   }
   return out.slice(0, 12);
