@@ -3,12 +3,14 @@
    python3 build.py                       -> index.html (GitHub Pages / egen hosting)
    python3 build.py artifact              -> dist/udkast-artifact.html (claude.ai, uden adapter)
    python3 build.py github --sektioner D --ud F   (egen mappe/fil, bruges til test)
-Mappen sektioner/ læses hver gang: hver .json-fil dér bliver til sektioner under "Live sektioner"."""
+Mappen sektioner/ læses hver gang: hver .json-fil dér bliver til sektioner under "Live sektioner".
+Mappen templates/ læses også hver gang: hver .json-fil dér bliver til (eller opdaterer) en template i biblioteket.
+   Filnavnet bestemmer hvilken: template-ydelse-12-2026-10-19.json -> ydelse-12 (dato og "template-" er valgfrit)."""
 import sys, re, json, glob, hashlib, datetime, pathlib, copy, collections
 from urllib.parse import urlparse
 root = pathlib.Path(__file__).resolve().parent; src = root / 'src'
 args = sys.argv[1:]; opt = {}
-for k in ('--sektioner', '--ud', '--dump'):
+for k in ('--sektioner', '--templates', '--ud', '--dump'):
     if k in args: i = args.index(k); opt[k] = args[i + 1]; del args[i:i + 2]
 target = args[0] if args else 'github'
 rd = lambda n: (src / n).read_text('utf-8')
@@ -93,7 +95,47 @@ def ingest(data, folder):
             added.append((key, cat, name))
     return added, skipped
 
+def ingest_templates(data, folder):
+    """templates/*.json -> data['LIB']. Ny nøgle = ny template, eksisterende nøgle = opdateres (fx ydelse-12)."""
+    L, C = data['LIB'], data['CLASSES']; new, upd, same, skipped = [], [], [], []
+    files = sorted(glob.glob(str(folder / '*.json')), key=lambda f: (pathlib.Path(f).stat().st_mtime, f))  # nyeste fil vinder
+    for f in files:
+        p = pathlib.Path(f)
+        try: d = json.loads(p.read_text('utf-8'))
+        except Exception: skipped.append((p.name, 'ugyldig JSON')); continue
+        els = d.get('content') if isinstance(d, dict) else None
+        if not isinstance(els, list) or not els: skipped.append((p.name, 'ingen "content"')); continue
+        stem = p.stem.lower().replace('æ', 'ae').replace('ø', 'oe').replace('å', 'aa')
+        stem = re.sub(r'[\s_#]+', '-', stem); stem = re.sub(r'-?\d{4}-\d{2}-\d{2}$', '', stem); stem = re.sub(r'^templates?-', '', stem).strip('-')
+        m = re.match(r'^(.+?)-(\d+)$', stem)
+        if not m: skipped.append((p.name, 'filnavnet skal ligne template-ydelse-12.json')); continue
+        pre, num = m.group(1), int(m.group(2)); key = f'{pre}-{num}'
+        for c in (d.get('globalClasses') or d.get('global_classes') or []):
+            if not isinstance(c, dict) or not c.get('id'): continue
+            e = dict(c); e['_exists'] = (C.get(c['id']) or {}).get('_exists', False); C[c['id']] = e
+        sib = sorted((k for k in L if re.match(re.escape(pre) + r'-\d+$', k)), key=lambda k: int(k.rsplit('-', 1)[1]))
+        if key in L: base = L[key]
+        elif sib: base = L[sib[-1]]
+        else: base = None
+        entry = {k: copy.deepcopy(v) for k, v in (base or {}).items() if k not in ('els', 'title')}
+        if not base:
+            entry.update({'kind': 'content', 'cat': classify(els, pre)}); print(f'  ? {key}: ny type uden søskende - brugte standardværdier, tjek at den vises rigtigt')
+        t = (base or {}).get('title') or ''
+        entry['title'] = re.sub(r'#\s*\d+', f'#{num}', t) if re.search(r'#\s*\d+', t) else f'{nice(pre.replace("-", " "))} #{num}'
+        entry['els'] = copy.deepcopy(els)
+        if key in L and json.dumps(L[key].get('els'), sort_keys=True) == json.dumps(els, sort_keys=True): same.append(key)
+        else: (upd if key in L else new).append(key)
+        L[key] = entry
+    return new, upd, same, skipped
+
 data = json.loads(rd('data.json'))
+tfold = pathlib.Path(opt.get('--templates') or (root / 'templates'))
+if tfold.is_dir():
+    tn, tu, ts, tk = ingest_templates(data, tfold)
+    for k in tn: print(f'  + NY template      {k}')
+    for k in tu: print(f'  ~ opdateret        {k}')
+    for n, why in tk: print(f'  ! sprunget over: {n} ({why})')
+    print(f'Templates: {len(tn)} nye, {len(tu)} opdateret, {len(ts)} uændrede fra {tfold.name}/')
 fold = pathlib.Path(opt.get('--sektioner') or (root / 'sektioner'))
 if fold.is_dir():
     added, skipped = ingest(data, fold)
