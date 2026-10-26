@@ -651,7 +651,7 @@ html[data-theme=dark] .bchip{color:#f0b9a4}
     </div>
     <div class="bar">
       <div class="seg" id="devices" role="group" aria-label="Skærmstørrelse">
-        <button data-d="desktop" aria-pressed="true" title="Desktop · 1600 px (over 1440)">Desktop</button><button data-d="laptop" aria-pressed="false" title="Laptop · 1440 px (max 1440)">Laptop</button><button data-d="ipadl" aria-pressed="false" title="Liggende iPad · 1180 px (max 1199)">iPad liggende</button><button data-d="ipadp" aria-pressed="false" title="Stående iPad · 820 px (max 991)">iPad stående</button><button data-d="mobil" aria-pressed="false" title="Mobil · 390 px (max 478)">Mobil</button>
+        <button data-d="desktop" aria-pressed="true" title="Desktop · 1600 px (base)">Desktop</button><button data-d="laptop" aria-pressed="false" title="Laptop · 1440 px (max 1470)">Laptop</button><button data-d="ipadl" aria-pressed="false" title="Liggende iPad · 1024 px (max 1024)">iPad liggende</button><button data-d="ipadp" aria-pressed="false" title="Stående iPad · 768 px (max 768)">iPad stående</button><button data-d="mobil" aria-pressed="false" title="Mobil · 390 px (max 478)">Mobil</button>
       </div>
       <select id="brandSel" hidden aria-label="Farver i preview" title="Se, hvordan sektionerne ser ud med kundens brandfarve (--cta)" style="width:auto;margin:0;padding:5px 8px;font-size:12.5px"><option value="templates">Farver: Templates (blå)</option><option value="stock">Farver: Stock (rød)</option></select>
       <span class="meta" id="size" hidden></span>
@@ -677,7 +677,7 @@ html[data-theme=dark] .bchip{color:#f0b9a4}
           </ul>
         </div>
       </div>
-      <div id="pvOuter" hidden><div class="chrome"><i></i><i></i><i></i><span id="chromeUrl">Udkast</span></div><div id="pvHost"></div></div>
+      <div id="pvOuter" hidden><div class="chrome"><i></i><i></i><i></i><span id="chromeUrl">Udkast</span></div><div id="pvHost"></div><iframe id="pvFrame" sandbox="allow-scripts" title="Preview af udkastet" hidden></iframe></div>
     </div>
   </section>
 </main>

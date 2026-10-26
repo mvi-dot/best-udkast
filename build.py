@@ -152,6 +152,8 @@ if fold.is_dir():
     for n, why in skipped: print(f'  ! sprunget over: {n} ({why})')
     print(f'Online sektioner: {len(added)} tilføjet fra {fold.name}/')
 if '--dump' in opt: pathlib.Path(opt['--dump']).write_text(json.dumps(data, ensure_ascii=False), 'utf-8')
+bx = src / 'bricks.json'   # jeres Bricks-opsætning til preview (hentes med: python3 hent-bricks.py)
+data['BRICKS'] = json.loads(bx.read_text('utf-8')) if bx.exists() else None
 data_s = json.dumps(data, ensure_ascii=False).replace('<', '\\u003c')
 eng = rd('engine.js').replace('</script', '<\\/script')
 app = rd('app.js').replace('</script', '<\\/script')

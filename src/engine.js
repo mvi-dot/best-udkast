@@ -1184,7 +1184,7 @@ function cloneSubtree(els, rootId, used) {
   const collect = id => { idMap[id] = makeId(used); for (const c of (m[id] && m[id].children) || []) collect(c); };
   collect(rootId); const old = Object.keys(idMap); const out = [];
   for (const oid of old) {
-    const e = clone(m[oid]); e.id = idMap[oid]; e.parent = oid === rootId ? m[oid].parent : idMap[m[oid].parent]; e.children = (e.children || []).map(c => idMap[c]);
+    const e = clone(m[oid]); e._src = m[oid]._src || oid; e.id = idMap[oid]; e.parent = oid === rootId ? m[oid].parent : idMap[m[oid].parent]; e.children = (e.children || []).map(c => idMap[c]);
     let str = JSON.stringify(e.settings || {}); if (str.indexOf('brxe-') !== -1) { for (const o of old) str = str.replace(new RegExp('brxe-' + o + '(?![a-z0-9])', 'g'), 'brxe-' + idMap[o]); }
     e.settings = JSON.parse(str); out.push(e);
   }
@@ -1388,7 +1388,7 @@ function buildExport(state, CLASSES, opts) {
     }
     const oldIds = Object.keys(idMap);
     for (const e of els) {
-      const old = e.id; e.id = idMap[old];
+      const old = e.id; e.id = idMap[old]; delete e._src;
       e.parent = (e.parent === 0 || e.parent === '0') ? 0 : (idMap[e.parent] || 0);
       e.children = (e.children || []).map(c => idMap[c]).filter(Boolean);
       e.settings = exp_clean ? cleanSettings(e.settings, !(sec.ai || sec.fri)) : (e.settings || {});
@@ -1431,7 +1431,8 @@ function validate(exp) {
 /* ---------- preview: Bricks → HTML + CSS ---------- */
 // Jeres variabler er skrevet i rem (rod = 62,5 %) og vw. I preview: rem → 10px og vw → cqw (rammens bredde).
 const unitFix = css => String(css).replace(/(-?\d*\.?\d+)rem\b/g, (m, n) => (parseFloat(n) * 10) + 'px').replace(/(-?\d*\.?\d+)vw\b/g, '$1cqw');
-const vh = v => String(v).replace(/(\d+(?:\.\d+)?)vh/g, (m, n) => Math.round(parseFloat(n) * 6.4) + 'px');
+let PV_RAW = false;   // true = rå enheder (iframe-preview med rigtig viewport): vh omregnes ikke
+const vh = v => PV_RAW ? String(v) : String(v).replace(/(\d+(?:\.\d+)?)vh/g, (m, n) => Math.round(parseFloat(n) * 6.4) + 'px');
 const px = v => { if (v === undefined || v === null || v === '') return null; if (typeof v === 'number') return v + 'px'; v = String(v).trim(); if (/^-?\d+(\.\d+)?$/.test(v)) return v + 'px'; return vh(v); };
 // Bricks gemmer farvens værdi (light/hex) ved siden af variablen: bruges som reserve, hvis variablen ikke findes i preview
 const colorOf = c => { if (!c) return null; if (typeof c === 'string') return c; const fb = c.light || c.hex || c.rgb || c.hsl; if (c.raw && fb && /^var\(--[\w-]+\)$/.test(c.raw.trim())) return c.raw.trim().slice(0, -1) + ',' + fb + ')'; return c.raw || c.rgb || c.hsl || c.hex || null; };
@@ -1473,7 +1474,7 @@ function declsFor(s, bp) {
   }
   if (bg && typeof bg === 'object') {
     set('background-color', colorOf(bg.color));
-    if (bg.image || bg.videoUrl) { layers.push(`url("${stockPrev(bg.image)}")`); set('background-size', bg.size || 'cover'); set('background-position', bg.position || 'center'); set('background-repeat', 'no-repeat'); }
+    if (bg.image || bg.videoUrl) { layers.push(`url("${PV_RAW ? bxImgSrc(bg.image) : stockPrev(bg.image)}")`); set('background-size', bg.size || 'cover'); set('background-position', bg.position || 'center'); set('background-repeat', 'no-repeat'); }
     if (bg.blendMode && (bg.image || bg.videoUrl)) set('background-blend-mode', bg.blendMode);
   }
   if (layers.length) d.push('background-image:' + layers.join(','));
@@ -1834,5 +1835,179 @@ REGLER
 Svar KUN med JSON: {"ops":[…],"svar":"1-2 sætninger på dansk om hvad du gjorde, eller hvorfor du ikke kunne"}`;
 }
 
-const API = { clone, esc, stripTags, mapOf, rootsOf, walk, getSlots, applyText, makeSection, applyOps, applyPhone, applyContent, imgSlots, buildExport, validate, renderSections, catalog, buildAiRaw, buildFri, nativize, natRegister, pickArchetypes, pickRegister, archPurpose, AI_ARCH, setStock, stockify, videoify, sortKeys, localPlan, guessBranche, siteInfo, onlineClean, BS_VIDEO, loremify, loremText, fixH1, newestKeys, groupKeys, STOCK_BASE, makeAi, rebuildAi, normAi, pickCreative, aiConceptPrompt, aiSectionPrompt, aiRepairPrompt, themeDoc, AI_DIRECTIONS, looseJson, sanitizeAiCss, secTitle, aiVarNames, fixExtraH1, planPrompt, contentPrompt, inspirationText, makeFri, normFri, cycleFri, groupInfoSec, setFriClasses, FRI_TYPES, FRI_STIL, SECTION_ONLY, pickSubpage, subpageRefs, makeSections, splitParts, mirrorSections, suggestForOutline, outlineText, outlineFromImport, findSite, featsOf, parsePhone, classPrefix, setEnv, editPrompt, removeSubtree, categoryOf, displayName, describeKey, setMeta, getMissing, variantsOf, nextVariant, allowedKeys, catList, sanitizePlan, TYPE_ORDER, WHOLE_PAGE, cleanSettings, resizeGroup, groupSize, groupInfo, getGroups, siteSummary, siteBlocks, siteImages, FORM_ID, PH_URL, plainToHtml, htmlToPlain, unitFix };
+/* ---------- preview v3: Bricks' egen markup, tegnet med jeres rigtige CSS (src/bricks.json fra hent-bricks.py) ----------
+   HTML'en laves som Bricks selv gør (brxe-klasser, #brxe-id, samme tags) og vises i en iframe med stocksitets CSS og JS.
+   Element-CSS: Bricks' egen (hentet fra templatesitet), når elementets styling er uændret – ellers genereres den. */
+let BX = { bp: {}, links: { css: [], js: [] }, theme: '', classes: {}, elements: {}, html: {}, pages: [], bricksData: {} };
+let BX_LIB = {}, BX_PAGES = new Set();
+function setBricks(b, LIB) { if (b) { BX = b; BX_PAGES = new Set(b.pages || []); } if (LIB) BX_LIB = LIB; }
+const BX_BP = () => Object.entries(BX.bp || {}).sort((a, b) => b[1] - a[1]);          // [['tablet_portrait',1470], …] – kun jeres aktive breakpoints
+// Indstillinger der kun ændrer indhold (HTML) og ikke CSS – de må gerne være ændret, uden at Bricks' CSS bliver forkert
+const BX_CONTENT = new Set(['text', 'content', 'title', 'subtitle', 'link', 'url', 'image', 'items', 'icon', 'iconPosition', 'tag', 'customTag', 'label', 'altText', 'logo', 'logoInverse', 'logoText', 'logoUrl', 'fields', 'countTo', 'countFrom', 'prefix', 'suffix', 'rating', 'accordions', 'icons', 'youTubeId', 'vimeoId', 'videoType', 'submitButtonText', 'placeholder', 'caption', 'description', 'meta', 'code', 'javascriptCode', 'cssCode', 'shortcode', 'template', 'menu', '_attributes', '_interactions']);
+const bxOrig = (sec, e) => { const L = sec && BX_LIB[sec.tpl]; if (!L) return null; const id = e._src || e.id; return L.els.find(x => x.id === id && x.name === e.name) || null; };
+const bxUrls = (o, out) => { if (typeof o === 'string') { if (/^https?:\/\//.test(o)) out.push(o); } else if (o && typeof o === 'object') for (const k in o) bxUrls(o[k], out); return out; };
+// Bricks' egen CSS for elementet (med udskiftede billed-URL'er), eller null hvis stylingen er ændret / ikke hentet
+function bxHarvestCss(sec, e, hid) {
+  const o = bxOrig(sec, e); if (!o || !BX_PAGES.has(sec.tpl)) return null;
+  const a = o.settings || {}, b = e.settings || {}; let out = BX.elements[sec.tpl + ':' + o.id] || '';
+  for (const k of new Set([...Object.keys(a), ...Object.keys(b)])) {
+    if (BX_CONTENT.has(k.split(':')[0])) continue;
+    if (JSON.stringify(a[k]) === JSON.stringify(b[k])) continue;
+    const strip = v => JSON.stringify(v).replace(/https?:\/\/[^"]+/g, '');
+    if (/^_background/.test(k) && a[k] && b[k] && strip(a[k]) === strip(b[k])) { const u1 = bxUrls(a[k], []), u2 = bxUrls(b[k], []); u1.forEach((u, i) => { if (u2[i]) out = out.split(u).join(u2[i]); }); continue; }
+    return null;
+  }
+  return out.replace(/%SEL%/g, hid);
+}
+// Genereret CSS (når Bricks' egen ikke kan bruges) – samme selektorer og breakpoints som Bricks
+function bxGenCss(sel, s, oldId) {
+  PV_RAW = true;
+  try {
+    let out = ''; const base = declsFor(s, ''); if (base.length) out += `${sel}{${base.join(';')}}`; out += overlayCss(sel, s, '');
+    for (const [bp, w] of BX_BP()) { const d = declsFor(s, bp); const o = overlayCss(sel, s, bp); if (d.length || o) out += `@media (max-width: ${w}px){${d.length ? `${sel}{${d.join(';')}}` : ''}${o}}`; }
+    const ic = [s.iconSize ? 'font-size:' + px(s.iconSize) : '', colorOf(s.iconColor) ? 'color:' + colorOf(s.iconColor) : ''].filter(Boolean);
+    if (ic.length) out += `${sel} .icon,${sel}.brxe-icon{${ic.join(';')}}`;
+    if (typeof s._cssCustom === 'string' && s._cssCustom.trim()) { let c = s._cssCustom.replace(/%root%/g, sel); if (oldId) c = c.replace(new RegExp('#brxe-' + oldId + '(?![a-z0-9])', 'g'), sel); out += c; }
+    return out;
+  } finally { PV_RAW = false; }
+}
+const bxLink = l => { if (!l || typeof l !== 'object') return null; if (l.type === 'external' && l.url) return l.url; if (l.type === 'internal') return '#'; if (l.url && /^(tel:|mailto:|https?:|#|\/)/.test(l.url)) return l.url; return null; };
+const bxIcon = (ic, extra) => { if (!ic || typeof ic !== 'object') return ''; if (ic.icon) return `<i class="${esc(ic.icon)}${extra ? ' ' + extra : ''}"></i>`; if (ic.svg && ic.svg.url) return `<img class="${extra || ''}" src="${esc(ic.svg.url)}" alt="" style="width:1em;height:1em">`; return ''; };
+const BX_STAR = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><path d="M480 208H308L256 48l-52 160H32l140 96-54 160 138-100 138 100-54-160z" fill="currentColor" stroke="currentColor" stroke-linejoin="round" stroke-width="32"/></svg>';
+const BX_CARET = '<svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 12 12" fill="none"><path d="M1.50002 4L6.00002 8L10.5 4" stroke-width="1.5" stroke="currentcolor"></path></svg>';
+const bxImgSrc = im => (im && typeof im === 'object' && (im.url || im.full)) || PH_URL;
+// Slider-indstillinger som Bricks skriver dem i data-splide (autoplay er altid slået fra i preview)
+function bxSplide(s) {
+  PV_RAW = true;
+  try {
+    const num = v => (v === undefined || v === '' ? undefined : (isNaN(+v) ? v : +v));
+    const one = bp => { const g = k => s[bp ? k + ':' + bp : k]; const o = {}; if (g('type')) o.type = g('type'); if (g('height')) o.height = px(g('height')); if (g('gap') !== undefined) o.gap = px(g('gap')); if (g('perPage')) o.perPage = num(g('perPage')); if (g('perMove')) o.perMove = num(g('perMove')); if (g('focus') !== undefined) o.focus = num(g('focus')); return o; };
+    const base = Object.assign({ type: 'slide', direction: 'ltr', keyboard: 'global', height: 'auto', gap: '0px', start: 0, perPage: 1, perMove: 1, speed: +s.speed || 400, interval: +s.interval || 3000, autoHeight: false, autoplay: false, pauseOnHover: false, pauseOnFocus: false, arrows: !!s.arrows, pagination: !!s.pagination, mediaQuery: 'max' }, one(''));
+    const bps = { 1920: one('') }; for (const [bp, w] of BX_BP()) { const o = one(bp); if (Object.keys(o).length) bps[w] = o; }
+    base.breakpoints = bps; return base;
+  } finally { PV_RAW = false; }
+}
+// Sektioner -> { html, css } med Bricks' markup
+function renderBricks(sections, CLASSES, ropts) {
+  if (ropts && ropts.h1) sections = fixH1(sections, ropts.h1).sections;
+  let html = '', css = ''; const usedClasses = new Set();
+  for (const sec of sections) {
+    const m = mapOf(sec.els);
+    // ctx: add = ekstra klasser, tag = tvunget tag, kid = (barn-id, index) -> ctx for børnene, li = menupunkt i nav-nested
+    const r = (id, ctx) => {
+      const e = m[id]; if (!e) return ''; const s = e.settings || {}; const n = e.name; ctx = ctx || {};
+      const hid = String(s._cssId || '').trim() || 'brxe-' + e.id;   // Bricks bruger elementets eget HTML-id, hvis det har et
+      if (ctx.li && n !== 'dropdown') return `<li class="menu-item">${r(id, Object.assign({}, ctx, { li: false }))}</li>`;
+      const cls = ['brxe-' + n];
+      for (const c of s._cssGlobalClasses || []) if (CLASSES[c]) { usedClasses.add(c); cls.push(CLASSES[c].name); }
+      if (typeof s._cssClasses === 'string') cls.push(...s._cssClasses.split(/\s+/).filter(Boolean));
+      if (ctx.add) cls.push(...ctx.add);
+      { const c = bxHarvestCss(sec, e, hid); css += c !== null ? c : bxGenCss('#' + hid, s, (bxOrig(sec, e) || e).id); }
+      let at = ''; for (const a of Array.isArray(s._attributes) ? s._attributes : []) if (a && a.name && /^[\w-]+$/.test(a.name)) at += ` ${a.name}="${esc(a.value || '')}"`;
+      const A = extra => `id="${esc(hid)}" class="${esc(cls.join(' '))}"${extra || ''}${at}`;
+      const kidIds = e.children || []; const kids = fn => kidIds.map((k, i) => r(k, fn ? fn(k, i) : null)).join('');
+      const href = bxLink(s.link); const H = href ? ` href="${esc(href)}"` : '';
+      const tagOf = dflt => { if (href) return 'a'; const t = s.tag === 'custom' ? s.customTag : s.tag; return /^[a-z][a-z0-9-]*$/i.test(t || '') ? t : dflt; };
+      switch (n) {
+        case 'section': case 'container': case 'block': case 'div': {
+          if (n === 'container' && (s._display === 'grid' || s._gridTemplateColumns)) cls.push('brx-grid');
+          const t = ctx.tag || tagOf(n === 'section' ? 'section' : 'div');
+          return `<${t} ${A(t === 'a' ? H : '')}>${kids(ctx.kid)}</${t}>`; }
+        case 'heading': { const t = href ? 'a' : (/^(h[1-6]|div|p|span)$/.test(s.tag || '') ? s.tag : s.tag === 'custom' && s.customTag ? s.customTag : 'h2'); return `<${t} ${A(H)}>${sanitizeHtml(s.text)}</${t}>`; }
+        case 'text-basic': { const t = tagOf('div'); return `<${t} ${A(H)}>${sanitizeHtml(s.text)}</${t}>`; }
+        case 'text': return `<div ${A()}>${sanitizeHtml(s.text)}</div>`;
+        case 'button': {
+          cls.push('bricks-button'); if (s.size) cls.push(s.size); if (s.outline) cls.push('outline'); if (s.circle) cls.push('circle'); if (s.block) cls.push('block');
+          if (s.style) cls.push((s.outline ? 'bricks-color-' : 'bricks-background-') + s.style);
+          const ic = bxIcon(s.icon); const left = s.iconPosition === 'left'; const t = href ? 'a' : 'span';
+          return `<${t} ${A(H)}>${left ? ic : ''}${sanitizeHtml(s.text)}${left ? '' : ic}</${t}>`; }
+        case 'text-link': { const t = href ? 'a' : 'span'; const ic = bxIcon(s.icon); const right = s.iconPosition === 'right'; return `<${t} ${A(H)}>${right ? '' : ic}${s.icon ? `<span>${sanitizeHtml(s.text)}</span>` : sanitizeHtml(s.text)}${right ? ic : ''}</${t}>`; }
+        case 'image': {
+          const im = s.image || {}; const size = 'size-' + (im.size || 'full'); const src = esc(bxImgSrc(im));
+          // billedets link er en tekst: lightbox/media (åbner billedet) eller url (bruger s.url)
+          const ih = s.link === 'lightbox' || s.link === 'media' ? bxImgSrc(im) : s.link === 'url' ? bxLink(s.url) : null; if (s.link === 'lightbox') cls.push('bricks-lightbox');
+          if (s.tag === 'figure' || ih) { cls.push('tag'); const t = ih ? 'a' : 'figure'; return `<${t} ${A(ih ? ` href="${esc(ih)}"` : '')}><img src="${src}" class="css-filter ${size}" alt=""></${t}>`; }
+          cls.push('css-filter', size); return `<img ${A()} src="${src}" alt="">`; }
+        case 'icon': { const ii = `<i id="${esc(hid)}" class="${esc([String((s.icon && s.icon.icon) || ''), ...cls].filter(Boolean).join(' '))}"${at}></i>`; return href ? `<a href="${esc(href)}">${ii}</a>` : ii; }
+        case 'icon-box': return `<div ${A()}><div class="icon">${bxIcon(s.icon)}</div><div class="content">${sanitizeHtml(s.content)}</div></div>`;
+        case 'list': return `<ul ${A()}>${(Array.isArray(s.items) ? s.items : []).map(it => {
+          const h2 = bxLink(it.link); const ti = `<span class="title">${sanitizeHtml(it.title || '')}</span>`; const ic = bxIcon(it.icon && it.icon.icon ? it.icon : s.icon);
+          return `<li><div class="content">${ic ? `<span class="icon">${ic}</span>` : ''}${h2 ? `<a href="${esc(h2)}">${ti}</a>` : ti}${it.meta ? `<span class="separator"></span><span class="meta">${sanitizeHtml(it.meta)}</span>` : ''}</div>${it.description ? `<div class="description">${sanitizeHtml(it.description)}</div>` : ''}</li>`; }).join('')}</ul>`;
+        case 'rating': { const max = +s.maxRating || 5; const v = Math.round(parseFloat(s.rating) || max); const ic = s.icon && s.icon.icon ? bxIcon(s.icon) : BX_STAR; let o = ''; for (let i = 0; i < max; i++) o += `<div class="icon ${i < v ? 'full' : 'empty'}-color" aria-hidden="true">${ic}</div>`; return `<div ${A(` role="img" aria-label="Bedømt til ${v} ud af ${max}"`)}>${o}</div>`; }
+        case 'counter': return `<div ${A()}>${s.prefix ? `<span class="prefix">${esc(s.prefix)}</span>` : ''}<span class="count">${esc(String(s.countTo || '0').trim())}</span>${s.suffix ? `<span class="suffix">${esc(s.suffix)}</span>` : ''}</div>`;
+        case 'divider': cls.push(s.direction === 'vertical' ? 'vertical' : 'horizontal'); return `<div ${A()}><div class="line"></div>${s.icon ? `<div class="icon">${bxIcon(s.icon)}</div><div class="line"></div>` : ''}</div>`;
+        case 'social-icons': return `<ul ${A()}>${(Array.isArray(s.icons) ? s.icons : []).map(it => { const h2 = bxLink(it.link); const inner = `${bxIcon(it.icon, 'icon')}${it.label ? `<span>${esc(it.label)}</span>` : ''}`; return `<li class="repeater-item${h2 ? ' has-link' : ''}">${h2 ? `<a href="${esc(h2)}">${inner}</a>` : inner}</li>`; }).join('')}</ul>`;
+        case 'logo': { const lg = s.logo && (s.logo.url || s.logo.full); return `<a ${A(' href="#"')}>${lg ? `<img src="${esc(lg)}" class="bricks-site-logo css-filter" alt="${esc(s.logoText || '')}">` : esc(s.logoText || 'Logo')}</a>`; }
+        case 'video': { const yt = String(s.youTubeId || '').match(/(?:v=|youtu\.be\/|embed\/)?([\w-]{11})(?:[&?#]|$)/); return `<div ${A()}>${yt ? `<iframe src="https://www.youtube.com/embed/${yt[1]}?rel=0&mute=1" allow="autoplay; encrypted-media" referrerpolicy="strict-origin-when-cross-origin"></iframe>` : ''}</div>`; }
+        case 'code':   // uden "Execute code" viser Bricks koden som tekst – det gør preview også, så man opdager det
+          if (!s.executeCode) return s.code ? `<div ${A(` data-script-id="${e.id}"`)}><pre id="${esc(hid)}" class="brxe-code">${esc(s.code)}</pre></div>` : `<div ${A()}></div>`;
+          return `<div ${A()}>${String(s.code || '') + (s.cssCode ? `<style>${s.cssCode}</style>` : '') + (s.javascriptCode ? `<script>${s.javascriptCode}<\/script>` : '')}</div>`;
+        case 'form': {
+          const hv = BX.html['form:' + sec.tpl + ':' + ((bxOrig(sec, e) || {}).id)]; if (hv) { css += hv.css || ''; return hv.html.replace('%SEL%', hid); }
+          const f = (Array.isArray(s.fields) ? s.fields : []).filter(x => !x.isHoneypot).map(x => { const ph = esc((x.placeholder || x.label || '') + (x.required ? ' *' : ''));
+            const opts = String(x.options || '').split('\n').map(o => o.trim()).filter(Boolean);
+            const inp = x.type === 'textarea' ? `<textarea placeholder="${ph}"></textarea>` : x.type === 'select' ? `<select><option value="" class="placeholder">${ph}</option>${opts.map(o => `<option>${esc(o)}</option>`).join('')}</select>`
+              : x.type === 'checkbox' || x.type === 'radio' ? `<ul class="options-wrapper">${(opts.length ? opts : [x.label || '']).map(o => `<li><input type="${x.type}"><label>${esc(o)}</label></li>`).join('')}</ul>`
+              : x.type === 'file' ? `<input type="file" style="display:none"><label class="choose-files">${esc(x.fileUploadButtonText || 'Vælg filer')}</label>`
+              : `<input type="${/^(email|tel|number|url|date)$/.test(x.type) ? x.type : 'text'}" placeholder="${ph}">`;
+            return `<div class="form-group${x.type === 'file' ? ' file' : ''}" role="group"${x.width ? ` style="width:${esc(x.width)}"` : ''}>${inp}</div>`; }).join('');
+          return `<form ${A(' method="post"')}>${f}<div class="form-group submit-button-wrapper"><button type="submit" class="bricks-button bricks-background-primary ${esc(s.submitButtonSize || 'md')}"><span class="text">${esc(s.submitButtonText || 'Send')}</span></button></div></form>`; }
+        case 'template': case 'nav-menu': case 'shortcode': case 'post-toc': case 'post-meta': case 'post-title': case 'post-content': case 'post-excerpt': case 'post-taxonomy': case 'post-author': case 'posts': case 'related-posts': case 'breadcrumbs': case 'pagination': case 'search': case 'sidebar': case 'wordpress': {   // bygges af WordPress: Bricks' færdige HTML fra templatesitet
+          const o = bxOrig(sec, e) || e; const hv = BX.html[n + ':' + sec.tpl + ':' + o.id] || BX.html[n === 'template' ? 'template:' + s.template : 'menu:' + s.menu];
+          if (hv) { css += hv.css || ''; return hv.html.replace('%SEL%', hid); }
+          return n === 'template' ? `<div ${A()}><div style="padding:24px;border:2px dashed #9aa6b2;text-align:center;font:13px system-ui;color:#5b6773">Bricks-template ${esc(s.template || '')}</div></div>` : `<div ${A()}></div>`; }
+        case 'slider-nested': cls.push('splide'); return `<div ${A(` data-script-id="${e.id}" data-splide="${esc(JSON.stringify(bxSplide(s)))}"`)}><div class="splide__track"><div class="splide__list">${kids()}</div></div></div>`;
+        case 'tabs-nested': {   // første barn = fanebladene, andet = indholdet; første fane er åben
+          const sub = (cl) => (k, j) => ({ add: j === 0 ? [cl, 'brx-open'] : [cl] });
+          return `<div ${A(` data-script-id="${e.id}" data-open-tab="0"`)}>${kids((k, i) => i === 0 ? { add: ['tab-menu'], kid: sub('tab-title') } : { add: ['tab-content'], kid: sub('tab-pane') })}</div>`; }
+        case 'accordion-nested': {   // hvert punkt: første barn = titel, andet = indhold
+          const open = s.expandItem !== undefined && s.expandItem !== '' ? String(s.expandItem) : '';
+          return `<div ${A(` data-script-id="${e.id}" data-expand-item="${esc(open)}"`)}>${kids((k, i) => ({ add: String(i) === open ? ['brx-open'] : [], kid: (k2, j) => ({ add: [j === 0 ? 'accordion-title-wrapper' : 'accordion-content-wrapper'] }) }))}</div>`; }
+        case 'accordion': { const tt = /^(h[1-6]|div)$/.test(s.titleTag || '') ? s.titleTag : 'h5'; const open = String(s.expandItem !== undefined ? s.expandItem : '');
+          return `<ul ${A(` data-script-id="${e.id}" data-expand-item="${esc(open)}"`)}>${(Array.isArray(s.accordions) ? s.accordions : []).map((a, i) => `<li class="accordion-item${open === String(i) ? ' brx-open' : ''}"><div class="accordion-title-wrapper"><div class="accordion-title"><${tt} class="title">${sanitizeHtml(a.title || '')}</${tt}>${bxIcon(s.iconExpanded || { icon: 'fas fa-minus' }, 'icon expanded')}${bxIcon(s.icon || { icon: 'fas fa-plus' }, 'icon')}</div>${a.subtitle ? `<span class="accordion-subtitle">${esc(a.subtitle)}</span>` : ''}</div><div class="accordion-content-wrapper">${sanitizeHtml(a.content || '')}</div></li>`).join('')}</ul>`; }
+        case 'image-gallery': { cls.push('bricks-layout-wrapper'); const ims = (s.items && s.items.images) || []; return `<ul ${A(` data-layout="${esc(s.layout || 'grid')}"`)}>${ims.map(im => `<li class="bricks-layout-item"><figure><img src="${esc(bxImgSrc(im))}" class="image bricks-layout-inner css-filter" alt=""></figure></li>`).join('')}</ul>`; }
+        case 'nav-nested': return `<nav ${A(` data-script-id="${e.id}" aria-label="Menu" data-toggle="${esc(s.mobileMenu || 'mobile_portrait')}"`)}>${kids(k => (m[k] && m[k].name === 'block') ? { add: ['brx-nav-nested-items'], tag: 'ul', kid: () => ({ li: true }) } : null)}</nav>`;
+        case 'dropdown': { const t = ctx.li ? 'li' : 'div'; if (s.megaMenu) cls.push('brx-has-megamenu'); return `<${t} ${A(` data-script-id="${e.id}"`)}><div class="brx-submenu-toggle"><span>${sanitizeHtml(s.text || '')}</span><button aria-expanded="false" aria-label="Åbn/luk dropdown">${BX_CARET}</button></div>${kids(() => ({ add: ['brx-dropdown-content'] }))}</${t}>`; }
+        case 'toggle': if (s.animation) cls.push('brxa--' + s.animation); return `<button ${A(` data-script-id="${e.id}" aria-label="Åbn" aria-expanded="false"`)}>${s.icon ? bxIcon(s.icon) : '<span class="brxa-wrap"><span class="brxa-inner"></span></span>'}</button>`;
+        case 'offcanvas': return `<div ${A(` data-script-id="${e.id}" aria-label="Offcanvas" data-direction="${esc(s.direction || 'left')}" data-effect="${esc(s.effect || 'slide')}"`)}>${kids(() => ({ add: ['brx-offcanvas-inner'] }))}<div class="brx-offcanvas-backdrop"></div></div>`;
+        case 'svg': { const u = s.file && (s.file.url || s.file.full); return u ? `<img ${A()} src="${esc(u)}" alt="">` : `<svg ${A()}></svg>`; }
+        default: return `<div ${A()}>${kids()}</div>`;
+      }
+    };
+    rootsOf(sec.els).forEach((root, i) => { const out = r(root.id); html += i === 0 ? out.replace(/^<(\w+)/, `<$1 data-sec="${sec.uid}"`) : out; });
+  }
+  let clsCss = '';
+  for (const id of usedClasses) { const c = CLASSES[id]; clsCss += BX.classes[c.name] !== undefined ? BX.classes[c.name] : bxGenCss('.' + c.name.replace(/[^a-zA-Z0-9_-]/g, '\\$&'), c.settings && !Array.isArray(c.settings) ? c.settings : {}); }
+  return { html, css: clsCss + css };
+}
+// Hele iframe-dokumentet: jeres CSS/JS fra stocksitet + udkastets HTML/CSS. Iframen melder sin højde og klik tilbage med postMessage.
+function bricksDoc(r, opts) {
+  const o = opts || {}; const L = o.links || BX.links || { css: [], js: [] }; const fid = JSON.stringify(String(o.frameId || ''));
+  // vh regnes om til enhedens skærmhøjde – iframen er lige så høj som indholdet, så 100vh ville ellers vokse med den
+  const V = t => o.vh ? String(t).replace(/(-?\d*\.?\d+)[sdl]?vh\b/g, (x, n) => Math.round(parseFloat(n) * o.vh) / 100 + 'px') : String(t);
+  const sel = `.udk-sel{outline:4px solid #225581!important;outline-offset:-4px;position:relative;z-index:2}${o.vh ? `:root{--bricks-vh:${o.vh / 100}px}` : ''}`;
+  return `<!doctype html><html lang="da" data-brx-theme="light"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+${L.css.map(u => `<link rel="stylesheet" href="${esc(u)}">`).join('\n')}
+<style>${V(o.theme !== undefined ? o.theme : BX.theme || '')}</style><style>${V(r.css)}</style>
+<style>html{overflow:hidden}body{margin:0;overflow:visible!important}[data-sec]{cursor:pointer}${sel}${o.extraCss || ''}</style>
+</head><body class="wp-singular page wp-theme-bricks wp-child-theme-bricks-child brx-body bricks-is-frontend">
+<main id="brx-content">${V(r.html)}</main>
+<script>window.bricksData=${JSON.stringify(BX.bricksData || {}).replace(/</g, '\\u003c')};
+/* iframen er isoleret (sandbox uden same-origin), så localStorage er blokeret – Bricks' JS får en hukommelses-udgave i stedet */
+(function(){var ok=true;try{window.localStorage.getItem('x')}catch(e){ok=false}if(ok)return;var m={},st={getItem:function(k){return k in m?m[k]:null},setItem:function(k,v){m[k]=String(v)},removeItem:function(k){delete m[k]},clear:function(){m={}},key:function(i){return Object.keys(m)[i]||null},get length(){return Object.keys(m).length}};
+try{Object.defineProperty(window,'localStorage',{value:st,configurable:true});Object.defineProperty(window,'sessionStorage',{value:st,configurable:true})}catch(e){}})();<\/script>
+${(o.scripts === false ? [] : L.js).map(u => `<script src="${esc(u)}"><\/script>`).join('\n')}
+<script>(function(){var id=${fid},post=function(m){m.id=id;parent.postMessage(m,'*')};
+var send=function(){post({udkast:'h',h:document.documentElement.scrollHeight})};
+new ResizeObserver(send).observe(document.body);addEventListener('load',send);setTimeout(send,400);setTimeout(send,1500);
+document.addEventListener('click',function(ev){if(ev.target.closest('a,button,input,textarea,select'))ev.preventDefault();var s=ev.target.closest('[data-sec]');if(s)post({udkast:'sel',uid:s.getAttribute('data-sec')})},true);
+document.addEventListener('submit',function(ev){ev.preventDefault()},true);
+addEventListener('message',function(ev){var d=ev.data||{};
+if(d.udkast==='where'){var s=document.querySelector('[data-sec="'+d.uid+'"]');if(s)post({udkast:'top',uid:d.uid,top:s.getBoundingClientRect().top+scrollY})}
+if(d.udkast==='sel'){[].forEach.call(document.querySelectorAll('.udk-sel'),function(x){x.classList.remove('udk-sel')});if(d.uid){var t=document.querySelector('[data-sec="'+d.uid+'"]');if(t)t.classList.add('udk-sel')}}});
+addEventListener('load',function(){post({udkast:'ready'})});})();<\/script>
+</body></html>`;
+}
+
+const API = { renderBricks, bricksDoc, setBricks, clone, esc, stripTags, mapOf, rootsOf, walk, getSlots, applyText, makeSection, applyOps, applyPhone, applyContent, imgSlots, buildExport, validate, renderSections, catalog, buildAiRaw, buildFri, nativize, natRegister, pickArchetypes, pickRegister, archPurpose, AI_ARCH, setStock, stockify, videoify, sortKeys, localPlan, guessBranche, siteInfo, onlineClean, BS_VIDEO, loremify, loremText, fixH1, newestKeys, groupKeys, STOCK_BASE, makeAi, rebuildAi, normAi, pickCreative, aiConceptPrompt, aiSectionPrompt, aiRepairPrompt, themeDoc, AI_DIRECTIONS, looseJson, sanitizeAiCss, secTitle, aiVarNames, fixExtraH1, planPrompt, contentPrompt, inspirationText, makeFri, normFri, cycleFri, groupInfoSec, setFriClasses, FRI_TYPES, FRI_STIL, SECTION_ONLY, pickSubpage, subpageRefs, makeSections, splitParts, mirrorSections, suggestForOutline, outlineText, outlineFromImport, findSite, featsOf, parsePhone, classPrefix, setEnv, editPrompt, removeSubtree, categoryOf, displayName, describeKey, setMeta, getMissing, variantsOf, nextVariant, allowedKeys, catList, sanitizePlan, TYPE_ORDER, WHOLE_PAGE, cleanSettings, resizeGroup, groupSize, groupInfo, getGroups, siteSummary, siteBlocks, siteImages, FORM_ID, PH_URL, plainToHtml, htmlToPlain, unitFix };
 if (typeof module !== 'undefined') module.exports = API;

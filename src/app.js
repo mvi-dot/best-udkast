@@ -5,9 +5,12 @@
   const D = JSON.parse($('data').textContent);
   const { LIB, CLASSES, VARS, SITES, USE, SHEET, STOCK } = D;
   const SHEET_ID = '1k5mrxRSsp5OG5XlsZOvlN52R_sG3GUIf_zYKzD5Ec5g';
-  E.setMeta(LIB, SHEET); E.setEnv({ CLASSES }); E.setStock(STOCK); let sheetNote = `Skabelonliste: indbygget udgave af arket (${SHEET.length} rækker, 14. okt 2026)`;
+  E.setMeta(LIB, SHEET); E.setEnv({ CLASSES }); E.setStock(STOCK); E.setBricks(D.BRICKS, LIB);
+  const BRICKS_OK = !!(D.BRICKS && D.BRICKS.links && D.BRICKS.links.css.length);   // preview med jeres rigtige Bricks-CSS (src/bricks.json)
+  let sheetNote = `Skabelonliste: indbygget udgave af arket (${SHEET.length} rækker, 14. okt 2026)`;
   const BRANCHER = [...new Set(SITES.map(s => s.b))].filter(b => b !== 'Uklar - tjek').sort((a, b) => a.localeCompare(b, 'da'));
-  const DEVICES = { desktop: 1600, laptop: 1440, ipadl: 1180, ipadp: 820, mobil: 390 };      // matcher jeres breakpoints: over 1440 · max 1440 · max 1199 · max 991 · max 478
+  const DEVICES = { desktop: 1600, laptop: 1440, ipadl: 1024, ipadp: 768, mobil: 390 };      // matcher jeres breakpoints: base · max 1470 · max 1024 · max 768 · max 478
+  const DEVICE_H = { desktop: 900, laptop: 900, ipadl: 768, ipadp: 1024, mobil: 844 };      // skærmhøjde (bruges til vh-enheder i preview)
   const MAX_PROPOSALS = 5;
 
   let state = { brief: {}, proposals: [], active: 0 };
@@ -20,6 +23,22 @@
   const root = $('pvHost').attachShadow({ mode: 'open' });
   root.innerHTML = '<style id="pvStyle"></style><div id="frame"><div id="pvContent"></div></div>';
   const frame = root.getElementById('frame'), pvContent = root.getElementById('pvContent'), pvStyle = root.getElementById('pvStyle');
+  /* ---------- preview i iframe: Bricks' markup med stocksitets CSS/JS. Genindlæses kun, når siden ændrer sig ---------- */
+  const pvFrame = $('pvFrame'); let pvDoc = '', pvH = 600;
+  const useFrame = on => { $('pvHost').hidden = on; pvFrame.hidden = !on; };
+  const selFrame = () => { if (pvFrame.contentWindow) pvFrame.contentWindow.postMessage({ udkast: 'sel', uid: selUid || '' }, '*'); };
+  function showFrame(p) {
+    const doc = E.bricksDoc(E.renderBricks(p.sections, CLASSES, { h1: 'page' }), { frameId: 'main', vh: DEVICE_H[device] });
+    useFrame(true); if (doc !== pvDoc) { pvDoc = doc; pvFrame.srcdoc = doc; } else selFrame(); fit();
+  }
+  const scrollBox = el => { for (let n = el.parentElement; n; n = n.parentElement) { const o = getComputedStyle(n).overflowY; if (/(auto|scroll)/.test(o) && n.scrollHeight > n.clientHeight) return n; } return document.scrollingElement; };
+  addEventListener('message', ev => {
+    if (ev.source !== pvFrame.contentWindow) return; const d = ev.data || {};
+    if (d.udkast === 'h') { if (d.h > 0 && Math.abs(d.h - pvH) > 1) { pvH = d.h; fit(); } }
+    else if (d.udkast === 'ready') selFrame();
+    else if (d.udkast === 'sel') { selUid = selUid === d.uid ? null : d.uid; render(); }
+    else if (d.udkast === 'top') { const box = scrollBox(pvFrame); const sc = pvFrame.getBoundingClientRect().width / (DEVICES[device] || 1); const y = pvFrame.getBoundingClientRect().top + d.top * sc - 130; if (box === document.scrollingElement) scrollBy({ top: y, behavior: 'smooth' }); else box.scrollBy({ top: y - box.getBoundingClientRect().top, behavior: 'smooth' }); }
+  });
   (async () => { try { sample = window.claude ? await window.claude.use('sample') : null; } catch (_) { sample = null; } if (!sample) $('banner').hidden = false; })();
 
   /* ---------- ikoner (Font Awesome som script – ellers vises enkle tegn) ---------- */
@@ -274,7 +293,7 @@
 @media (prefers-reduced-motion:reduce){.bsk,.bsk i,.bdone.fresh{animation:none!important}}`;
   let drawQ = false;
   function drawBuild(full) {
-    const b = building; if (!b) return; document.body.classList.remove('home'); $('empty').hidden = true; $('pvOuter').hidden = false; $('tabs').hidden = true; $('tabrow').hidden = true; $('valWrap').hidden = true; $('listCard').hidden = true; $('editCard').hidden = true; $('notesCard').hidden = true; $('fbCard').hidden = true; $('imgCard').hidden = true;
+    const b = building; if (!b) return; useFrame(false); document.body.classList.remove('home'); $('empty').hidden = true; $('pvOuter').hidden = false; $('tabs').hidden = true; $('tabrow').hidden = true; $('valWrap').hidden = true; $('listCard').hidden = true; $('editCard').hidden = true; $('notesCard').hidden = true; $('fbCard').hidden = true; $('imgCard').hidden = true;
     if (!b.items.length) { pvStyle.textContent = '#frame{overflow:hidden}' + BSK_CSS; pvContent.innerHTML = `<div class="bsk" style="min-height:360px"><div><i></i>Siden tegnes…<small>${E.esc(b.msg)}</small></div></div>`; fit(); return; }
     const done = b.items.flatMap(x => x.secs || []); const css = done.length ? E.renderSections(done, CLASSES, VARS).css : '';
     pvStyle.textContent = '#frame{overflow:hidden}' + css + BSK_CSS;
@@ -524,7 +543,7 @@
   }
   $('list').addEventListener('click', ev => {
     const b = ev.target.closest('button[data-a]');
-    if (!b) { const li = ev.target.closest('li[data-uid]'); if (li) { if (selUid === li.dataset.uid) { selUid = null; render(); return; } selUid = li.dataset.uid; render(); const el = root.querySelector(`[data-sec="${li.dataset.uid}"]`); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' }); } return; }
+    if (!b) { const li = ev.target.closest('li[data-uid]'); if (li) { if (selUid === li.dataset.uid) { selUid = null; render(); return; } selUid = li.dataset.uid; render(); if (!pvFrame.hidden) { if (pvFrame.contentWindow) pvFrame.contentWindow.postMessage({ udkast: 'where', uid: li.dataset.uid }, '*'); } else { const el = root.querySelector(`[data-sec="${li.dataset.uid}"]`); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' }); } } return; }
     if (busy) return; const i = +b.dataset.i, a = b.dataset.a, p = cur(), s = p.sections[i - 1];
     pendingAnim = { i: a === 'up' ? i - 1 : a === 'down' ? i + 1 : i, a };
     if (a === 'copy') { copySection(s, b); return; }
@@ -550,6 +569,11 @@
   /* ---------- vælger med live-miniaturer ---------- */
   let pk = null;
   function openPicker(opts) { pk = opts; $('picker').hidden = false; $('pkClose').focus(); renderPicker(); }
+  // miniaturer: Bricks-preview i en lille iframe (uden JS), tegnes først når kortet kommer i syne
+  const thumbIO = new IntersectionObserver(ents => { for (const en of ents) { if (!en.isIntersecting) continue; const host = en.target; thumbIO.unobserve(host); if (host.firstChild) continue;
+    const f = document.createElement('iframe'); f.setAttribute('sandbox', ''); f.setAttribute('loading', 'lazy'); f.setAttribute('tabindex', '-1'); f.title = 'Miniature';
+    const sc = (host.clientWidth || 300) / 1280; f.style.cssText = `width:1280px;height:${Math.ceil((host.clientHeight || 200) / sc)}px;border:0;transform:scale(${sc});transform-origin:top left;pointer-events:none;background:#fff`;
+    f.srcdoc = E.bricksDoc(E.renderBricks([E.makeSection(LIB, host.dataset.k)], CLASSES), { scripts: false, vh: 800 }); host.appendChild(f); } }, { rootMargin: '200px' });
   function closePicker() { $('picker').hidden = true; $('pkGrid').innerHTML = ''; pk = null; }
   $('pkClose').onclick = closePicker;
   $('picker').addEventListener('click', e => { if (e.target === $('picker')) closePicker(); });
@@ -574,7 +598,9 @@
       const u = USE[k] || [0, 0];
       card.innerHTML = `<div class="pkprev"></div><div class="pkmeta"><b>${E.esc(E.displayName(k))}</b>${(LIB[k] && LIB[k].group === 'Live sektioner') ? (LIB[k].url ? `<small>${E.esc(hostOf(LIB[k].url))}${k === curTpl ? ' · nuværende' : ''}</small>` : (k === curTpl ? '<small>nuværende</small>' : '')) : `<small>${E.esc(k)}${k === curTpl ? ' · nuværende' : ''}${u[0] ? ' · bruges af ' + u[0] + ' sites' : ''}</small>`}${(LIB[k] && LIB[k].url) ? `<span class="pklink" role="link" tabindex="0" data-url="${E.esc(LIB[k].url)}">↗ Åbn siden</span>` : ''}${E.describeKey(k) ? `<span class="pkdesc">${E.esc(E.describeKey(k))}</span>` : ''}</div>`;
       grid.appendChild(card);
-      const host = card.querySelector('.pkprev'); const sh = host.attachShadow({ mode: 'open' });
+      const host = card.querySelector('.pkprev');
+      if (BRICKS_OK) { host.dataset.k = k; thumbIO.observe(host); continue; }
+      const sh = host.attachShadow({ mode: 'open' });
       const r = E.renderSections([E.makeSection(LIB, k)], CLASSES, VARS);
       sh.innerHTML = `<style>${r.css}#f{width:1280px;transform:scale(.234);transform-origin:top left;container-type:inline-size;background:var(--bg-body,#fff)}</style><div id="f">${r.html}</div>`;
       faApply(sh.getElementById('f'), sh);
@@ -689,9 +715,10 @@
   const BRANDS = { templates: { cta: '#225581', links: '#1a4061' }, stock: { cta: '#e60c16', links: '#ae0911' } };
   $('brandSel').onchange = () => { const br = BRANDS[$('brandSel').value] || BRANDS.templates; for (const v of VARS) if (v[0] === 'cta' || v[0] === 'links') v[1] = br[v[0]]; render(); };
   for (const x of document.querySelectorAll('#devices button')) x.setAttribute('aria-pressed', String(x.dataset.d === device));
-  for (const b of document.querySelectorAll('#devices button')) b.onclick = () => { device = b.dataset.d; for (const x of document.querySelectorAll('#devices button')) x.setAttribute('aria-pressed', x === b); fit(); };
+  for (const b of document.querySelectorAll('#devices button')) b.onclick = () => { device = b.dataset.d; for (const x of document.querySelectorAll('#devices button')) x.setAttribute('aria-pressed', x === b); if (BRICKS_OK && cur() && !building) showFrame(cur()); else fit(); };
   function fit() {
     const w = DEVICES[device]; const outer = $('pvOuter'); const avail = $('canvas').clientWidth || 900;
+    if (!pvFrame.hidden) { const sc = Math.min(1, avail / w); const ch = outer.querySelector('.chrome'); pvFrame.style.cssText = `width:${w}px;height:${pvH}px;transform:scale(${sc});transform-origin:top left;border:0;display:block;background:#fff`; outer.style.width = Math.round(w * sc) + 'px'; outer.style.height = Math.round(pvH * sc + (ch ? ch.offsetHeight : 0)) + 'px'; return; }
     const scale = Math.min(1, avail / w); frame.style.cssText = `width:${w}px;transform:scale(${scale});transform-origin:top left;container-type:inline-size;background:var(--bg-body,#fff);`;
     outer.style.width = Math.round(w * scale) + 'px'; outer.style.height = Math.round(frame.offsetHeight * scale) + 'px';
   }
@@ -723,8 +750,9 @@
     const aiN = p.sections.filter(s => s.ai).length; const aiIssues = p.sections.filter(s => s.ai && s.ai.issues && s.ai.issues.length).map(s => `Tjek «${s.ai.spec.navn}»: ${s.ai.issues.join('; ')}`); const aiFailN = p.sections.filter(s => !s.ai && /kunne ikke bygges/.test(s.why || '')).length; const friN = p.sections.filter(s => s.fri).length; const notes = [...(exp.h1Fixed ? [`H1 rettet automatisk: ${exp.h1Fixed} ekstra H1 er lavet om til H2, så siden kun har én H1, og den ligger i heroen.`] : []), ...(h1bad ? [h1n === 0 ? 'Siden mangler en H1-overskrift (typisk i hero).' : `Siden har ${h1n} H1-overskrifter. Der bør kun være én pr. side.`] : []), ...(aiN ? [`${aiN} ${aiN === 1 ? 'AI-designet sektion' : 'AI-designede sektioner'}: layout, CSS og tekst er skrevet af AI. Tjek dem på mobil og i Bricks, og ret teksten før brug. Tal og citater er pladsholdere, og billeder er pladsholdere. Styling ligger i globale klasser med Bricks' egne indstillinger og breakpoints; kun det, Bricks ikke kan natively (gradient, clip-path, ::before, animation), ligger i klassens egen CSS.`] : []), ...aiIssues, ...(aiFailN ? [`${aiFailN} AI-sektion kunne ikke bygges og er erstattet af en enkel intro. Brug "Ret med AI" eller tilføj en sektion selv.`] : []), ...(h1bad ? [h1msg] : []), ...(friN ? [`${friN} ${friN === 1 ? 'ny sektion' : 'nye sektioner'}: teksten er skrevet af AI som forslag, og tal under "Tal" og citater er pladsholdere. Læs det igennem og ret, før det bruges. Billeder er pladsholdere. Sektionerne bruger temaets farver og størrelser, så tjek dem på det rigtige site.`] : []), ...(p.contentNote ? [p.contentNote] : []), ...(exp.renamed ? [`Klasserne er omdøbt med præfikset «${exp.prefix}-» (${exp.renamed} klasser). CSS og kode følger med, så alt virker som før.`] : []), ...secWarns, ...exp.flags]; if (exp.imageUse && exp.imageUse.length) notes.push('Billederne peger på kundens gamle site (external URL) og forsvinder når det site lukker. Upload billederne fra mappen billeder/ til mediebiblioteket og vælg dem i Bricks – ikke testet i Bricks endnu.');
     $('notes').innerHTML = notes.map(n => `<li class="flag">⚠ ${E.esc(n)}</li>`).join('') +
       `<li>🔗 <b>Links</b> – tjek at links er korrekte</li><li>📝 <b>Tekst</b> – pladsholdertekst skal udskiftes med rigtig tekst</li><li>🎨 <b>Design</b> – 1:1 med skabelonen (tjek alle skærmstørrelser)</li><li>🖼️ <b>Billeder</b> – samme som skabelonen, skift selv ud</li>` + (exp.formCount ? `<li>📨 <b>Formular</b> – tjek at form-ID er ${E.FORM_ID} efter paste</li>` : '');
+    if (BRICKS_OK) showFrame(p); else { useFrame(false);
     const r = E.renderSections(p.sections, CLASSES, VARS, { h1: 'page' }); const selCss = '[data-sec]{scroll-margin-top:130px}' + (selUid && p.sections.some(x => x.uid === selUid) ? `[data-sec="${selUid}"]{outline:4px solid #d97757;outline-offset:-4px;position:relative;z-index:1}` : ''); pvStyle.textContent = '#frame{overflow:hidden}' + r.css + selCss; pvContent.innerHTML = r.html;
-    fit(); faApply(pvContent, root); setTimeout(fit, 50);
+    fit(); faApply(pvContent, root); setTimeout(fit, 50); }
     const kb = Math.round(JSON.stringify(exp.json).length / 1024), rawKb = Math.round(JSON.stringify(E.buildExport(p, CLASSES, { raw: true }).json).length / 1024);
     
   }
