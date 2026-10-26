@@ -943,11 +943,18 @@ function splitParts(els) {
   const m = mapOf(els); const collect = id => { const out = [m[id]]; for (const c of m[id].children || []) out.push(...collect(c)); return out; };
   return groups.map(gr => gr.flatMap(r => collect(r.id)));
 }
+// Nogle templates har en demo-sektion ("Slet denne sektion, det er blot til illustration") – den skal ikke med i udkastet
+const DEMO_RE = /slet denne sektion|blot til illustration/i;
+function dropDemo(els) {
+  let out = els; const m = mapOf(els);
+  for (const r of rootsOf(els)) { const txt = []; const go = id => { const e = m[id]; if (!e) return; txt.push(JSON.stringify(e.settings || {})); (e.children || []).forEach(go); }; go(r.id); if (DEMO_RE.test(txt.join(' '))) out = removeSubtree(out, r.id); }
+  return rootsOf(out).length ? out : els;
+}
 function makeSections(LIB, tpl, why, tlf) {
-  const parts = WHOLE_PAGE.has(categoryOf(tpl)) ? [LIB[tpl].els] : splitParts(LIB[tpl].els);
+  const src = dropDemo(LIB[tpl].els); const parts = WHOLE_PAGE.has(categoryOf(tpl)) ? [src] : splitParts(src);
   return parts.map((els, i) => { const s = { uid: 's' + (++UID) + Math.random().toString(36).slice(2, 5), tpl, why: i === 0 ? (why || '') : '', els: clone(els), part: i + 1, parts: parts.length }; if (tlf) applyPhone(s.els, tlf); if (isSiteOnline(LIB, tpl)) { onlineClean(s.els); loremify(s.els, true); stockify(s.els, true); } else { loremify(s.els); stockify(s.els); } return s; });
 }
-function makeSection(LIB, tpl, why, tlf) { const s = { uid: 's' + (++UID) + Math.random().toString(36).slice(2, 5), tpl, why: why || '', els: clone(LIB[tpl].els) }; if (tlf) applyPhone(s.els, tlf); if (isSiteOnline(LIB, tpl)) { onlineClean(s.els); loremify(s.els, true); stockify(s.els, true); } else { loremify(s.els); stockify(s.els); } return s; }
+function makeSection(LIB, tpl, why, tlf) { const s = { uid: 's' + (++UID) + Math.random().toString(36).slice(2, 5), tpl, why: why || '', els: clone(dropDemo(LIB[tpl].els)) }; if (tlf) applyPhone(s.els, tlf); if (isSiteOnline(LIB, tpl)) { onlineClean(s.els); loremify(s.els, true); stockify(s.els, true); } else { loremify(s.els); stockify(s.els); } return s; }
 
 
 
@@ -1426,7 +1433,8 @@ function validate(exp) {
 const unitFix = css => String(css).replace(/(-?\d*\.?\d+)rem\b/g, (m, n) => (parseFloat(n) * 10) + 'px').replace(/(-?\d*\.?\d+)vw\b/g, '$1cqw');
 const vh = v => String(v).replace(/(\d+(?:\.\d+)?)vh/g, (m, n) => Math.round(parseFloat(n) * 6.4) + 'px');
 const px = v => { if (v === undefined || v === null || v === '') return null; if (typeof v === 'number') return v + 'px'; v = String(v).trim(); if (/^-?\d+(\.\d+)?$/.test(v)) return v + 'px'; return vh(v); };
-const colorOf = c => { if (!c) return null; if (typeof c === 'string') return c; return c.raw || c.rgb || c.hsl || c.hex || null; };
+// Bricks gemmer farvens værdi (light/hex) ved siden af variablen: bruges som reserve, hvis variablen ikke findes i preview
+const colorOf = c => { if (!c) return null; if (typeof c === 'string') return c; const fb = c.light || c.hex || c.rgb || c.hsl; if (c.raw && fb && /^var\(--[\w-]+\)$/.test(c.raw.trim())) return c.raw.trim().slice(0, -1) + ',' + fb + ')'; return c.raw || c.rgb || c.hsl || c.hex || null; };
 const boxDecl = (o, p) => { const d = []; if (o && typeof o === 'object') for (const s of ['top', 'right', 'bottom', 'left']) { const v = px(o[s]); if (v !== null) d.push(`${p}-${s}:${v}`); } return d; };
 const PLAIN = { _display: 'display', _direction: 'flex-direction', _flexDirection: 'flex-direction', _alignItems: 'align-items', _justifyContent: 'justify-content', _alignSelf: 'align-self', _flexWrap: 'flex-wrap', _objectFit: 'object-fit', _objectPosition: 'object-position', _aspectRatio: 'aspect-ratio', _position: 'position', _zIndex: 'z-index', _overflow: 'overflow', _opacity: 'opacity', _isolation: 'isolation', _gridTemplateColumns: 'grid-template-columns', _gridTemplateRows: 'grid-template-rows', _gridAutoFlow: 'grid-auto-flow', _order: 'order', _flexGrow: 'flex-grow', _flexShrink: 'flex-shrink', _flexBasis: 'flex-basis' };
 const PX = { _gap: 'gap', _rowGap: 'row-gap', _columnGap: 'column-gap', _gridGap: 'gap', _width: 'width', _widthMin: 'min-width', _widthMax: 'max-width', _height: 'height', _heightMin: 'min-height', _heightMax: 'max-height', _top: 'top', _right: 'right', _bottom: 'bottom', _left: 'left' };
@@ -1477,6 +1485,8 @@ function declsFor(s, bp) {
   }
   const sh = g('_boxShadow'); if (sh && sh.values) set('box-shadow', `${px(sh.values.offsetX || 0)} ${px(sh.values.offsetY || 0)} ${px(sh.values.blur || 0)} ${px(sh.values.spread || 0)} ${colorOf(sh.color) || 'rgba(0,0,0,.15)'}`);
   if (g('_gridTemplateColumns') && !g('_display') && !bp) d.push('display:grid');
+  // Bricks gør en div til flex, så snart den får flex-indstillinger (retning, justering, wrap)
+  else if (!g('_display') && !s._display && !s._gridTemplateColumns && ['_direction', '_flexDirection', '_alignItems', '_justifyContent', '_flexWrap'].some(k => g(k))) d.push('display:flex');
   return d;
 }
 function overlayCss(sel, s, bp) {
@@ -1503,7 +1513,9 @@ function customCss(css, sel, oldId) {
   return c.replace(/%root%/g, sel).replace(/@media\s+(?:screen\s+and\s+)?(?=\()/g, '@container ').replace(/:root\b/g, ':host');
 }
 
-const BASE_CSS = `
+// Grundstilen får nul specificitet (:where), så templatens klasser og elementindstillinger altid vinder – ligesom i Bricks
+const zeroSpec = css => css.replace(/(^|[{}])(\s*)([^{}@]+?)\{/g, (m, pre, ws, sel) => /^\s*:host/.test(sel) ? m : pre + ws + sel.split(',').map(s => { const t = s.trim(); const i = t.indexOf('::'); return i < 0 ? `:where(${t})` : `:where(${t.slice(0, i)})${t.slice(i)}`; }).join(',') + '{');
+const BASE_CSS = zeroSpec(`
 :host{font-size:16px;--f-head:"Montserrat",system-ui,sans-serif;--f-body:"Open Sans",system-ui,sans-serif}
 .b-section{display:flex;flex-direction:column;align-items:center;width:100%;padding:100px 0;box-sizing:border-box}
 @container (max-width:1199px){.b-section{padding:50px 0}}
@@ -1546,7 +1558,7 @@ svg.svg-inline--fa{height:1em;width:1.1em;vertical-align:-.125em;display:inline-
 .ph-form i{display:block;font-style:normal;background:rgba(255,255,255,.92);color:#6b7480;border:1px solid rgba(0,0,0,.15);border-radius:6px;padding:11px 12px;font-size:14px}
 .ph-form i.t{min-height:84px}.ph-form b{display:block;text-align:center;background:var(--cta,#225581);color:#fff;border-radius:6px;padding:12px;font-weight:600}
 hr.b-divider{width:100%;border:0;border-top:1px solid rgba(128,128,128,.4);margin:0}
-`;
+`);
 const GLYPH = { 'fa-building': '▮', 'fa-circle-check': '✔', 'fa-arrow-right': '→', 'fa-arrow-right-long': '⟶', 'fa-arrow-left': '←', 'fa-mobile-screen': '▯', 'fa-plus': '+', 'fa-location-dot': '⌖', 'fa-circle-minus': '−', 'fa-quote-right': '❞', 'fa-star': '★', 'fa-comments': '✉', 'fa-heart': '♥', 'fa-envelope': '✉', 'fa-clock': '◷', 'fa-circle-play': '▶', 'fa-broom': '✦', 'fa-bath': '▭', 'fa-face-grin-beam': '☺',
   'ion-md-phone-portrait': '▯', 'ion-ios-phone-portrait': '▯', 'ion-md-star': '★', 'ion-ios-star': '★', 'ion-md-arrow-forward': '→', 'ion-md-arrow-round-forward': '→', 'ion-ios-arrow-forward': '›', 'ion-ios-paper-plane': '➤', 'ion-md-build': '✦', 'ion-ios-construct': '✦', 'ion-ios-heart': '♥', 'ion-ios-chatbubbles': '✉', 'ion-ios-mail': '✉', 'ion-ios-time': '◷', 'ion-ios-information-circle': 'ⓘ', 'ion-md-information-circle-outline': 'ⓘ', 'ion-ios-flash': '⚡', 'ion-md-pin': '⌖', 'ion-ios-home': '⌂', 'ti-arrow-top-right': '↗', 'ti-arrow-right': '→' };
 const iconHtml = ic => {
@@ -1593,7 +1605,7 @@ function renderSections(sections, CLASSES, VARS, ropts) {
         case 'code': return '';
         case 'form': return `<div data-e="${e.id}" style="width:100%">${fauxForm}</div>`;
         case 'counter': return `<div ${attr}><span>${esc(s.prefix || '')}</span><span>${esc(String(s.countTo || '0').trim())}</span><span>${esc(s.suffix || '')}</span></div>`;
-        case 'rating': return `<div ${attr}>${'★'.repeat(Math.max(1, Math.min(5, parseInt(s.rating, 10) || 5)))}</div>`;
+        case 'rating': return `<div ${attr}>${'★'.repeat(Math.max(1, Math.min(5, Math.round(parseFloat(s.rating)) || 5)))}</div>`;
         case 'list': return `<ul ${attr}>${(Array.isArray(s.items) ? s.items : []).map(i => `<li>${iconHtml(i.icon)}<span>${esc(stripTags(i.title || ''))}</span></li>`).join('')}</ul>`;
         case 'accordion': return `<div ${attr.replace('class="', 'class="b-acc ')}>${(Array.isArray(s.accordions) ? s.accordions : []).slice(0, 4).map(a => `<div><b>${esc(stripTags(a.title || ''))}</b></div>`).join('')}</div>`;
         case 'image-gallery': { const c = Math.min(6, Math.max(3, ((s.items && s.items.images) || []).length || 3)); const gi = ((s.items && s.items.images) || []).slice(0, 6).map(im => `<img src="${stockPrev(im)}" alt="">`).join(''); return `<div ${attr.replace('class="', 'class="b-gallery ')}>${gi || `<img src="${PH_URL}" alt="">`.repeat(c)}</div>`; }
