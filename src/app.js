@@ -197,7 +197,7 @@ async function loadTemplates(msg) {
     btn.classList.remove('go'); void btn.offsetWidth; btn.classList.add('go'); setTimeout(() => btn.classList.remove('go'), 1600);
   }
   // knappen viser en drejende cirkel, mens udkastet laves
-  function genBusy(on) { const b = $('genBtn'); b.disabled = on; b.classList.toggle('loading', on); b.querySelector('.gtxt').textContent = on ? 'Genererer udkast…' : 'Generer udkast'; const m = $('moreBtn'); if (m) m.disabled = on; }
+  function genBusy(on) { const b = $('genBtn'); b.disabled = on; b.classList.toggle('loading', on); b.querySelector('.gtxt').textContent = on ? 'Genererer udkast…' : 'Generer udkast'; const m = $('moreBtn'); if (m) { m.disabled = on; m.classList.toggle('loading', on); m.querySelector('.mtxt').textContent = on ? 'Genererer nyt udkast…' : 'Generer nyt udkast på samme indstillinger'; } }
   $('genBtn').onclick = e => { if ($('genBtn').disabled) return; burst($('genBtn'), e); generate(false); };
   // små stjerner fra tryllestaven, mens man holder musen over knappen
   { const btn = $('genBtn'); let tw = null;
@@ -408,7 +408,7 @@ async function loadTemplates(msg) {
     $('copyBtn').disabled = !has;
     if (has !== lastHas) { $('briefCard').open = true; lastHas = has; } $('briefCard').hidden = has; renderBriefSum();
     if (!has) { exp = null; $('valWrap').hidden = true; $('tabs').innerHTML = ''; $('size').textContent = ''; return; }
-    $('tabs').innerHTML = `<span class="tab name" aria-pressed="true">Udkast til ${E.esc((state.brief || {}).navn || 'kunden')}</span><button class="tab more" id="moreBtn" type="button" data-lock title="Laver et nyt udkast med samme kunde og valg. Fortryd giver det forrige tilbage"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11a8 8 0 0 0-14.3-4.6L4 8.5M4 4v4.5h4.5M4 13a8 8 0 0 0 14.3 4.6L20 15.5M20 20v-4.5h-4.5"/></svg>Generer nyt udkast på samme indstillinger</button>`;
+    $('tabs').innerHTML = `<span class="tab name" aria-pressed="true">Udkast til ${E.esc((state.brief || {}).navn || 'kunden')}</span><button class="tab more" id="moreBtn" type="button" data-lock title="Laver et nyt udkast med samme kunde og valg. Fortryd giver det forrige tilbage"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11a8 8 0 0 0-14.3-4.6L4 8.5M4 4v4.5h4.5M4 13a8 8 0 0 0 14.3 4.6L20 15.5M20 20v-4.5h-4.5"/></svg><span class="gspin" aria-hidden="true"></span><span class="mtxt">Generer nyt udkast på samme indstillinger</span></button>`;
     nameH1(p); exp = E.buildExport(p, CLASSES, { prefix: readBrief().prefix }); const val = E.validate(exp); const fails = val.filter(v => !v.pass);
     const pageLike = !E.SECTION_ONLY[(state.brief || {}).sidetype]; const h1n = exp.json.content.filter(e => e.name === 'heading' && (e.settings || {}).tag === 'h1').length; const h1bad = pageLike && h1n !== 1; const h1msg = h1n === 0 ? 'Siden har ingen H1. Der bør være præcis én (typisk hero-overskriften).' : `Siden har ${h1n} H1-overskrifter. Der bør kun være én.`;
     $('valWrap').hidden = !fails.length; const vb = $('valBadge'); vb.dataset.ok = fails.length ? 'no' : 'yes'; vb.textContent = (fails.length ? `⚠ ${fails.length} tjek fejler` : `✓ Klar til Bricks · ${val.length}/${val.length} tjek`) + (h1bad ? ' · ⚠ H1' : '');
