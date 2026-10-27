@@ -51,7 +51,6 @@ Lokalt: `python3 build.py`, derefter `python3 -m http.server 8000` og åbn http:
 ## Fejlkoder
 Fejl vises i en bar nederst med en kode som `E30-1318-4f2a` (type, klokkeslæt, id). Detaljerne står i browserens konsol under samme kode.
 - `E10` udkastet kunne ikke laves
-- `E20` antallet kan ikke ændres i sektionen
 - `E30` en sektion kunne ikke skiftes eller tilføjes
 - `E40` kunderne kunne ikke hentes fra ClickUp
 - `E90` uventet fejl

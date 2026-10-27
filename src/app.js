@@ -104,7 +104,7 @@ async function loadTemplates(msg) {
 
   /* ---------- hjælpere ---------- */
   /* ---------- fejlbar: kort besked nederst med en fejlkode, som kan sendes til os. Forsvinder af sig selv ----------
-     Koder: E10 udkast kunne ikke laves · E20 antal kan ikke ændres · E30 sektion kunne ikke skiftes/tilføjes · E40 ClickUp svarer ikke · E90 uventet fejl */
+     Koder: E10 udkast kunne ikke laves · E30 sektion kunne ikke skiftes/tilføjes · E40 ClickUp svarer ikke · E90 uventet fejl */
   let toastT = null;
   function showError(msg, code, detail) {
     const id = `${code}-${new Date().toTimeString().slice(0, 5).replace(':', '')}-${Math.random().toString(36).slice(2, 6)}`;
@@ -113,7 +113,7 @@ async function loadTemplates(msg) {
     clearTimeout(toastT); toastT = setTimeout(() => { el.classList.remove('show'); setTimeout(() => { el.hidden = true; }, 300); }, 9000);
   }
   $('toast').querySelector('.tx').onclick = () => { clearTimeout(toastT); $('toast').hidden = true; $('toast').classList.remove('show'); };
-  addEventListener('error', e => showError('Der skete en uventet fejl.', 'E90', e.message));
+  addEventListener('error', e => { if (/ResizeObserver loop/i.test(e.message || '') || !e.message) return; showError('Der skete en uventet fejl.', 'E90', e.message); });   // ResizeObserver-beskeden er harmløs
   addEventListener('unhandledrejection', e => showError('Der skete en uventet fejl.', 'E90', String((e.reason && e.reason.message) || e.reason)));
   const setStatus = (t, kind) => { const el = $('status'); el.textContent = t || ''; el.dataset.kind = kind || ''; };
   const errCopy = e => 'Noget gik galt: ' + ((e && e.message) || e);
@@ -293,7 +293,6 @@ async function loadTemplates(msg) {
     if ((a === 'variant' || a === 'pick') && s.part > 1) { let j = i - 1; while (j > 0 && !(p.sections[j - 1].tpl === s.tpl && p.sections[j - 1].part === 1)) j--; if (j > 0) { i = j; s = p.sections[j - 1]; } }   // del 2 af en template: skift hele templaten
     pendingAnim = { i, a };
     if (a === 'copy') { copySection(s, b); return; }
-    if (a === 'inc' || a === 'dec') { const n = (E.groupInfoSec(s) || { n: 0 }).n + (a === 'inc' ? 1 : -1); pushHist(); const r = E.resizeGroup(s, n, CLASSES); if (r.ok) s.warns = r.warn; else { hist.pop(); showError(r.msg || 'Antallet kan ikke ændres her.', 'E20'); } render(); return; }
     if (a === 'variant') { const used = p.sections.map(x => x.tpl); const hf = (state.brief || {}).heroForm; let nx = E.nextVariant(LIB, s.tpl, used);
       if (E.categoryOf(s.tpl) === 'Header' && typeof hf === 'boolean') for (let g = 0; nx && g < 40 && E.hasForm(LIB, nx) !== hf; g++) nx = E.nextVariant(LIB, nx, used);   // heroen bliver med/uden kontaktformular, som valgt
       if (nx && nx !== s.tpl) swapTo(i, nx); return; }
@@ -411,7 +410,7 @@ async function loadTemplates(msg) {
     const scale = Math.min(1, avail / w); frame.style.cssText = `width:${w}px;transform:scale(${scale});transform-origin:top left;container-type:inline-size;background:var(--bg-body,#fff);`;
     outer.style.width = Math.round(w * scale) + 'px'; outer.style.height = Math.round(frame.offsetHeight * scale) + 'px';
   }
-  { const ro = new ResizeObserver(() => { if (cur()) fit(); }); ro.observe($('canvas')); ro.observe(document.documentElement); }
+  { const ro = new ResizeObserver(() => { if (cur()) requestAnimationFrame(fit); }); ro.observe($('canvas')); ro.observe(document.documentElement); }
   addEventListener('resize', () => { if (cur()) requestAnimationFrame(fit); });   // preview zoomer ud, så den altid passer i pladsen
 
   function render() {
@@ -426,7 +425,7 @@ async function loadTemplates(msg) {
     $('valWrap').hidden = !fails.length; const vb = $('valBadge'); vb.dataset.ok = fails.length ? 'no' : 'yes'; vb.textContent = (fails.length ? `⚠ ${fails.length} tjek fejler` : `✓ Klar til Bricks · ${val.length}/${val.length} tjek`) + (h1bad ? ' · ⚠ H1' : '');
     $('valList').innerHTML = val.map(v => `<li data-p="${v.pass}"><span>${v.pass ? '✓' : '✗'}</span> ${E.esc(v.name)}${v.pass ? '' : ' – ' + E.esc(v.detail)}</li>`).join('') + (pageLike ? `<li data-p="${!h1bad}"><span>${h1bad ? '⚠' : '✓'}</span> Præcis én H1 (SEO)${h1bad ? ' – ' + E.esc(h1msg) : ''}</li>` : '');
     const prevUids = lastUids; lastUids = new Set(p.sections.map(s => s.uid));
-    $('list').innerHTML = p.sections.map((s, i) => `<li draggable="true" data-i="${i + 1}" data-uid="${s.uid}" class="${s.uid === selUid ? 'sel ' : ''}${s.part > 1 ? 'cont ' : ''}${prevUids.has(s.uid) ? '' : 'new'}"><span class="grip" aria-hidden="true">⠿</span><span class="n">${i + 1}</span><div class="t"><b>${(t => { const m = t.match(/^(.*?)\s*(#\s*\d+.*)$/); return m ? `${E.esc(m[1])} <span class="num">${E.esc(m[2])}</span>` : E.esc(t); })(E.secTitle(s))}${s.parts > 1 ? ` <em class="part" title="${E.esc(E.displayName(s.tpl))} består af ${s.parts} sektioner i Bricks. De kan flyttes eller fjernes hver for sig.">sektion ${s.part} af ${s.parts}</em>` : ''}</b>${/^Erstatning/.test(s.why || '') ? `<small class="secwarn" title="${E.esc(s.why.replace(/^Erstatning: /, ''))}">⚠ Erstatning – der manglede en ledig template til tekstafsnittet</small>` : ''}${s.part > 1 || E.categoryOf(s.tpl) === 'Header' ? '' : E.hasForm(LIB, s.tpl) ? '<small class="secwarn">⚠ Tjek formular-ID efter paste</small>' : ''}${(() => { const gi = E.groupInfoSec(s); return gi && gi.adjustable ? `<span class="cnt" title="Antal ${gi.label} i sektionen. Layoutet tilpasser sig selv"><button data-a="dec" data-i="${i + 1}" data-lock aria-label="Et færre" ${gi.n <= 2 ? 'disabled title="Mindst 2"' : ''}>−</button><b>${gi.n}</b><button data-a="inc" data-i="${i + 1}" data-lock aria-label="Et mere">+</button><em>${gi.label}</em></span>` : ''; })()}</div><div class="ac">
+    $('list').innerHTML = p.sections.map((s, i) => `<li draggable="true" data-i="${i + 1}" data-uid="${s.uid}" class="${s.uid === selUid ? 'sel ' : ''}${s.part > 1 ? 'cont ' : ''}${prevUids.has(s.uid) ? '' : 'new'}"><span class="grip" aria-hidden="true">⠿</span><span class="n">${i + 1}</span><div class="t"><b>${(t => { const m = t.match(/^(.*?)\s*(#\s*\d+.*)$/); return m ? `${E.esc(m[1])} <span class="num">${E.esc(m[2])}</span>` : E.esc(t); })(E.secTitle(s))}${s.parts > 1 ? ` <em class="part" title="${E.esc(E.displayName(s.tpl))} består af ${s.parts} sektioner i Bricks. De kan flyttes eller fjernes hver for sig.">sektion ${s.part} af ${s.parts}</em>` : ''}</b>${/^Erstatning/.test(s.why || '') ? `<small class="secwarn" title="${E.esc(s.why.replace(/^Erstatning: /, ''))}">⚠ Erstatning – der manglede en ledig template til tekstafsnittet</small>` : ''}${s.part > 1 || E.categoryOf(s.tpl) === 'Header' ? '' : E.hasForm(LIB, s.tpl) ? '<small class="secwarn">⚠ Tjek formular-ID efter paste</small>' : ''}</div><div class="ac">
       <button class="lbl" data-a="variant" data-i="${i + 1}" data-lock aria-label="Prøv en anden variant" title="${s.part > 1 ? 'Prøv næste variant af hele ' + E.esc(E.displayName(s.tpl)) : 'Prøv næste variant (fx en anden hero)'}"><svg viewBox="0 0 24 24"><path d="M20 11a8 8 0 0 0-14.3-4.6L4 8.5M4 4v4.5h4.5M4 13a8 8 0 0 0 14.3 4.6L20 15.5M20 20v-4.5h-4.5"/></svg>Ny variant</button><button class="lbl" data-a="pick" data-i="${i + 1}" data-lock aria-label="Vælg variant" title="${s.part > 1 ? 'Vælg en anden variant af hele ' + E.esc(E.displayName(s.tpl)) : 'Vælg variant med billeder'}"><svg viewBox="0 0 24 24"><rect x="4" y="4" width="7" height="7" rx="1.8"/><rect x="13" y="4" width="7" height="7" rx="1.8"/><rect x="4" y="13" width="7" height="7" rx="1.8"/><rect x="13" y="13" width="7" height="7" rx="1.8"/></svg>Vælg selv</button><button class="lbl" data-a="copy" data-i="${i + 1}" aria-label="Kopiér sektionens JSON" title="Kopiér denne sektions JSON"><svg viewBox="0 0 24 24"><rect x="8.5" y="8.5" width="11" height="11" rx="2.2"/><path d="M15.5 8.5V6.7a2.2 2.2 0 0 0-2.2-2.2H6.7a2.2 2.2 0 0 0-2.2 2.2v6.6a2.2 2.2 0 0 0 2.2 2.2h1.8"/></svg>Kopiér</button><button data-a="del" data-i="${i + 1}" data-lock aria-label="Fjern" title="Fjern sektion"${delArm === s.uid ? ' class="arm"' : ''}>${delArm === s.uid ? '<span class="blbl">Er du sikker?</span>' : ''}<svg viewBox="0 0 24 24"><path d="M4.5 7h15M9.5 7V4.5h5V7M6.5 7l.8 12.2a1.5 1.5 0 0 0 1.5 1.3h6.4a1.5 1.5 0 0 0 1.5-1.3L17.5 7M10 11v6M14 11v6"/></svg></button></div></li>`).join('');
     if (pendingAnim) { const pa = pendingAnim; pendingAnim = null; const li = $('list').querySelector(`li[data-i="${pa.i}"]`); if (li) { if (pa.a === 'up' || pa.a === 'down') li.classList.add('moved');  } }
     $('planNote').textContent = ''; $('planNote').hidden = true;
