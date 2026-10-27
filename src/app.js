@@ -25,8 +25,10 @@ async function loadTemplates(msg) {
   try {
     msg('Loader templates\nTjekker for nye templates…'); const idx = await gas('templateIndex');
     const need = idx.filter(f => !cache[f.id] || cache[f.id].modified !== f.modified).map(f => f.id); 
-    for (let i = 0; i < need.length; i += 20) { msg(`Loader templates\n${i}/${need.length}`); for (const g of await gas('templateFiles', need.slice(i, i + 20))) cache[g.id] = g; }
-    if (need.length) msg(`Loader templates\n${need.length}/${need.length}`);
+    // alle pakker på én gang (Apps Script henter dem parallelt fra Drive)
+    let got = 0; const packs = []; for (let i = 0; i < need.length; i += 25) packs.push(need.slice(i, i + 25));   // 25: virker også med en ældre Code.gs
+    if (need.length) msg(`Loader templates\n0/${need.length}`);
+    await Promise.all(packs.map(async ids => { for (const g of await gas('templateFiles', ids)) cache[g.id] = g; got += ids.length; msg(`Loader templates\n${got}/${need.length}`); }));
     const ids = new Set(idx.map(f => f.id)); for (const id of Object.keys(cache)) if (!ids.has(id)) delete cache[id];
     try { localStorage.setItem(TPL_CACHE, JSON.stringify({ files: cache })); } catch (_) { }
     return { files: Object.values(cache), source: 'drive', changed: need.length };

@@ -48,26 +48,60 @@ function requireBestOne_() {
 }
 function me() { return { email: requireBestOne_() }; }
 
-/* ---------- templates fra Drive ---------- */
+/* ---------- templates fra Drive ----------
+   Hurtigt: listen og filerne hentes med Drive-API'et, filerne parallelt (UrlFetchApp.fetchAll), og hver fil gemmes i scriptets cache i 6 timer,
+   så næste kollega slipper for Drive. Virker API'et ikke, bruges DriveApp som før (langsommere, men samme resultat). */
+const DRIVE_API = 'https://www.googleapis.com/drive/v3/files';
+const FILE_TTL = 21600;   // 6 timer (max for CacheService)
+const authHeader_ = () => ({ Authorization: 'Bearer ' + ScriptApp.getOAuthToken() });
 // Liste over alle .json-filer (også i undermapper) med id og ændringstid – værktøjet henter kun dem, der er nye eller ændret
 function templateIndex() {
   const cache = CacheService.getScriptCache(); const hit = cache.get('tplIndex'); if (hit) return JSON.parse(hit);
+  let out; try { out = indexApi_(); } catch (e) { out = indexDriveApp_(); }
+  try { cache.put('tplIndex', JSON.stringify(out), 120); } catch (e) { }   // cachen tager max 100 KB pr. nøgle
+  return out;
+}
+function indexApi_() {
+  const out = []; const walk = (folderId, path) => {
+    let token = '';
+    do {
+      const q = encodeURIComponent("'" + folderId + "' in parents and trashed = false");
+      const r = UrlFetchApp.fetch(DRIVE_API + '?q=' + q + '&pageSize=1000&fields=' + encodeURIComponent('nextPageToken,files(id,name,mimeType,modifiedTime,size)') + (token ? '&pageToken=' + token : '') + '&supportsAllDrives=true&includeItemsFromAllDrives=true', { headers: authHeader_(), muteHttpExceptions: true });
+      if (r.getResponseCode() !== 200) throw new Error('Drive svarede ' + r.getResponseCode());
+      const j = JSON.parse(r.getContentText()); token = j.nextPageToken || '';
+      for (const f of j.files || []) {
+        if (f.mimeType === 'application/vnd.google-apps.folder') walk(f.id, path ? path + '/' + f.name : f.name);
+        else if (/\.json$/i.test(f.name)) out.push({ id: f.id, name: f.name, folder: path, modified: Date.parse(f.modifiedTime), size: +f.size || 0 });
+      }
+    } while (token);
+  };
+  walk(CFG.TEMPLATE_FOLDER, ''); return out;
+}
+function indexDriveApp_() {
   const out = []; const walk = (folder, path) => {
     const files = folder.getFiles();
     while (files.hasNext()) { const f = files.next(); if (!/\.json$/i.test(f.getName())) continue; out.push({ id: f.getId(), name: f.getName(), folder: path, modified: f.getLastUpdated().getTime(), size: f.getSize() }); }
     const subs = folder.getFolders(); while (subs.hasNext()) { const s = subs.next(); walk(s, path ? path + '/' + s.getName() : s.getName()); }
   };
-  walk(DriveApp.getFolderById(CFG.TEMPLATE_FOLDER), '');
-  try { cache.put('tplIndex', JSON.stringify(out), 120); } catch (e) { }   // cachen tager max 100 KB pr. nøgle
-  return out;
+  walk(DriveApp.getFolderById(CFG.TEMPLATE_FOLDER), ''); return out;
 }
 // Indholdet af op til 25 filer ad gangen (kun filer fra template-mappen)
 function templateFiles(ids) {
-  const allowed = new Set(templateIndex().map(f => f.id));
-  return (ids || []).slice(0, 25).filter(id => allowed.has(id)).map(id => {
-    const f = DriveApp.getFileById(id);
-    return { id, name: f.getName(), modified: f.getLastUpdated().getTime(), text: f.getBlob().getDataAsString('UTF-8') };
-  });
+  const byId = {}; for (const f of templateIndex()) byId[f.id] = f;
+  const want = (ids || []).slice(0, 25).filter(id => byId[id]); if (!want.length) return [];
+  const cache = CacheService.getScriptCache(); const key = id => 'f:' + id + ':' + byId[id].modified;   // ny nøgle, når filen ændres
+  const hit = cache.getAll(want.map(key)); const out = []; const miss = [];
+  for (const id of want) { const t = hit[key(id)]; if (t != null) out.push({ id, name: byId[id].name, modified: byId[id].modified, text: t }); else miss.push(id); }
+  if (miss.length) {
+    let texts; try {
+      const res = UrlFetchApp.fetchAll(miss.map(id => ({ url: DRIVE_API + '/' + id + '?alt=media&supportsAllDrives=true', headers: authHeader_(), muteHttpExceptions: true })));
+      texts = res.map((r, i) => r.getResponseCode() === 200 ? r.getContentText('UTF-8') : DriveApp.getFileById(miss[i]).getBlob().getDataAsString('UTF-8'));
+    } catch (e) { texts = miss.map(id => DriveApp.getFileById(id).getBlob().getDataAsString('UTF-8')); }
+    const put = {};
+    miss.forEach((id, i) => { out.push({ id, name: byId[id].name, modified: byId[id].modified, text: texts[i] }); if (texts[i].length < 95000) put[key(id)] = texts[i]; });
+    try { cache.putAll(put, FILE_TTL); } catch (e) { }
+  }
+  return out;
 }
 
 /* ---------- ClickUp (kun læsning) ---------- */
