@@ -140,7 +140,7 @@ async function loadTemplates(msg) {
   });
 
   // hilsen med fornavn, når man er logget ind (navnet kommer fra ClickUp)
-  if (IN_GAS) gas('me').then(m => { const first = String((m && m.name) || '').trim().split(/\s+/)[0]; if (first) $('hi').innerHTML = `Hej ${E.esc(first)},<br>lad os bygge dit udkast`; }).catch(() => { });
+  if (IN_GAS) gas('me').then(m => { const first = String((m && m.name) || '').trim().split(/\s+/)[0]; if (first) $('hi').innerHTML = `Hej ${E.esc(first)} 👋<br>Lad os bygge dit udkast`; }).catch(() => { });
 
   /* ---------- tjekliste: hvilke typer skal med (alle typer fra templates, undtagen hero og Content, der altid er med) ---------- */
   for (const r of document.querySelectorAll('input[name=hero]')) r.addEventListener('change', () => { $('heroBox').classList.remove('need'); if (/header/i.test($('status').textContent)) setStatus(''); });
