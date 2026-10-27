@@ -23,10 +23,10 @@ async function loadTemplates(msg) {
     return { files: [], source: 'none' };
   }
   try {
-    msg('Henter listen over templates fra Drive…'); const idx = await gas('templateIndex');
-    const need = idx.filter(f => !cache[f.id] || cache[f.id].modified !== f.modified).map(f => f.id); const first = !Object.keys(cache).length;
-    for (let i = 0; i < need.length; i += 20) { msg((first ? 'Førstegangsopsætning, vent venligst\n' : '') + `Henter templates: ${i}/${need.length}`); for (const g of await gas('templateFiles', need.slice(i, i + 20))) cache[g.id] = g; }
-    if (need.length) msg((first ? 'Førstegangsopsætning, vent venligst\n' : '') + `Henter templates: ${need.length}/${need.length}`);
+    msg('Loader templates\nTjekker for nye templates…'); const idx = await gas('templateIndex');
+    const need = idx.filter(f => !cache[f.id] || cache[f.id].modified !== f.modified).map(f => f.id); 
+    for (let i = 0; i < need.length; i += 20) { msg(`Loader templates\nHenter templates: ${i}/${need.length}`); for (const g of await gas('templateFiles', need.slice(i, i + 20))) cache[g.id] = g; }
+    if (need.length) msg(`Loader templates\nHenter templates: ${need.length}/${need.length}`);
     const ids = new Set(idx.map(f => f.id)); for (const id of Object.keys(cache)) if (!ids.has(id)) delete cache[id];
     try { localStorage.setItem(TPL_CACHE, JSON.stringify({ files: cache })); } catch (_) { }
     return { files: Object.values(cache), source: 'drive', changed: need.length };
@@ -41,9 +41,12 @@ async function loadTemplates(msg) {
   const E = window.GEN;
   const D = JSON.parse($('data').textContent);
   // templates fra Drive -> LIB, klasser og skabelonliste
-  const bootMsg = t => { const b = $('boot'); if (b) { b.hidden = false; b.querySelector('span').textContent = t; } };
-  let T; try { T = await loadTemplates(bootMsg); } catch (e) { bootMsg('Kunne ikke hente templates: ' + e.message); return; }
-  if (!T.files.length) { bootMsg(IN_GAS ? 'Der er ingen templates i Drive-mappen.' : 'Åbn værktøjet via Apps Script-linket. Der hentes templates og kunder, når man er logget ind med best-one.dk.'); return; }
+  // skærm mens templates hentes: hvidt b, evt. overskrift (første linje før \n), animation og status. done = ingen animation (fejl/besked)
+  const bootMsg = (t, done) => { const b = $('boot'); if (!b) return; b.hidden = false; b.classList.toggle('done', !!done);
+    const lg = b.querySelector('.bootlogo'), mk = document.querySelector('.bmark'); if (lg && mk && !lg.src) lg.src = mk.src;
+    const [h, ...r] = String(t).split('\n'); b.querySelector('.boot-t').textContent = r.length ? h : ''; b.querySelector('.boot-s').textContent = r.length ? r.join(' ') : h; };
+  let T; try { T = await loadTemplates(bootMsg); } catch (e) { bootMsg('Kunne ikke hente templates: ' + e.message, true); return; }
+  if (!T.files.length) { bootMsg(IN_GAS ? 'Der er ingen templates i Drive-mappen.' : 'Åbn værktøjet via Apps Script-linket. Der hentes templates og kunder, når man er logget ind med best-one.dk.', true); return; }
   { const conv = E.libFromExports(T.files, D.CLASSES); D.LIB = conv.LIB; D.CLASSES = conv.CLASSES; D.SHEET = conv.SHEET; D.TPL = T; D.TPL.bad = conv.bad;
     // statistik og inspiration fra før bruger gamle template-navne (fx cta-1-double-text) – peg dem på de nye
     const al = E.keyAlias([...Object.keys(D.USE || {}), ...(D.SITES || []).flatMap(x => [...(x.k || []), ...(x.s || [])])], D.LIB); const U = {};

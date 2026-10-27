@@ -471,7 +471,16 @@ body.home #briefSum{display:none!important}
 .bchip{display:inline-block;padding:2px 10px;border-radius:999px;background:var(--accent-soft);color:var(--accent-hover);font-size:13px;font-weight:600}
 .bsum-l code{font-size:12.5px;background:var(--soft,#f2efe6);padding:1px 6px;border-radius:4px}
 html[data-theme=dark] .bchip{color:#f0b9a4}
-#boot{position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;background:#1f1e1d;color:#e8e6dc;font:15px/1.5 system-ui,sans-serif;padding:24px;text-align:center}#boot[hidden]{display:none}#boot span{white-space:pre-line}
+#boot{position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;background:#1f1e1d;color:#e8e6dc;font:15px/1.5 Montserrat,system-ui,sans-serif;padding:24px;text-align:center}#boot[hidden]{display:none}
+.bootbox{display:flex;flex-direction:column;align-items:center;gap:14px;max-width:420px}
+.bootlogo{width:64px;height:64px;filter:brightness(0) invert(1);margin-bottom:6px}
+.boot-t{font-size:18px;font-weight:600;color:#fff}.boot-t:empty{display:none}
+.boot-s{font-size:14px;color:#b9b6ab;font-variant-numeric:tabular-nums}
+.boot-row{display:flex;align-items:center;justify-content:center;gap:10px}
+.boot-spin{flex:none;width:18px;height:18px;border-radius:50%;border:2.5px solid rgba(255,255,255,.18);border-top-color:#fff;animation:bootspin .8s linear infinite}
+#boot.done .boot-spin{display:none}
+@keyframes bootspin{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){.boot-spin{animation-duration:2.4s}}
 </style>
 </head>
 <body>
@@ -559,7 +568,7 @@ html[data-theme=dark] .bchip{color:#f0b9a4}
 <div id="picker" hidden role="dialog" aria-modal="true" aria-labelledby="pkTitle"><div class="pkbox"><div class="pkhead"><div class="r"><b id="pkTitle">Vælg sektion</b><span style="display:flex;gap:8px;align-items:center"><label for="pkSort" class="hint" style="font-size:12.5px">Sortér</label><select id="pkSort" aria-label="Sortér sektioner"><option value="nyeste">Nyeste først</option><option value="aeldste">Ældste først</option><option value="navn">Navn A–Å</option><option value="brugt">Mest brugt</option></select><button class="btn" id="pkClose">Luk</button></span></div><div id="pkCats"></div></div><div id="pkGrid"></div><div id="pkFoot"><span id="pkSheet" class="hint"></span></div></div></div>
 <div id="copyFallback" hidden role="dialog" aria-modal="true" aria-labelledby="cfTitle"><div class="pkbox" style="max-width:720px"><div class="pkhead"><div class="r"><b id="cfTitle">Browseren blokerer kopiering her</b><button class="btn" id="cfClose">Luk</button></div><p class="hint" style="margin:0">JSON'en er markeret. Tryk Ctrl/Cmd + C, og indsæt i Bricks.</p></div><div style="padding:14px 18px"><textarea id="cfText" readonly spellcheck="false" style="min-height:280px;font:12px/1.4 ui-monospace,Menlo,monospace"></textarea></div></div></div>
 
-<div id="boot" hidden><span>Henter templates…</span></div>
+<div id="boot" hidden><div class="bootbox"><img class="bootlogo" alt="Best One" width="64" height="64"><div class="boot-row"><b class="boot-t"></b><div class="boot-spin" role="progressbar" aria-label="Henter"></div></div><span class="boot-s" role="status">Henter templates…</span></div></div>
 <script type="application/json" id="data">/*DATA*/</script>
 <script>/*ENGINE*/
 window.GEN = API;</script>
