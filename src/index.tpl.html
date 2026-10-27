@@ -494,8 +494,8 @@ html[data-theme=dark] .tab[aria-pressed=true]{background:#225581;border-color:#2
 .btn.send.go .lbl::after{content:"🪄";animation:none}
 /* kundevalg fra ClickUp */
 .cpick{position:relative}
-#custList{position:absolute;left:0;right:0;top:calc(100% - 6px);z-index:50;margin:0;padding:6px;list-style:none;max-height:340px;overflow:auto;background:var(--panel);border:1px solid var(--line);border-radius:10px;box-shadow:0 14px 40px rgba(0,0,0,.45);text-align:left}
-#custList li{padding:9px 12px;border-radius:7px;cursor:pointer;display:flex;flex-direction:column;gap:1px}
+#custList{position:absolute;left:0;right:0;top:calc(100% - 6px);z-index:50;margin:0;padding:6px;list-style:none;max-height:calc(8 * 54px + 12px);overflow:auto;overscroll-behavior:contain;background:var(--panel);border:1px solid var(--line);border-radius:10px;box-shadow:0 14px 40px rgba(0,0,0,.45);text-align:left}
+#custList li{box-sizing:border-box;height:54px;padding:8px 12px;border-radius:7px;cursor:pointer;display:flex;flex-direction:column;justify-content:center;gap:1px;overflow:hidden}#custList li b,#custList li small{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}#custList .cempty{height:auto}
 #custList li b{font-weight:600;color:var(--ink)}#custList li small{color:var(--muted);font-size:12.5px}
 #custList li:nth-child(even){background:rgba(255,255,255,.035)}
 #custList li[aria-selected=true],#custList li:hover{background:#2c3540}

@@ -111,7 +111,7 @@ async function loadTemplates(msg) {
   /* ---------- kunde fra ClickUp (Opstarter: to-do, afventer, i gang, på ugen – med HOS/HOS+/RE/RE+) ----------
      Uden ClickUp (lokalt, eller hvis det fejler) skriver man bare kundens navn. */
   let CUST = null, selCust = null, custHi = -1;
-  const custP = (IN_GAS ? gas('customers') : fetch('.claude/dev-customers.json', { cache: 'no-store' }).then(r => r.ok ? r.json() : null)).then(l => (CUST = Array.isArray(l) && l.length ? l : null)).catch(() => null);   // lokal test: .claude/dev-customers.json (ligger ikke i repoet)
+  const custP = (IN_GAS ? gas('customers') : fetch('.claude/dev-customers.json', { cache: 'no-store' }).then(r => r.ok ? r.json() : null)).then(l => (CUST = Array.isArray(l) && l.length ? l.slice().sort((x, y) => String(x.name).localeCompare(String(y.name), 'da')) : null)).catch(() => null);   // lokal test: .claude/dev-customers.json (ligger ikke i repoet)
   custP.then(l => { if (!l) { $('navn').placeholder = 'Kundens navn, fx Best Renovering ApS'; $('navn').setAttribute('aria-label', 'Kundens navn'); } else if (document.activeElement === $('navn')) renderCust(); });
   const custHits = () => { const q = $('navn').value.trim().toLowerCase(); if (!CUST) return []; return (q && !(selCust && selCust.name.toLowerCase() === q) ? CUST.filter(c => (c.name + ' ' + (c.branche || '') + ' ' + (c.website || '')).toLowerCase().includes(q)) : CUST).slice(0, 80); };
   function renderCust() {
