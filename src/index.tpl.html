@@ -497,7 +497,8 @@ html[data-theme=dark] .tab[aria-pressed=true]{background:#225581;border-color:#2
 #custList{position:absolute;left:0;right:0;top:calc(100% - 6px);z-index:50;margin:0;padding:6px;list-style:none;max-height:340px;overflow:auto;background:var(--panel);border:1px solid var(--line);border-radius:10px;box-shadow:0 14px 40px rgba(0,0,0,.45);text-align:left}
 #custList li{padding:9px 12px;border-radius:7px;cursor:pointer;display:flex;flex-direction:column;gap:1px}
 #custList li b{font-weight:600;color:var(--ink)}#custList li small{color:var(--muted);font-size:12.5px}
-#custList li[aria-selected=true],#custList li:hover{background:var(--soft)}
+#custList li:nth-child(even){background:rgba(255,255,255,.035)}
+#custList li[aria-selected=true],#custList li:hover{background:#2c3540}
 #custList .cempty{color:var(--muted);cursor:default}#custList .cempty:hover{background:none}
 #custInfo{margin:-2px 0 12px;padding:10px 14px;border:1px solid var(--line);border-radius:10px;background:var(--soft);font-size:13px;color:var(--muted);text-align:left}
 #custInfo b{color:var(--ink);font-weight:600}#custInfo a{color:#9cc3e6}
@@ -507,6 +508,11 @@ html[data-theme=dark] .tab[aria-pressed=true]{background:#225581;border-color:#2
 .cpick::after{content:"";position:absolute;right:18px;top:calc(50% - 4px);width:9px;height:9px;border-right:2px solid var(--muted);border-bottom:2px solid var(--muted);transform:translateY(-50%) rotate(45deg);pointer-events:none;transition:transform .2s}
 .cpick:has(#navn[aria-expanded=true])::after{transform:translateY(-15%) rotate(225deg)}
 .cpick #navn{padding-right:44px!important;padding-left:44px!important;cursor:pointer}
+/* felter: hel kant og lysere tekst (bedre kontrast) */
+html[data-theme=dark] .composer #navn,html[data-theme=dark] .composer #msg,html[data-theme=dark] .composer #prefix{border:1px solid #4a5663!important;background:#181d23!important}
+html[data-theme=dark] .composer #navn:focus,html[data-theme=dark] .composer #msg:focus,html[data-theme=dark] .composer #prefix:focus{border-color:#3a7cc0!important}
+html[data-theme=dark] .composer #navn::placeholder,html[data-theme=dark] .composer #msg::placeholder,html[data-theme=dark] .composer #prefix::placeholder{color:#b4c0cc;opacity:1}
+html[data-theme=dark] .composer .prefixline{color:#b4c0cc}
 </style>
 </head>
 <body>

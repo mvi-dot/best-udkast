@@ -117,14 +117,14 @@ async function loadTemplates(msg) {
   function renderCust() {
     const ul = $('custList'); const open = !!CUST && document.activeElement === $('navn'); ul.hidden = !open; $('navn').setAttribute('aria-expanded', String(open)); if (!open) return;
     const hits = custHits(); if (custHi >= hits.length) custHi = hits.length - 1;
-    ul.innerHTML = hits.length ? hits.map((c, i) => `<li role="option" data-id="${E.esc(c.id)}" aria-selected="${i === custHi}"><b>${E.esc(c.name)}</b><small>${E.esc(c.status || '')}${c.branche ? ' · ' + E.esc(c.branche) : ''}</small></li>`).join('') : '<li class="cempty">Ingen kunder i Opstarter matcher. Skriv bare navnet.</li>';
+    ul.innerHTML = hits.length ? hits.map((c, i) => `<li role="option" data-id="${E.esc(c.id)}" aria-selected="${i === custHi}"><b>${E.esc(c.name)}</b><small>${E.esc(c.branche || 'Branche ikke angivet')}</small></li>`).join('') : '<li class="cempty">Ingen kunder i Opstarter matcher. Skriv bare navnet.</li>';
     const a = ul.querySelector('[aria-selected=true]'); if (a) a.scrollIntoView({ block: 'nearest' });
   }
   const hostOfUrl = u => { try { return new URL(/^https?:/i.test(u) ? u : 'https://' + u).hostname.replace(/^www\./, ''); } catch (_) { return u; } };
   function renderCustInfo() {
     const el = $('custInfo'), c = selCust; el.hidden = !c; if (!c) { el.innerHTML = ''; return; }
     const notes = [c.note, c.description].filter(Boolean).join('\n\n').trim();
-    el.innerHTML = `<div class="crow"><span><b>${E.esc(c.status || '')}</b></span><span>Branche: <b>${E.esc(c.branche || 'ikke angivet')}</b></span>${c.website ? `<span><a href="${E.esc(/^https?:/i.test(c.website) ? c.website : 'https://' + c.website)}" target="_blank" rel="noopener">${E.esc(hostOfUrl(c.website))}</a></span>` : ''}${c.seller ? `<span>Sælger: ${E.esc(c.seller)}</span>` : ''}${c.url ? `<span><a href="${E.esc(c.url)}" target="_blank" rel="noopener">Åbn i ClickUp</a></span>` : ''}</div>${notes ? `<details><summary>Noter fra ClickUp</summary><pre>${E.esc(notes)}</pre></details>` : ''}`;
+    el.innerHTML = `<div class="crow"><span>Branche: <b>${E.esc(c.branche || 'ikke angivet')}</b></span>${c.website ? `<span><a href="${E.esc(/^https?:/i.test(c.website) ? c.website : 'https://' + c.website)}" target="_blank" rel="noopener">${E.esc(hostOfUrl(c.website))}</a></span>` : ''}${c.seller ? `<span>Sælger: ${E.esc(c.seller)}</span>` : ''}${c.url ? `<span><a href="${E.esc(c.url)}" target="_blank" rel="noopener">Åbn i ClickUp</a></span>` : ''}</div>${notes ? `<details><summary>Noter fra ClickUp</summary><pre>${E.esc(notes)}</pre></details>` : ''}`;
   }
   function pickCust(c) { selCust = c; custHi = -1; $('navn').value = c.name; $('navn').dispatchEvent(new Event('input')); $('custList').hidden = true; $('navn').setAttribute('aria-expanded', 'false'); renderCustInfo(); }
   $('navn').addEventListener('input', () => { if (selCust && $('navn').value.trim() !== selCust.name) { selCust = null; renderCustInfo(); } custHi = -1; renderCust(); });
