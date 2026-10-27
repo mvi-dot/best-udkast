@@ -171,7 +171,7 @@ async function loadTemplates(msg) {
     const r = btn.getBoundingClientRect(); const x = (e && e.clientX ? e.clientX : r.left + r.width / 2) - r.left, y = (e && e.clientY ? e.clientY : r.top + r.height / 2) - r.top;
     const rip = document.createElement('span'); rip.className = 'ripple'; rip.style.cssText = `left:${x}px;top:${y}px`; btn.querySelector('.fx').appendChild(rip); setTimeout(() => rip.remove(), 800);
     const cols = ['#225581', '#5b8fbd', '#ffffff', '#a9c6e0', '#1a4061'];
-    for (let i = 0; i < 18; i++) { const p = document.createElement('span'); p.className = 'spark'; const an = Math.random() * Math.PI * 2, d = 38 + Math.random() * 70;
+    for (let i = 0; i < 0; i++) { const p = document.createElement('span'); p.className = 'spark'; const an = Math.random() * Math.PI * 2, d = 38 + Math.random() * 70;
       p.style.cssText = `left:${x}px;top:${y}px;--dx:${Math.cos(an) * d}px;--dy:${Math.sin(an) * d}px;--s:${4 + Math.random() * 6}px;background:${cols[i % cols.length]};animation-delay:${Math.random() * 70}ms`; btn.appendChild(p); setTimeout(() => p.remove(), 1000); }
     btn.classList.remove('go'); void btn.offsetWidth; btn.classList.add('go'); setTimeout(() => btn.classList.remove('go'), 1600);
   }
@@ -179,9 +179,9 @@ async function loadTemplates(msg) {
   // små stjerner fra tryllestaven, mens man holder musen over knappen
   { const btn = $('genBtn'); let tw = null;
     const sparkle = () => { const w = btn.querySelector('.wand'); if (!w || btn.disabled) return; const b = btn.getBoundingClientRect(), r = w.getBoundingClientRect();
-      for (let i = 0; i < 3; i++) { const s = document.createElement('span'); s.className = 'twk'; s.textContent = Math.random() < 0.5 ? '✦' : '✧'; const an = -Math.PI / 2 + (Math.random() - 0.3) * 1.6, d = 18 + Math.random() * 26;
-        s.style.cssText = `left:${r.left - b.left + r.width * 0.75}px;top:${r.top - b.top + r.height * 0.1}px;--dx:${Math.cos(an) * d}px;--dy:${Math.sin(an) * d}px;--s:${8 + Math.random() * 7}px;animation-delay:${i * 90}ms`; btn.appendChild(s); setTimeout(() => s.remove(), 1200); } };
-    btn.addEventListener('mouseenter', () => { sparkle(); clearInterval(tw); tw = setInterval(sparkle, 420); });
+      for (let i = 0; i < 1; i++) { const s = document.createElement('span'); s.className = 'twk'; s.textContent = Math.random() < 0.5 ? '✦' : '✧'; const an = -Math.PI / 2 + (Math.random() - 0.2) * 1.2, d = 10 + Math.random() * 10;
+        s.style.cssText = `left:${r.left - b.left + r.width * 0.75}px;top:${r.top - b.top + r.height * 0.1}px;--dx:${Math.cos(an) * d}px;--dy:${Math.sin(an) * d}px;--s:${6 + Math.random() * 3}px`; btn.appendChild(s); setTimeout(() => s.remove(), 1200); } };
+    btn.addEventListener('mouseenter', () => { sparkle(); clearInterval(tw); tw = setInterval(sparkle, 650); });
     btn.addEventListener('mouseleave', () => { clearInterval(tw); tw = null; }); }
 
 

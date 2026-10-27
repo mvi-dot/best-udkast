@@ -515,8 +515,8 @@ html[data-theme=dark] .composer .prefixline{color:#b4c0cc}
 .btn.send .lbl::after,.btn.send.go .lbl::after{content:none!important}
 .btn.send .wand{display:inline-block;font-size:19px;line-height:1;transform-origin:20% 80%;transition:transform .25s cubic-bezier(.3,1.5,.5,1)}
 .btn.send:hover:not(:disabled) .wand{transform:rotate(-14deg) scale(1.08)}
-.btn.send .twk{position:absolute;z-index:3;pointer-events:none;color:#ffe9a8;font-size:var(--s);line-height:1;text-shadow:0 0 6px rgba(255,233,168,.8);animation:twk .9s ease-out forwards}
-@keyframes twk{0%{opacity:0;transform:translate(0,0) scale(.3) rotate(0)}20%{opacity:1}100%{opacity:0;transform:translate(var(--dx),var(--dy)) scale(1) rotate(160deg)}}
+.btn.send .twk{position:absolute;z-index:3;pointer-events:none;color:#fff3cf;font-size:var(--s);line-height:1;opacity:0;animation:twk 1.1s ease-out forwards}
+@keyframes twk{0%{opacity:0;transform:translate(0,0) scale(.5)}30%{opacity:.75}100%{opacity:0;transform:translate(var(--dx),var(--dy)) scale(.9) rotate(60deg)}}
 @media (prefers-reduced-motion:reduce){.btn.send .twk{display:none}}
 </style>
 </head>
