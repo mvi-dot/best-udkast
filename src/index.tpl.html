@@ -561,6 +561,13 @@ body.home #briefCard #h2Box{margin-bottom:0}
 .btn.send.loading .gspin{display:inline-block}.btn.send.loading .wand{display:none}
 .btn.send.loading,.btn.send.loading:disabled{opacity:1;cursor:progress}
 .btn.send.loading .twk{display:none}
+/* ikoner i knapper */
+#devices button,#copyBtn,#resetBtn{display:inline-flex;align-items:center;gap:6px}
+svg.ic{width:16px;height:16px;flex:none;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+#list .t small.secwarn{display:block;margin-top:4px;color:#e8b866!important;font-size:12px;opacity:1}
+#tabs .tab.name{cursor:default}
+#tabs #moreBtn{display:inline-flex;align-items:center;gap:6px;max-width:none;overflow:visible;white-space:nowrap;text-overflow:clip;flex:none}
+#tabs{flex-wrap:wrap;overflow:visible}
 </style>
 </head>
 <body>
@@ -586,7 +593,6 @@ body.home #briefCard #h2Box{margin-bottom:0}
 
     <section class="card" id="listCard" hidden>
       <h2>Sektioner</h2>
-      <p class="hint listhint">Træk i ⠿ for at ændre rækkefølge. ↻ prøver næste variant (fx en anden hero), ▦ lader dig vælge med billeder. Billederne er fra Best Stock.</p>
       <p class="hint" id="planNote" hidden></p>
       <ol id="list"></ol>
       <div class="btns" style="margin-top:10px"><button class="btn" id="addBtn" data-lock>+ Tilføj sektion</button><button class="btn" id="undoBtn" disabled>Fortryd</button></div>
@@ -594,27 +600,23 @@ body.home #briefCard #h2Box{margin-bottom:0}
 
 
 
-    <section class="card" id="notesCard" hidden>
-      <h2>Tjek følgende igennem efter paste</h2>
-      <ul id="notes"></ul>
-    </section>
   </aside>
   <div id="resizer" role="separator" aria-orientation="vertical" aria-label="Træk for at ændre bredden på venstre side" tabindex="0" title="Træk for at ændre bredden (dobbeltklik nulstiller)"></div>
 
   <section class="stage">
     <div class="tabrow" id="tabrow" hidden>
       <div class="tabs" id="tabs" hidden></div>
-      <div class="tabact"><button class="btn ghost" id="resetBtn" type="button" title="Ryd alt og begynd forfra">Start forfra</button></div>
+      <div class="tabact"><button class="btn ghost" id="resetBtn" type="button" title="Ryd alt og begynd forfra"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 12a8.5 8.5 0 1 0 2.6-6.1"/><path d="M3.5 4v4.5H8"/></svg><span class="blbl">Start forfra</span></button></div>
     </div>
     <div class="bar">
       <div class="seg" id="devices" role="group" aria-label="Skærmstørrelse">
-        <button data-d="desktop" aria-pressed="true" title="Desktop · 1600 px (base)">Desktop</button><button data-d="laptop" aria-pressed="false" title="Laptop · 1440 px (max 1470)">Laptop</button><button data-d="ipadl" aria-pressed="false" title="Liggende iPad · 1024 px (max 1024)">iPad liggende</button><button data-d="ipadp" aria-pressed="false" title="Stående iPad · 768 px (max 768)">iPad stående</button><button data-d="mobil" aria-pressed="false" title="Mobil · 390 px (max 478)">Mobil</button>
+        <button data-d="desktop" aria-pressed="true" title="Desktop · 1600 px (base)"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="2.5" y="4" width="19" height="12.5" rx="1.8"/><path d="M8.5 20.5h7M12 16.5v4"/></svg>Desktop</button><button data-d="laptop" aria-pressed="false" title="Laptop · 1440 px (max 1470)"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="4.5" y="5" width="15" height="10.5" rx="1.5"/><path d="M2 19h20"/></svg>Laptop</button><button data-d="ipadl" aria-pressed="false" title="Liggende iPad · 1024 px (max 1024)" aria-label="iPad liggende"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="2.5" y="5.5" width="19" height="13" rx="2"/><path d="M18.5 12h.01"/></svg>iPad</button><button data-d="ipadp" aria-pressed="false" title="Stående iPad · 768 px (max 768)" aria-label="iPad stående"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="5.5" y="2.5" width="13" height="19" rx="2"/><path d="M12 18.5h.01"/></svg>iPad</button><button data-d="mobil" aria-pressed="false" title="Mobil · 390 px (max 478)"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="7" y="2.5" width="10" height="19" rx="2.2"/><path d="M11 18.5h2"/></svg>Mobil</button>
       </div>
       <select id="brandSel" hidden aria-label="Farver i preview" title="Se, hvordan sektionerne ser ud med kundens brandfarve (--cta)" style="width:auto;margin:0;padding:5px 8px;font-size:12.5px"><option value="templates">Farver: Templates (blå)</option><option value="stock">Farver: Stock (rød)</option></select>
       <span class="meta" id="size" hidden></span>
       <span class="sp"></span>
       <details id="valWrap" hidden><summary id="valBadge" title="Automatisk kontrol af JSON'en før du indsætter i Bricks. Klik for listen."></summary><div id="valPanel"><p class="hint" style="margin:0 0 6px">Automatisk kontrol af JSON'en, før du indsætter i Bricks:</p><ul id="valList"></ul></div></details>
-      <button class="btn primary" id="copyBtn" disabled>Kopiér JSON</button>
+      <button class="btn primary" id="copyBtn" disabled><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="8.5" y="8.5" width="11" height="11" rx="2.2"/><path d="M15.5 8.5V6.7a2.2 2.2 0 0 0-2.2-2.2H6.7a2.2 2.2 0 0 0-2.2 2.2v6.6a2.2 2.2 0 0 0 2.2 2.2h1.8"/></svg><span class="blbl">Kopiér JSON</span></button>
     </div>
     <div id="canvas">
       <div class="empty" id="empty">

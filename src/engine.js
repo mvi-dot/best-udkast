@@ -1069,7 +1069,10 @@ function renderBricks(sections, CLASSES, ropts) {
         case 'section': case 'container': case 'block': case 'div': {
           if (n === 'container' && (s._display === 'grid' || s._gridTemplateColumns)) cls.push('brx-grid');
           const t = ctx.tag || tagOf(n === 'section' ? 'section' : 'div');
-          return `<${t} ${A(t === 'a' ? H : '')}>${kids(ctx.kid)}</${t}>`; }
+          const bgv = s._background && typeof s._background === 'object' && s._background.videoUrl;   // baggrundsvideo som Bricks: wrapper + video som første barn
+          if (bgv) cls.push('has-bg-video');
+          const vid = bgv ? `<div class="bricks-background-video-wrapper" data-background-video-url="${esc(bgv)}" data-background-video-loop="1"><video autoplay loop playsinline muted src="${esc(bgv)}"></video></div>` : '';
+          return `<${t} ${A(t === 'a' ? H : '')}>${vid}${kids(ctx.kid)}</${t}>`; }
         case 'heading': { const t = href ? 'a' : (/^(h[1-6]|div|p|span)$/.test(s.tag || '') ? s.tag : s.tag === 'custom' && s.customTag ? s.customTag : 'h2'); return `<${t} ${A(H)}>${sanitizeHtml(s.text)}</${t}>`; }
         case 'text-basic': { const t = tagOf('div'); return `<${t} ${A(H)}>${sanitizeHtml(s.text)}</${t}>`; }
         case 'text': return `<div ${A()}>${sanitizeHtml(s.text)}</div>`;
