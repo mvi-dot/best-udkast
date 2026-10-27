@@ -140,7 +140,7 @@ async function loadTemplates(msg) {
   });
 
   // hilsen med fornavn, når man er logget ind (navnet kommer fra ClickUp)
-  if (IN_GAS) gas('me').then(m => { const first = String((m && m.name) || '').trim().split(/\s+/)[0]; if (first) $('hi').textContent = `Hej ${first}, lad os bygge dit udkast`; }).catch(() => { });
+  if (IN_GAS) gas('me').then(m => { const first = String((m && m.name) || '').trim().split(/\s+/)[0]; if (first) $('hi').innerHTML = `Hej ${E.esc(first)},<br>lad os bygge dit udkast`; }).catch(() => { });
 
   /* ---------- tjekliste: hvilke typer skal med (alle typer fra templates, undtagen hero og Content, der altid er med) ---------- */
   $('wants').innerHTML = E.catList(LIB).filter(c => c !== 'Header' && c !== 'Content').map(c => `<label><input type="checkbox" value="${E.esc(c)}"> ${E.esc(c)}</label>`).join('');
