@@ -3,7 +3,8 @@ on:
   push:
     branches: [main]
   schedule:
-    - cron: '0 4 * * *'   # hver nat: hent jeres nyeste Bricks-opsætning til preview
+    - cron: '0 4 * * *'          # hver nat: hent jeres nyeste Bricks-opsætning og nye templates' CSS til preview
+    - cron: '30 5-16 * * 1-5'    # og hver time i arbejdstiden (07.30–18.30 dansk tid), så nye templates hurtigt får den præcise CSS
   workflow_dispatch:
 permissions:
   contents: read
