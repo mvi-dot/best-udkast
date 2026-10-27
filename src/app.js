@@ -16,6 +16,9 @@ const gas = (() => {
   });
 })();
 const TPL_CACHE = 'udkast-templates-v1';
+// kunder og navn hentes med det samme, samtidig med templates (ClickUp er et par sekunder om at svare)
+const EARLY = IN_GAS ? { customers: gas('customers').catch(() => null), me: gas('me').catch(() => null) } : {};
+const CUST_CACHE = 'udkast-kunder-v1';
 async function loadTemplates(msg) {
   let cache = {}; try { cache = (JSON.parse(localStorage.getItem(TPL_CACHE) || '{}').files) || {}; } catch (_) { }
   if (!IN_GAS) {   // lokal test: .claude/dev-templates.json (ligger ikke i repoet)
@@ -114,11 +117,15 @@ async function loadTemplates(msg) {
   /* ---------- kunde fra ClickUp (Opstarter: to-do, afventer, i gang, på ugen – med HOS/HOS+/RE/RE+) ----------
      Uden ClickUp (lokalt, eller hvis det fejler) skriver man bare kundens navn. */
   let CUST = null, selCust = null, custHi = -1, custClosed = false;
-  const custP = (IN_GAS ? gas('customers') : fetch('.claude/dev-customers.json', { cache: 'no-store' }).then(r => r.ok ? r.json() : null)).then(l => (CUST = Array.isArray(l) && l.length ? l.slice().sort((x, y) => String(x.name).localeCompare(String(y.name), 'da')) : null)).catch(() => null);   // lokal test: .claude/dev-customers.json (ligger ikke i repoet)
-  custP.then(l => { if (!l) { $('navn').placeholder = 'Kundens navn, fx Best Renovering ApS'; $('navn').setAttribute('aria-label', 'Kundens navn'); } else if (document.activeElement === $('navn')) renderCust(); });
+  const sortCust = l => Array.isArray(l) && l.length ? l.slice().sort((x, y) => String(x.name).localeCompare(String(y.name), 'da')) : null;
+  let custLoading = IN_GAS;
+  if (IN_GAS) { try { CUST = sortCust(JSON.parse(localStorage.getItem(CUST_CACHE) || 'null')); } catch (_) { } }   // sidste liste vises med det samme, den friske kommer bagefter
+  const custP = (IN_GAS ? EARLY.customers : fetch('.claude/dev-customers.json', { cache: 'no-store' }).then(r => r.ok ? r.json() : null)).then(l => { const x = sortCust(l); if (x) { CUST = x; if (IN_GAS) try { localStorage.setItem(CUST_CACHE, JSON.stringify(x)); } catch (_) { } } custLoading = false; if (!CUST) return null; if (document.activeElement === $('navn')) renderCust(); return CUST; }).catch(() => { custLoading = false; return CUST; });   // lokal test: .claude/dev-customers.json (ligger ikke i repoet)
+  custP.then(l => { if (!l) { $('navn').placeholder = 'Kundens navn, fx Best Renovering ApS'; $('navn').setAttribute('aria-label', 'Kundens navn'); renderCust(); } else if (document.activeElement === $('navn')) renderCust(); });
   const custHits = () => { const q = $('navn').value.trim().toLowerCase(); if (!CUST) return []; return (q && !(selCust && selCust.name.toLowerCase() === q) ? CUST.filter(c => (c.name + ' ' + (c.branche || '') + ' ' + (c.website || '')).toLowerCase().includes(q)) : CUST).slice(0, 80); };
   function renderCust() {
-    const ul = $('custList'); const open = !!CUST && document.activeElement === $('navn') && !custClosed; ul.hidden = !open; $('navn').setAttribute('aria-expanded', String(open)); if (!open) return;
+    const ul = $('custList'); const open = (!!CUST || custLoading) && document.activeElement === $('navn') && !custClosed; ul.hidden = !open; $('navn').setAttribute('aria-expanded', String(open)); if (!open) return;
+    if (!CUST) { ul.innerHTML = '<li class="cempty">Henter kunder fra ClickUp…</li>'; return; }
     const hits = custHits(); if (custHi >= hits.length) custHi = hits.length - 1;
     ul.innerHTML = hits.length ? hits.map((c, i) => `<li role="option" data-id="${E.esc(c.id)}" aria-selected="${i === custHi}"><b>${E.esc(c.name)}</b><small>${E.esc(c.branche || 'Branche ikke angivet')}</small></li>`).join('') : '<li class="cempty">Ingen kunder i Opstarter matcher. Skriv bare navnet.</li>';
     const a = ul.querySelector('[aria-selected=true]'); if (a) a.scrollIntoView({ block: 'nearest' });
@@ -145,7 +152,7 @@ async function loadTemplates(msg) {
   });
 
   // hilsen med fornavn, når man er logget ind (navnet kommer fra ClickUp)
-  if (IN_GAS) gas('me').then(m => { const first = String((m && m.name) || '').trim().split(/\s+/)[0]; if (first) $('hi').innerHTML = `Hej <b>${E.esc(first)}</b> 👋<br>Lad os bygge dit udkast`; }).catch(() => { });
+  if (IN_GAS) EARLY.me.then(m => { const first = String((m && m.name) || '').trim().split(/\s+/)[0]; if (first) $('hi').innerHTML = `Hej <b>${E.esc(first)}</b> 👋<br>Lad os bygge dit udkast`; }).catch(() => { });
 
   /* ---------- tjekliste: hvilke typer skal med (alle typer fra templates, undtagen hero og Content, der altid er med) ---------- */
   for (const r of document.querySelectorAll('input[name=hero]')) r.addEventListener('change', () => { $('heroBox').classList.remove('need'); if (/header/i.test($('status').textContent)) setStatus(''); });

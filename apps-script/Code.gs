@@ -166,7 +166,7 @@ function customers() {
   const C = CFG.CLICKUP; const filter = JSON.stringify([{ field_id: C.F_PRODUKTER, operator: 'ANY', value: C.HOS }]);
   const out = listTasks_(C.OPSTARTER, { custom_fields: filter }).filter(t => C.OPSTARTER_STATUS.indexOf(statusName_(t)) >= 0).filter(hasHos_)
     .map(customer_).sort((a, b) => a.name.localeCompare(b.name, 'da'));
-  try { cache.put('customers', JSON.stringify(out), 120); } catch (e) { }
+  try { cache.put('customers', JSON.stringify(out), 600); } catch (e) { }   // 10 min: nye kunder i Opstarter dukker op inden for 10 minutter
   return out;
 }
 // Sider der er online og må bruges som inspiration (kun navn, domæne og branche)
