@@ -140,7 +140,7 @@ async function loadTemplates(msg) {
   function burst(btn, e) {
     const r = btn.getBoundingClientRect(); const x = (e && e.clientX ? e.clientX : r.left + r.width / 2) - r.left, y = (e && e.clientY ? e.clientY : r.top + r.height / 2) - r.top;
     const rip = document.createElement('span'); rip.className = 'ripple'; rip.style.cssText = `left:${x}px;top:${y}px`; btn.querySelector('.fx').appendChild(rip); setTimeout(() => rip.remove(), 800);
-    const cols = ['#d97757', '#f0b9a4', '#ffffff', '#e8c07a', '#c15f3c'];
+    const cols = ['#225581', '#5b8fbd', '#ffffff', '#a9c6e0', '#1a4061'];
     for (let i = 0; i < 18; i++) { const p = document.createElement('span'); p.className = 'spark'; const an = Math.random() * Math.PI * 2, d = 38 + Math.random() * 70;
       p.style.cssText = `left:${x}px;top:${y}px;--dx:${Math.cos(an) * d}px;--dy:${Math.sin(an) * d}px;--s:${4 + Math.random() * 6}px;background:${cols[i % cols.length]};animation-delay:${Math.random() * 70}ms`; btn.appendChild(p); setTimeout(() => p.remove(), 1000); }
     btn.classList.remove('go'); void btn.offsetWidth; btn.classList.add('go'); setTimeout(() => btn.classList.remove('go'), 1600);
@@ -166,10 +166,6 @@ async function loadTemplates(msg) {
   const hovCount = n => { for (const r of document.querySelectorAll('input[name=cnt]')) r.parentElement.classList.toggle('hov', n > 0 && +r.value <= n && !r.disabled); };
   for (const r of document.querySelectorAll('input[name=cnt]')) { r.parentElement.addEventListener('mouseenter', () => { if (!r.disabled) hovCount(+r.value); }); r.parentElement.addEventListener('mouseleave', () => hovCount(0)); r.addEventListener('focus', () => { if (!r.disabled) hovCount(+r.value); }); r.addEventListener('blur', () => hovCount(0)); }
 
-  const THEME_ICON = { dark: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6l1.4 1.4M17 17l1.4 1.4M18.4 5.6 17 7M7 17l-1.4 1.4"/></svg>', light: '<svg viewBox="0 0 24 24"><path d="M20 14.5A8 8 0 0 1 9.5 4 8 8 0 1 0 20 14.5z"/></svg>' };
-  function setTheme(th, save) { document.documentElement.dataset.theme = th; for (const id of ['themeBtn', 'themeHome']) $(id).innerHTML = THEME_ICON[th === 'dark' ? 'dark' : 'light'];  }
-  { const mq = window.matchMedia ? matchMedia('(prefers-color-scheme: dark)') : null; setTheme(mq && mq.matches ? 'dark' : 'light', false); if (mq) { const f = e => setTheme(e.matches ? 'dark' : 'light', false); if (mq.addEventListener) mq.addEventListener('change', f); else if (mq.addListener) mq.addListener(f); } }
-  for (const id of ['themeBtn', 'themeHome']) $(id).onclick = () => setTheme(document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark', false);
   const fillBranche = list => { const sel = $('branche'); if (!sel) return; const v = sel.value; sel.innerHTML = '<option value="">Gæt selv</option>' + [...new Set(list)].filter(b => b && !/uklar|^andet$/i.test(b)).sort((x, y) => x.localeCompare(y, 'da')).map(b => `<option>${E.esc(b)}</option>`).join(''); sel.value = v; };
   fillBranche(SITES.map(s => s.b));
   /* ---------- inspiration: HOS-kunder fra ClickUp. Værktøjet ser selv på deres forsider og finder de templates, sektionerne ligner ----------
@@ -192,8 +188,7 @@ async function loadTemplates(msg) {
     const ms = await Promise.all(same.map(siteMatch));
     return { gb, sites: same.map((x, i) => ms[i] && ms[i].length >= 3 ? Object.assign({}, x, { m: ms[i], c: ms[i].map(y => y.c) }) : null).filter(Boolean) };
   }
-  const greet = () => { const h = new Date().getHours(); const g = h >= 23 || h < 5 ? 'Sent oppe? ' : h < 10 ? 'God morgen. ' : h < 17 ? '' : 'God aften. '; $('hi').textContent = g + (g && h >= 10 && h < 17 ? '' : '') + 'Hvem skal have en ny hjemmeside?'; };
-  greet(); syncCount(); if (!matchMedia('(pointer: coarse)').matches) setTimeout(() => { try { $('navn').focus({ preventScroll: true }); } catch (_) { } }, 700);
+  syncCount(); if (!matchMedia('(pointer: coarse)').matches) setTimeout(() => { try { $('navn').focus({ preventScroll: true }); } catch (_) { } }, 700);
 
   /* ---------- start forfra ---------- */
   let resetT = null;
@@ -358,7 +353,7 @@ async function loadTemplates(msg) {
     $('notes').innerHTML = notes.map(n => `<li class="flag">⚠ ${E.esc(n)}</li>`).join('') +
       `<li>🔗 <b>Links</b> – tjek at links er korrekte</li><li>📝 <b>Tekst</b> – pladsholdertekst skal udskiftes med rigtig tekst</li><li>🎨 <b>Design</b> – 1:1 med skabelonen (tjek alle skærmstørrelser)</li><li>🖼️ <b>Billeder</b> – samme som skabelonen, skift selv ud</li>` + (exp.formCount ? `<li>📨 <b>Formular</b> – tjek at form-ID er ${E.FORM_ID} efter paste</li>` : '');
     if (BRICKS_OK) showFrame(p); else { useFrame(false);
-    const r = E.renderSections(p.sections, CLASSES, VARS, { h1: 'page' }); const selCss = '[data-sec]{scroll-margin-top:130px}' + (selUid && p.sections.some(x => x.uid === selUid) ? `[data-sec="${selUid}"]{outline:4px solid #d97757;outline-offset:-4px;position:relative;z-index:1}` : ''); pvStyle.textContent = '#frame{overflow:hidden}' + r.css + selCss; pvContent.innerHTML = r.html;
+    const r = E.renderSections(p.sections, CLASSES, VARS, { h1: 'page' }); const selCss = '[data-sec]{scroll-margin-top:130px}' + (selUid && p.sections.some(x => x.uid === selUid) ? `[data-sec="${selUid}"]{outline:4px solid #3a7cc0;outline-offset:-4px;position:relative;z-index:1}` : ''); pvStyle.textContent = '#frame{overflow:hidden}' + r.css + selCss; pvContent.innerHTML = r.html;
     fit(); faApply(pvContent, root); setTimeout(fit, 50); }
     const kb = Math.round(JSON.stringify(exp.json).length / 1024), rawKb = Math.round(JSON.stringify(E.buildExport(p, CLASSES, { raw: true }).json).length / 1024);
     
