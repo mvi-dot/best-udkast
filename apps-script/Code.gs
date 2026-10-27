@@ -59,7 +59,7 @@ function templateIndex() {
     const subs = folder.getFolders(); while (subs.hasNext()) { const s = subs.next(); walk(s, path ? path + '/' + s.getName() : s.getName()); }
   };
   walk(DriveApp.getFolderById(CFG.TEMPLATE_FOLDER), '');
-  cache.put('tplIndex', JSON.stringify(out), 120);
+  try { cache.put('tplIndex', JSON.stringify(out), 120); } catch (e) { }   // cachen tager max 100 KB pr. nøgle
   return out;
 }
 // Indholdet af op til 25 filer ad gangen (kun filer fra template-mappen)
@@ -115,7 +115,8 @@ function customers() {
 function inspiration() {
   const cache = CacheService.getScriptCache(); const hit = cache.get('inspiration'); if (hit) return JSON.parse(hit);
   const C = CFG.CLICKUP; const filter = JSON.stringify([{ field_id: C.F_PRODUKTER, operator: 'ANY', value: C.HOS }]);
-  const out = listTasks_(C.KUNDER, { custom_fields: filter }).filter(t => { const p = field_(t, C.F_PRODUKTER); return p && Array.isArray(p.value) && p.value.some(v => C.HOS.indexOf(v) >= 0); })
+  const out = listTasks_(C.KUNDER, { custom_fields: filter, include_closed: 'true' })   // lukket status betyder ikke, at siden er offline
+    .filter(t => { const p = field_(t, C.F_PRODUKTER); return p && Array.isArray(p.value) && p.value.some(v => C.HOS.indexOf(v) >= 0); })
     .map(t => ({ name: t.name, website: textOf_(field_(t, C.F_HJEMMESIDE)), branche: dropdownName_(field_(t, C.F_BRANCHE)) })).filter(x => x.website);
   try { cache.put('inspiration', JSON.stringify(out), 3600); } catch (e) { }
   return out;

@@ -48,7 +48,6 @@ function setMeta(LIB, rows) {
   }
   return { matched: Object.keys(META).length, missing: MISSING };
 }
-const getMissing = () => MISSING;
 const prefixOf = k => k.split('-')[0];
 function categoryOf(key) { if (String(key).startsWith('ai-')) return 'AI sektion'; if (String(key).startsWith('fri-')) return 'Ny sektion'; if (CATS[key]) return CATS[key]; if (META[key]) return META[key].type; const p = prefixOf(key); return PREFIX_TYPE[p] || (p.charAt(0).toUpperCase() + p.slice(1)); }
 function displayName(key) { if (String(key).startsWith('ai-')) return 'AI sektion'; if (String(key).startsWith('fri-')) return 'Ny · ' + ((FRI_TYPES[key.slice(4)] || {}).name || key); if (META[key]) return META[key].name; if (TITLES[key] && !/^[a-z]+-\d+$/.test(key)) return TITLES[key]; const m = key.match(/^([a-zæøå]+)-(\d+)/i); return m ? m[1].charAt(0).toUpperCase() + m[1].slice(1) + ' #' + m[2] : key; }
@@ -67,46 +66,6 @@ function nextVariant(LIB, tpl, used) {
 
 /* ---------- tekst (kun til import af kundens egne tekster – ellers rører vi ikke tekst) ---------- */
 const TEXT_KINDS = new Set(['heading', 'text-basic', 'text', 'button', 'text-link']);
-const dynTag = t => /\{[a-z_][a-z0-9_:]*\}/i.test(t || '');
-function htmlToPlain(h) {
-  return String(h || '').replace(/<\/p>\s*/gi, '\n\n').replace(/<br\s*\/?>/gi, '\n').replace(/<li[^>]*>/gi, '\n- ')
-    .replace(/<\/(ul|ol)>/gi, '\n').replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>')
-    .replace(/[ \t]+/g, ' ').replace(/\n{3,}/g, '\n\n').trim();
-}
-function plainToHtml(t) {
-  const inline = x => esc(x).replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
-  return String(t).trim().split(/\n{2,}/).map(p => {
-    const lines = p.split('\n').map(l => l.trim()).filter(Boolean);
-    if (lines.length && lines.every(l => /^[-•]\s+/.test(l))) return '<ul>' + lines.map(l => '<li>' + inline(l.replace(/^[-•]\s+/, '')) + '</li>').join('') + '</ul>';
-    return '<p>' + lines.map(inline).join('<br>') + '</p>';
-  }).join('');
-}
-function spanText(html, cls) { const m = String(html).match(new RegExp('<span[^>]*class="[^"]*' + cls + '[^"]*"[^>]*>([\\s\\S]*?)</span>')); return m ? stripTags(m[1]) : null; }
-function getSlots(els) {
-  const out = [];
-  walk(els, e => {
-    if (!TEXT_KINDS.has(e.name)) return;
-    const s = e.settings || {}; if (typeof s.text !== 'string' || !s.text.trim() || dynTag(s.text)) return;
-    const slot = { id: e.id, kind: e.name };
-    if (e.name === 'button') { const d = spanText(s.text, 'btn-text-default'); slot.text = d != null ? d : stripTags(s.text); }
-    else if (e.name === 'text') slot.text = htmlToPlain(s.text); else slot.text = stripTags(s.text);
-    if (e.name === 'heading') slot.tag = s.tag || 'h3';
-    slot.len = slot.text.length; out.push(slot);
-  });
-  return out;
-}
-function applyText(e, text, hover) {
-  const s = e.settings || (e.settings = {}); const t = String(text == null ? '' : text);
-  if (e.name === 'text') s.text = plainToHtml(t);
-  else if (e.name === 'button') {
-    if (/btn-text-default/.test(s.text || '')) {
-      s.text = s.text.replace(/(<span[^>]*class="[^"]*btn-text-default[^"]*"[^>]*>)[\s\S]*?(<\/span>)/, (m, a, b) => a + esc(t) + b);
-      if (hover != null) s.text = s.text.replace(/(<span[^>]*class="[^"]*btn-text-hover[^"]*"[^>]*>)[\s\S]*?(<\/span>)/, (m, a, b) => a + esc(hover) + b);
-    } else s.text = esc(t);
-  } else s.text = esc(t.replace(/<[^>]*>/g, ''));
-}
-
-/* ---------- telefon (eneste automatiske tekst-ændring) ---------- */
 function parsePhone(raw) {
   const s = String(raw || '').trim(); if (!s) return null; let d = s.replace(/\D/g, ''); const compact = s.replace(/\s/g, '');
   if (/^(\+45|0045)/.test(compact)) d = d.replace(/^(0045|45)/, ''); else if (d.length === 10 && d.startsWith('45')) d = d.slice(2);
@@ -125,59 +84,7 @@ function applyPhone(els, tlf) {
 }
 
 /* ---------- billeder / import af kundens eksisterende site ---------- */
-function imgSlots(els) {
-  const out = [];
-  walk(els, e => {
-    const s = e.settings || {};
-    if (e.name === 'image' && s.image && typeof s.image === 'object') out.push({ id: e.id, kind: 'img', file: (s.image.filename || '').slice(0, 40) });
-    else if (s._background && typeof s._background === 'object' && s._background.image) out.push({ id: e.id, kind: 'bg', file: ((s._background.image || {}).filename || '').slice(0, 40) });
-  });
-  return out;
-}
 const fileOf = u => decodeURIComponent(String(u).split('?')[0].split('/').pop() || 'billede');
-function imageObj(img) { return { url: img.src, full: img.src, filename: img.file ? img.file.split('/').pop() : fileOf(img.src), size: 'full', external: true }; }
-function siteBlocks(site, pageIdx) { const p = (site.pages || [])[pageIdx || 0] || { blocks: [], images: [] }; return p.blocks || []; }
-function siteImages(site, pageIdx) {
-  const p = (site.pages || [])[pageIdx || 0]; const own = (p && p.images) || []; const all = site.images || [];
-  const seen = new Set(own.map(i => i.src)); return own.concat(all.filter(i => !seen.has(i.src)));
-}
-function siteSummary(site, pageIdx) {
-  const bl = siteBlocks(site, pageIdx); const heads = bl.filter(b => /^h[1-3]$/.test(b.t)).slice(0, 30).map(b => `${b.t}: ${String(b.text).slice(0, 70)}`);
-  return `Kundens eksisterende side (${(site.pages[pageIdx || 0] || {}).url || site.url}): ${bl.length} tekstblokke, ${siteImages(site, pageIdx).length} billeder.\nOverskrifter i rækkefølge:\n${heads.map(h => '- ' + h).join('\n')}`;
-}
-function contentSlotsText(sec) {
-  const t = getSlots(sec.els).map(s => `  - ${s.id} (${s.kind}${s.tag ? ' ' + s.tag : ''}, ~${s.len} tegn nu): ${JSON.stringify(s.text.slice(0, 60))}`);
-  const im = imgSlots(sec.els).map(s => `  - ${s.id} (${s.kind === 'bg' ? 'baggrundsbillede' : 'billede'})`);
-  return (t.length ? '  TEKSTFELTER:\n' + t.join('\n') : '') + (im.length ? '\n  BILLEDFELTER:\n' + im.join('\n') : '');
-}
-function applyContent(sections, mapping, site, pageIdx) {
-  const bl = siteBlocks(site, pageIdx), imgs = siteImages(site, pageIdx); const st = { texts: 0, images: 0 };
-  for (const sec of sections) {
-    const r = mapping && mapping.sektioner && mapping.sektioner[sec.uid]; if (!r) continue; const m = mapOf(sec.els);
-    for (const [id, ref] of Object.entries(r.tekst || {})) {
-      const e = m[id]; if (!e || !TEXT_KINDS.has(e.name)) continue;
-      const idx = (Array.isArray(ref) ? ref : [ref]).filter(i => Number.isInteger(i) && bl[i]);
-      if (!idx.length) continue;
-      let text;
-      if (e.name === 'text') {
-        const parts = []; let list = [];
-        const flush = () => { if (list.length) { parts.push(list.map(x => '- ' + x).join('\n')); list = []; } };
-        for (const i of idx) { const b = bl[i]; if (b.t === 'li') list.push(b.text); else { flush(); parts.push(b.text); } }
-        flush(); text = parts.join('\n\n');
-      } else text = bl[idx[0]].text;
-      applyText(e, text); st.texts++;
-    }
-    for (const [id, ref] of Object.entries(r.billeder || {})) {
-      const e = m[id]; const img = Number.isInteger(ref) ? imgs[ref] : null; if (!e || !img) continue;
-      if (e.name === 'image') { e.settings.image = imageObj(img); st.images++; sec.usedImages = (sec.usedImages || []).concat([img]); }
-      else if (e.settings._background && e.settings._background.image) { e.settings._background.image = imageObj(img); st.images++; sec.usedImages = (sec.usedImages || []).concat([img]); }
-    }
-    sec.hasContent = true;
-  }
-  return st;
-}
-
-
 let ENV = { CLASSES: {} }; const setEnv = o => { ENV = Object.assign(ENV, o); if (o && o.CLASSES) setFriClasses(o.CLASSES); };
 
 
@@ -371,7 +278,6 @@ function makeFri(raw, tlf) {
   if (tlf) applyPhone(sec.els, tlf); return sec;
 }
 function rebuildFri(sec) { sec.els = buildFriN(sec.fri); }
-function cycleFri(sec) { const f = sec.fri; if (f.fri === 'split') { if (f.layout === 'billede-hoejre') f.layout = 'billede-venstre'; else { f.layout = 'billede-hoejre'; f.stil = FRI_STIL[(FRI_STIL.indexOf(f.stil) + 1) % 4]; } } else f.stil = FRI_STIL[(FRI_STIL.indexOf(f.stil) + 1) % 4]; rebuildFri(sec); }
 function resizeFri(sec, n) {
   const T = FRI_TYPES[sec.fri.fri]; if (!T.n) return { ok: false, msg: 'Antallet kan ikke ændres her.' }; const from = sec.fri.antal; const m = Math.max(T.min, Math.min(T.max, n));
   sec.fri.antal = friSnap(sec.fri.fri, m, from); const fixed = normFri(sec.fri); Object.assign(sec.fri, fixed); rebuildFri(sec); return { ok: true, changed: m !== from, from, to: m, warn: [] };
@@ -383,418 +289,16 @@ const friGroupInfo = sec => { const T = FRI_TYPES[sec.fri.fri]; return T.n ? { n
    AI FORSLAG: Claude designer sektionerne selv (struktur + scopet CSS).
    Motoren renser alt, hvad AI'en skriver, og bygger gyldige Bricks-elementer.
    ============================================================================ */
-const AI_EL = new Set(['container', 'block', 'div', 'heading', 'text', 'button', 'image', 'icon', 'counter']);
-const AI_LEAF = new Set(['heading', 'text', 'button', 'image', 'icon', 'counter']);
-const AI_MAX_NODES = 70, AI_MAX_CSS = 9500; let AIN = 0;
-
-/* tolerant JSON: AI'en glemmer nogle gange at escape linjeskift i strenge */
-function looseJson(text) {
-  let s = String(text || '').trim(); s = s.replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/, ''); const a = s.indexOf('{'), b = s.lastIndexOf('}'); if (a < 0 || b < a) throw new Error('ingen JSON'); s = s.slice(a, b + 1);
-  try { return JSON.parse(s); } catch (_) { }
-  let out = '', inStr = false, esc = false;
-  for (const ch of s) { if (inStr) { if (esc) { out += ch; esc = false; } else if (ch === '\\') { out += ch; esc = true; } else if (ch === '"') { out += ch; inStr = false; } else if (ch === '\n') out += '\\n'; else if (ch === '\r') out += ''; else if (ch === '\t') out += '\\t'; else out += ch; } else { out += ch; if (ch === '"') inStr = true; } }
-  return JSON.parse(out);
-}
-
-/* ---------- CSS-rensning ---------- */
 function splitTop(s, sep) { const out = []; let d = 0, q = '', cur = ''; for (const ch of s) { if (q) { cur += ch; if (ch === q) q = ''; continue; } if (ch === '"' || ch === "'") { q = ch; cur += ch; continue; } if (ch === '(') d++; if (ch === ')') d = Math.max(0, d - 1); if (ch === sep && d === 0) { out.push(cur); cur = ''; } else cur += ch; } if (cur.trim()) out.push(cur); return out; }
 function cssBlocks(css) { const out = []; let i = 0; while (i < css.length) { const open = css.indexOf('{', i); if (open < 0) break; let d = 1, j = open + 1; while (j < css.length && d > 0) { if (css[j] === '{') d++; else if (css[j] === '}') d--; j++; } out.push({ head: css.slice(i, open).trim(), body: css.slice(open + 1, d === 0 ? j - 1 : j) }); i = j; } return out; }
-function sanitizeAiCss(css, ctx) {
-  const warns = []; const vars = ctx.vars || new Set(); const clsMap = ctx.clsMap || {}; const localVars = new Set(); const kf = {};
-  css = String(css || '').replace(/\/\*[\s\S]*?\*\//g, '').replace(/\r/g, '').slice(0, AI_MAX_CSS * 2);
-  for (const m of css.matchAll(/@(?:-webkit-)?keyframes\s+([\w-]+)/g)) if (!m[1].startsWith('u-')) kf[m[1]] = 'u-' + m[1];
-  const okVar = v => vars.has(v);                                   // egne CSS-variabler er ikke tilladt
-  function decl(d) {
-    const i = d.indexOf(':'); if (i < 1) return ''; let prop = d.slice(0, i).trim().toLowerCase(), val = d.slice(i + 1).trim(); if (!prop || !val || val.length > 420) return ''; if (prop.startsWith('--')) { warns.push('egen CSS-variabel fjernet'); return ''; }
-    if (/^(behavior|-moz-binding)$/.test(prop)) return '';
-    if (prop === 'position' && /fixed/i.test(val)) { warns.push('position:fixed fjernet'); return ''; }
-    if (/expression\s*\(|javascript:|@import|vbscript:/i.test(val)) return '';
-    if (/url\s*\(/i.test(val) && !/url\s*\(\s*["']?(data:image\/svg\+xml|#)/i.test(val)) { warns.push('ekstern url() fjernet'); return ''; }
-    if (prop === 'z-index' && Math.abs(parseInt(val, 10)) > 20) val = '20';
-    val = val.replace(/\b100vw\b/g, '100%');
-    val = palCss(val).replace(/var\(\s*--(?:primary|secondary|tertiary)-(\d{1,2})\s*\)/g, (m, n) => `color-mix(in srgb, var(--cta) ${n}%, transparent)`).replace(/var\(\s*--shadow-(?:xs|s)\s*\)/g, '0 2px 8px rgba(0,0,0,.10)').replace(/var\(\s*--shadow-m\s*\)/g, '0 8px 24px rgba(0,0,0,.12)').replace(/var\(\s*--shadow-(?:l|xl)\s*\)/g, '0 16px 40px rgba(0,0,0,.16)');   // ældre navne oversættes
-    for (const m of val.matchAll(/var\(\s*(--[\w-]+)\s*(,|\))/g)) if (!okVar(m[1]) && m[2] === ')') { warns.push('ukendt variabel ' + m[1] + ' fjernet'); return ''; }
-    if (/animation/.test(prop)) for (const [o, n] of Object.entries(kf)) val = val.replace(new RegExp('(^|[\\s,])' + o.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&') + '(?![\\w-])', 'g'), '$1' + n);
-    return prop + ':' + val;
-  }
-  function rules(blocks, depth) {
-    let out = '';
-    for (const b of blocks) {
-      const h = b.head; if (!h) continue;
-      if (/^@(?:-webkit-)?keyframes/i.test(h)) { const nm = (h.match(/keyframes\s+([\w-]+)/i) || [])[1]; if (!nm) continue; const n2 = nm.startsWith('u-') ? nm : 'u-' + nm; const frames = cssBlocks(b.body).map(f => `${f.head.replace(/[^0-9a-z%.,\s]/gi, '')}{${splitTop(f.body, ';').map(decl).filter(Boolean).join(';')}}`).join(''); out += `@keyframes ${n2}{${frames}}\n`; continue; }
-      if (/^@media/i.test(h)) { if (depth > 0) continue; const cond = h.replace(/^@media\s*/i, ''); if (!/^(?:(?:\(\s*(?:max|min)-(?:width|height)\s*:\s*[\d.]+(?:px|em|rem)\s*\)|\(\s*prefers-reduced-motion\s*:\s*(?:reduce|no-preference)\s*\)|\(\s*hover\s*:\s*(?:hover|none)\s*\)|\(\s*pointer\s*:\s*(?:fine|coarse)\s*\)|and|\s)+)$/i.test(cond)) { warns.push('@media fjernet'); continue; } const inner = rules(cssBlocks(b.body), depth + 1); if (inner.trim()) out += `@media ${cond}{${inner}}\n`; continue; }
-      if (h.startsWith('@')) { warns.push(h.split(/\s/)[0] + ' fjernet'); continue; }
-      let sels = splitTop(h, ',').map(x => x.trim()).filter(Boolean).map(x => { for (const [o, n] of Object.entries(clsMap)) x = x.replace(new RegExp('\\.' + o + '(?![\\w-])', 'g'), '.' + n); return x; });
-      sels = sels.map(x => /^(?:html|body|:root|\*)\b/.test(x) ? '' : (x.startsWith('%root%') ? x : '%root% ' + x)).filter(Boolean); if (!sels.length) continue;
-      const ds = splitTop(b.body, ';').map(decl).filter(Boolean); if (!ds.length) continue;
-      out += `${sels.join(',')}{${ds.join(';')}}\n`;
-    }
-    return out;
-  }
-  let out = rules(cssBlocks(css), 0); if (out.length > AI_MAX_CSS) { out = out.slice(0, AI_MAX_CSS); out = out.slice(0, out.lastIndexOf('}\n') + 2); warns.push('CSS afkortet'); }
-  return { css: out, warns };
-}
-
-/* ---------- spec -> normaliseret spec ---------- */
-function normAi(raw, vars) {
-  if (!raw || typeof raw !== 'object') return null; let tree = raw.tree; if (Array.isArray(tree)) tree = { el: 'container', cls: 'u-wrap', kids: tree }; if (!tree || typeof tree !== 'object') return null;
-  const clsMap = {}, clsSet = new Set(); let count = 0, img = 0, texts = 0; const warns = [];
-  const cleanCls = s => String(s || '').split(/\s+/).map(x => x.replace(/[^a-zA-Z0-9_-]/g, '')).filter(Boolean).slice(0, 3).map(x => { if (x.startsWith('u-')) { clsSet.add(x); return x; } const n = 'u-' + x; clsMap[x] = n; clsSet.add(n); return n; });
-  const walk = (n, depth) => {
-    if (!n || typeof n !== 'object' || count >= AI_MAX_NODES || depth > 9) return null; const el = String(n.el || '').toLowerCase(); if (!AI_EL.has(el)) return null; count++;
-    const o = { el, cls: cleanCls(n.cls) };
-    if (el === 'heading') { o.tag = /^h[1-6]$/i.test(n.tag) ? String(n.tag).toLowerCase() : 'h2'; o.text = fstr(n.text, 170); if (!o.text) return null; }
-    else if (el === 'text') { o.tag = ['p', 'span', 'div'].includes(n.tag) ? n.tag : 'p'; o.text = fstr(n.text, 560); if (!o.text) return null; }
-    else if (el === 'button') { o.text = fstr(n.text, 32) || 'Kontakt os'; o.style = ['primary', 'secondary', 'dark', 'light'].includes(n.style) ? n.style : 'primary'; o.size = { m: 'md', md: 'md', l: 'lg', lg: 'lg', xl: 'xl' }[n.size] || 'lg'; o.link = n.link === 'telefon' ? 'telefon' : 'kontakt'; }
-    else if (el === 'image') { o.alt = fstr(n.alt, 90); o.idx = img++; if (img > 12) return null; }
-    else if (el === 'icon') o.icon = friIcon(n.name || n.icon) ? 'fas fa-' + (friIcon(n.name || n.icon).replace('fas fa-', '')) : 'fas fa-check';
-    else if (el === 'counter') { o.to = fstr(n.to, 8).replace(/[^0-9]/g, '') || '100'; o.suffix = fstr(n.suffix, 4); o.prefix = fstr(n.prefix, 4); }
-    else { o.tag = ['ul', 'ol', 'li', 'article', 'header', 'footer', 'blockquote'].includes(n.tag) ? n.tag : ''; o.kids = (Array.isArray(n.kids) ? n.kids : []).map(k => walk(k, depth + 1)).filter(Boolean); }
-    return o;
-  };
-  const root = walk(tree, 0); if (!root || (root.el !== 'container' && root.el !== 'block' && root.el !== 'div')) return null;
-  const countText = n => (n.el === 'heading' || n.el === 'text') ? 1 : (n.kids || []).reduce((s, k) => s + countText(k), 0); if (countText(root) < 1) return null;
-  const cs = sanitizeAiCss(raw.css, { vars, clsMap }); cs.warns.forEach(w => warns.push(w));
-  return { navn: fstr(raw.navn, 60) || 'AI sektion', tree: root, css: cs.css, warns, nodes: count };
-}
-
-/* ---------- spec -> Bricks-elementer ---------- */
-const AI_BASE_CSS = `%root%{position:relative;overflow:hidden;overflow:clip;padding:var(--space-2xl) 0;background:var(--white);color:var(--font)}
-%root% .u-wrap{width:min(1200px,90%);max-width:none;margin-left:auto;margin-right:auto;padding:0;position:relative}
-%root% h1,%root% h2,%root% h3,%root% h4,%root% h5,%root% h6,%root% p{margin:0}
-%root% img,%root% figure{display:block;max-width:100%;margin:0}
-%root% ul,%root% ol{margin:0;padding:0;list-style:none}
-`;
-function aiNode(n) {
-  const cls = n.cls.join(' '); const base = cls ? { _cssClasses: cls } : {};
-  if (n.el === 'heading') return NODE('heading', Object.assign({ text: n.text, tag: n.tag }, base));
-  if (n.el === 'text') return NODE('text-basic', Object.assign({ text: n.text, tag: n.tag }, base));
-  if (n.el === 'image') return NODE('image', Object.assign({ tag: 'figure', _objectFit: 'cover', image: FRI_IMG[n.idx % FRI_IMG.length] }, base));
-  if (n.el === 'icon') return NODE('icon', Object.assign({ icon: { library: 'fontawesomeSolid', icon: n.icon } }, base));
-  if (n.el === 'counter') return NODE('counter', Object.assign({ countTo: n.to, suffix: n.suffix }, n.prefix ? { prefix: n.prefix } : {}, base));
-  if (n.el === 'button') {
-    const tel = n.link === 'telefon'; const gid = friClassId(FRI_BTN_CLASS); const st = Object.assign({ text: `<span class="btn-text-default">${esc(n.text)}</span> <span class="btn-text-hover">${esc(tel ? 'Ring nu' : 'Klik her')}</span>`, style: n.style, size: n.size, icon: { library: 'fontawesomeSolid', icon: tel ? 'fas fa-mobile-screen' : 'fas fa-arrow-right-long' }, iconPosition: 'right', link: tel ? { type: 'external', url: 'tel:+4588888888' } : { type: 'internal', url: '#' } }, base);
-    if (gid) st._cssGlobalClasses = [gid]; return NODE('button', st);
-  }
-  const s = Object.assign({}, base); if (n.tag) s.tag = n.tag; return NODE(n.el, s, (n.kids || []).map(aiNode));
-}
-function buildAiRaw(spec) {
-  let tree = spec.tree; if (!(tree.el === 'container')) tree = { el: 'container', cls: ['u-wrap'], kids: [tree] };
-  const root = NODE('section', { _cssClasses: 'u u-ai', _cssCustom: AI_BASE_CSS + spec.css }, [aiNode(tree)], spec.navn);
-  return friFlatten(root);
-}
-function buildAi(spec) { return natRegister(nativize(buildAiRaw(spec), spec.navn, 'sek')); }
-function makeAi(raw, plan, vars) {
-  const spec = normAi(raw, vars); if (!spec) return null;
-  return { uid: 's' + (++UID) + Math.random().toString(36).slice(2, 5), tpl: 'ai-' + (++AIN), ai: { spec, plan: plan || {}, issues: [] }, why: (plan && (plan['formål'] || plan.formaal)) || '', part: 1, parts: 1, els: buildAi(spec) };
-}
-function rebuildAi(sec, raw, vars) { const spec = normAi(raw, vars); if (!spec) return false; sec.ai.spec = spec; sec.els = buildAi(spec); return true; }
 const secTitle = sec => sec.ai ? 'AI · ' + sec.ai.spec.navn : displayName(sec.tpl);
 
 
 
 /* ---------- AI FORSLAG: layoutgreb pr. sektionstype, valgt tilfældigt af motoren, så siderne ikke ligner hinanden ---------- */
-const AI_ARCH = {
-  hero: [
-    ['h-split', 'Delt hero: tekst og knap på en stor farveflade til venstre, en høj billedflade til højre, der går helt ud til kanten.'],
-    ['h-poster', 'Plakat: ét enormt ord eller en kort sætning i overskriften over hele bredden, lille intro og knap nederst, ingen billede.'],
-    ['h-overlap', 'Tekstboks i brandfarven, der overlapper en stor billedflade (boksen starter midt i billedet og stikker ud over kanten).'],
-    ['h-band', 'Hero med et bredt farvebånd tværs over midten, hvor overskriften står, og billedet fylder over og under båndet.'],
-    ['h-card', 'Tekst til venstre og et løst "tilbudskort" til højre med tre korte punkter og en knap. Kortet har skygge og hælder en smule.'],
-    ['h-dark', 'Helt mørk hero med tynde linjer som rammer, overskrift i store versaler, nøgletal i en række nederst.'],
-    ['h-center', 'Centreret hero med en stor cirkel- eller bueform bag teksten (kun CSS) og to knapper under hinanden.'],
-    ['h-stack', 'Overskriften i tre linjer, hvor hver linje har sin egen farve eller vægt; billedet som smal lodret strimmel i siden.'],
-  ],
-  services: [
-    ['s-asym', 'Asymmetrisk 1+3: ét stort fremhævet kort til venstre (ca. halvdelen af bredden) og tre mindre kort stablet til højre.'],
-    ['s-twocol', 'Tekstliste i to kolonner med tynde skillelinjer. Hver ydelse er overskrift, to linjers tekst og et lille tekstlink. Ingen ikoner.'],
-    ['s-overlap', 'Brandfarvet flade i toppen af sektionen, hvor hvide kort ligger delvist henover kanten (negativ margin) i en række.'],
-    ['s-mosaic', 'Mosaik med 2x2 flader i forskellig højde og skiftende baggrund (lys, mørk, brand, grå), titlen nederst i hver flade.'],
-    ['s-iconsq', 'Fire brede bokse side om side med et stort ikon i en firkant, titel og tekst. Boksene har farvet top-kant.'],
-    ['s-bigword', 'Typografisk: ydelserne som store ord i forskellig størrelse efter hinanden, med en lille forklaring under hvert ord.'],
-    ['s-imgleft', 'Stor billedflade til venstre og en lodret liste til højre, hvor hver ydelse har et check-ikon, titel og én linje.'],
-    ['s-alt', 'Kort der skiftende er lyse og mørke, med en lille nummer-chip i hjørnet og en pil nederst.'],
-    ['s-table', 'Tabel-agtig liste: ydelsens navn til venstre, kort beskrivelse i midten, en pil til højre, og rækken skifter baggrund ved hover.'],
-    ['s-rows', 'Nummererede rækker adskilt af tynde linjer med store tal i venstre kolonne.'],
-  ],
-  process: [
-    ['p-hline', 'Vandret tidslinje: en tynd linje med firkantede markører og et trin under hver markør.'],
-    ['p-vline', 'Lodret tidslinje med trin der skifter side (venstre/højre) om en midterlinje.'],
-    ['p-stairs', 'Trappe: fire brede kort, hvor hvert kort ligger lidt længere nede og til højre end det forrige.'],
-    ['p-cols', 'Fire kolonner med tynd top-linje, stort trin-nummer i brandfarven, overskrift og kort tekst.'],
-    ['p-bands', 'Tre brede bånd under hinanden (før, under, efter) med skiftende baggrundsfarve og tekst i to kolonner.'],
-    ['p-box', 'Intro til venstre og en stor boks til højre med trinene som en afkrydsningsliste.'],
-    ['p-flow', 'Typografisk forløb: trinene som én lang sætning med store ord ("Først… så… derefter…") og små forklaringer.'],
-    ['p-sticky', 'Venstre kolonne med titel er sticky, højre kolonne ruller trin for trin.'],
-  ],
-  proof: [
-    ['f-four', 'Fire tal eller fakta i brede bokse med tynd ramme, stort tal og en kort label.'],
-    ['f-strip', 'Smalt bånd med fire tillidspunkter og ikoner, adskilt af lodrette streger, i brandfarven.'],
-    ['f-quote', 'Stor citat-flade med et kæmpe anførselstegn som grafik og afsender nederst.'],
-    ['f-split', 'Todelt: stor påstand til venstre, tre faktabokse stablet til højre.'],
-    ['f-badges', 'Række af runde mærker (garanti, tilbud, erfaring) med kort tekst under hvert.'],
-    ['f-ladder', 'Tre fremhævede løfter i trappeform med store ord og en lille forklaring til hvert.'],
-    ['f-marks', 'Overskrift til venstre og en række neutrale mærkater til højre (garantier eller medlemskaber som pladsholdere).'],
-  ],
-  about: [
-    ['a-facts', 'Tekst og en lille historie til venstre, tre faktabokse i en række under.'],
-    ['a-imgquote', 'Billedflade med en citatboks, der overlapper nederst, og teksten ved siden af.'],
-    ['a-timeline', 'Kort tidslinje over firmaets vej med fire punkter.'],
-    ['a-team', 'Fire personkort (billedflade, navn, titel) i en række med lidt forskudt placering.'],
-    ['a-split', 'Fladen er delt skråt: tekst på den ene side og en stor billedflade på den anden.'],
-  ],
-  gallery: [
-    ['g-masonry', 'Murstensgitter med billedflader i forskellige højder og en lille billedtekst.'],
-    ['g-feature', 'Ét stort billede og fire små, med en tekstboks der overlapper det store.'],
-    ['g-strip', 'Vandret række af billeder med scroll-snap, hvor kanten af næste billede ses.'],
-    ['g-cards', 'Cases som kort med billede, titel, sted og en lille mærkat.'],
-  ],
-  cta: [
-    ['c-flat', 'Stor farveflade med én kort sætning, en knap og et telefonnummer ved siden af.'],
-    ['c-split', 'Tekst til venstre og kontaktkort til højre med telefon, mail og åbningstider.'],
-    ['c-frame', 'Opfordringen i en ramme med tyk kant midt i sektionen, og stor luft omkring.'],
-    ['c-ribbon', 'Smalt bånd i brandfarven med opfordringen til venstre og knappen til højre i én linje.'],
-    ['c-poster', 'Stor mørk plakat med opfordringen i enorm skrift, en knap og en tynd ramme rundt.'],
-    ['c-steps', 'Tre små kort (Ring, Skriv, Kom forbi) med kontaktoplysninger og en knap under.'],
-  ],
-  generic: [
-    ['x-textimg', 'Tekst og billedflade side om side, hvor billedet er forskudt lodret i forhold til teksten.'],
-    ['x-cards3', 'Tre kort i forskellig højde med en farvet markering.'],
-    ['x-statement', 'Én stor sætning som hovedelement over hele bredden med lille tekst under.'],
-    ['x-bento', 'Bento-gitter med fem celler i forskellige størrelser og indhold.'],
-    ['x-list', 'Overskrift til venstre og en lodret liste af punkter til højre med tynde linjer.'],
-    ['x-banner', 'Bred farveflade med en kort påstand og to små fakta ved siden af.'],
-  ],
-};
-const AI_REGISTER = {
-  hjoerner: ['kantede hjørner (radius none) overalt', 'bløde hjørner (--radius-m) på alle flader', 'store runde hjørner (--radius-xl) på kort og knapper', 'blandet: skarpe flader og enkelte helt runde accenter'],
-  typo: ['fed og stram overskrift (font-weight 800, line-height 1)', 'let og luftig overskrift (font-weight 300, bredt linjeafstand)', 'versaler med bred letterspacing på små overskrifter og labels', 'stor størrelsesforskel: meget stor overskrift og meget lille brødtekst'],
-  taethed: ['meget luft og få elementer', 'tæt og informationsrigt med små afstande', 'skiftende: luftige sektioner afbrudt af tætte'],
-  farve: ['lys side med én kraftig brandfarveflade', 'mørk side (--dark) med brandfarven som accent', 'brandfarven som hovedflade i flere sektioner', 'næsten monokrom (sort, hvid, grå) med brandfarven kun på knapper og detaljer'],
-};
-function archPurpose(plan, idx) {
-  const t = ((plan && plan.navn) || '') + ' ' + ((plan && plan['formål']) || ''); const s = t.toLowerCase();
-  if (idx === 0 || /\bhero\b/.test(s)) return 'hero'; if (/ydelse|service|tilbyder|løsning|opgave|specialer/.test(s)) return 'services'; if (/proces|trin|sådan|forløb|fremgang|arbejdsgang/.test(s)) return 'process';
-  if (/tal|bevis|tillid|erfaring|garanti|fordel|hvorfor|løfte|resultat/.test(s)) return 'proof'; if (/om os|historie|team|medarbejder|vi er|firmaet/.test(s)) return 'about'; if (/galleri|case|projekt|reference|billeder/.test(s)) return 'gallery'; if (/kontakt|opfordring|book|ring|tilbud/.test(s)) return 'cta'; return 'generic';
-}
-/* vælger ét layoutgreb pr. AI-sektion: aldrig samme greb to gange i samme udkast, og undgår dem, der blev brugt for nylig */
-function pickArchetypes(plans, recent) {
-  const used = new Set(), out = []; const rec = new Set(recent || []);
-  plans.forEach((pl, idx) => {
-    const purpose = archPurpose(pl, idx); const pool = (AI_ARCH[purpose] || []).concat(AI_ARCH.generic.filter(() => purpose !== 'generic' && Math.random() < 0.25));
-    let cand = pool.filter(a => !used.has(a[0]) && !rec.has(a[0])); if (!cand.length) cand = pool.filter(a => !used.has(a[0])); if (!cand.length) cand = pool;
-    const a = cand[Math.floor(Math.random() * cand.length)]; used.add(a[0]); out.push({ id: a[0], navn: a[0], beskrivelse: a[1], purpose });
-  });
-  return out;
-}
-function pickRegister() { const r = {}; for (const [k, v] of Object.entries(AI_REGISTER)) r[k] = v[Math.floor(Math.random() * v.length)]; return r; }
-
-/* ---------- AI FORSLAG: variationsbibliotek og prompts ---------- */
-const AI_DIRECTIONS = [
-  ['Redaktionel typografi', 'Gigantiske overskrifter (clamp op til ca. 14vw), stram linjehøjde og stærk kontrast mellem fed og let vægt. Teksten ER grafikken.'],
-  ['Asymmetrisk grid', '12-kolonne-grid med bevidst skæve placeringer. Tomrum er et designelement, og enkelte elementer brækker gitteret.'],
-  ['Overlappende lag', 'Billeder, kort og tekst overlapper hinanden og sektionsgrænser. Negative marginer, z-index og dybde.'],
-  ['Gigantiske tal', 'Store outline-tal, årstal eller trin bag indholdet som grafisk rygrad.'],
-  ['Løbende bånd', 'Et bredt tekstbånd (CSS-animation) med nøgleord, brugt som skillelinje eller nederst i heroen.'],
-  ['Sticky fortælling', 'To kolonner, hvor den ene er sticky, mens den anden scroller trin for trin.'],
-  ['Rolig luksus', 'Meget luft, små versaler med bred letterspacing, tynde linjer, afdæmpede flader og store billeder.'],
-  ['Brutalistisk', 'Hårde kanter, tykke streger, høj kontrast, store flader og uventede farveblokke.'],
-  ['Blød og organisk', 'Store runde former, bløde blobs bygget af border-radius og gradienter, venlig tone.'],
-  ['Bento-grid', 'Gitter med celler i forskellige størrelser, hvor hver celle har sit eget lille indhold. Gitteret skal gå op uden huller.'],
-  ['Split-screen', '50/50-flader med skarpt skift i farve og indhold, gerne spejlet fra sektion til sektion.'],
-  ['Diagonale skæringer', 'Skrå flader og clip-path-overgange mellem sektionerne.'],
-  ['Blueprint-linjer', 'Tynde linjer, mål, nummerering og koordinater i en teknisk tegnings æstetik.'],
-  ['Mørk glød', 'Mørk baggrund med bløde gradient-glød og glas-effekt (backdrop-filter), skarp hvid tekst.'],
-  ['Før og efter', 'Layoutet fortæller kontrast: før/efter eller problem/løsning i to tydeligt forskellige halvdele.'],
-  ['Tidslinje', 'Lodret tidslinje med knudepunkter og skiftende sider, som forløb eller historie.'],
-  ['Manifest', 'En enkelt stor, modig sætning som sektionens hovedelement, uden pynt.'],
-  ['Hover-afsløring', 'Kort og flader, der afslører mere indhold ved hover (og er fuldt læsbare uden hover).'],
-  ['Mikro-labels', 'Små labels, tags, nummer-chips og tynde linjer som gennemgående rytme.'],
-  ['Billedmasker', 'Billeder i uventede former (bue, pille, cirkel, afskåret hjørne) via border-radius og clip-path.'],
-  ['Bånd gennem hero', 'Et bredt farvebånd, hvor teksten går ud over billedkanten.'],
-  ['Kolonne-rytme', 'Siden skifter mellem 1, 2 og 3 kolonner, så rytmen aldrig bliver ens.'],
-  ['Statement-flade', 'En helt mørk eller helt primær sektion midt på siden som bevidst kontrast til de lyse.'],
-  ['Lag-på-lag dybde', 'Kort med bløde skygger og forskudte lag, der skaber fysisk dybde.'],
-];
-const AI_CONSTRAINTS = [
-  'Ingen kort med ikon i en cirkel.', 'Højst to farver ud over de neutrale (hvid, sort, grå).', 'Heroen har kun én handling (én knap).',
-  'Mindst én sektion bruger et gigantisk tal, bogstav eller ord som grafik.', 'Mindst én sektion brækker gitteret ved overlap.',
-  'Overskrifterne i én sektion står i versaler med bred letterspacing.', 'Ingen centrerede overskrifter i heroen.',
-  'Mindst én sektion bruger vandret scroll med scroll-snap på mobil.', 'En tynd linje-detalje går igen i alle sektioner.',
-  'Siden har en uventet rækkefølge (fx proces før ydelser).', 'Mindst én sektion har bevidst meget luft og kun få elementer.',
-  'Brug mindst to helt forskellige kolonneopdelinger.', 'Ingen billeder i heroen: tekst og form bærer den.', 'Én sektion er næsten sort, resten er lyse.',
-];
-const AI_CLICHES = ['tre ens kort med ikon i en cirkel i en række', 'centreret overskrift + undertekst + én blå knap som hero', 'floskler som "Velkommen til", "vi brænder for" og "din lokale partner"', 'alle sektioner centrerede og lige høje', 'baggrunden skifter bare mellem hvid og lysegrå uden andre greb'];
-function pickCreative(nDir, nCon) { const sh = a => a.map(x => [Math.random(), x]).sort((p, q) => p[0] - q[0]).map(x => x[1]); return { dirs: sh(AI_DIRECTIONS).slice(0, nDir || 3), cons: sh(AI_CONSTRAINTS).slice(0, nCon || 2) }; }
-
-function themeDoc() {
-  return `Du må KUN bruge disse variabler. De findes på alle kundens sites; alt andet giver tomme flader og forsvundne farver.
-Farver: --cta (kundens brandfarve og primære knapfarve; den er rød hos nogle kunder og blå hos andre, så design aldrig ud fra en bestemt nuance), --links (kundens mørkere sekundære brandfarve), --heading (overskrifter, næsten sort), --font (brødtekst, mørkegrå), --white (hvid), --dark (sort) og --light (hvid) med gennemsigtige nuancer --dark-5, --dark-10 … --dark-90 og --light-5, --light-10 … --light-90.
-Lysegrå flader laves med --dark-5 eller --dark-10 (sort med lav dækning), og tynde linjer med --dark-10 eller --dark-20. Der findes INGEN --primary, --secondary, --bg-…, kantfarve- eller skygge-variabler: skriv skygger selv med rgba(0,0,0,.12).
-Nuancer af brandfarven laves med color-mix(in srgb, var(--cta) 20%, transparent).
-Skrift (flydende clamp-størrelser): --text-xs, --text-s, --text-m (brødtekst), --text-l, --text-xl, --text-2xl, --text-3xl, --text-4xl (store overskrifter). Til meget store overskrifter må du skrive egne clamp()-værdier.
-Afstande: --space-4xs, --space-3xs, --space-2xs, --space-xs, --space-s, --space-m, --space-l, --space-xl, --space-2xl, --space-3xl, --space-4xl.
-Radius: --radius-none, --radius-xs, --radius-s, --radius-m, --radius-l, --radius-xl, --radius-full.
-Kundens theme: overskrifter er Montserrat (fed), brødtekst er Open Sans i 15px, og knapper har kantede hjørner (radius 0) med små paddings. Skal en knap eller overskrift se anderledes ud, så skriv det selv. Sæt ikke font-family.`;
-}
-
-const AI_RULES = `FORMAT: svar KUN med ét JSON-objekt (ingen forklaring, ingen markdown): {"navn":"kort navn","tree":{…},"css":"…"}. "css" er én JSON-streng; brug \\n til linjeskift og undgå dobbelte anførselstegn i CSS (brug enkelte).
-
-TRÆET ("tree"). Rodnoden er normalt {"el":"container","cls":"u-wrap","kids":[…]} (u-wrap giver centreret indhold på 90% af bredden op til 1200px; udelad u-wrap, hvis sektionen bevidst går kant til kant). Tilladte elementer ("el"):
-- container: yderste layoutboks. Felter: cls, kids.
-- block: layoutboks. I Bricks er den som standard display:flex, flex-direction:column og width:100%. Felter: cls, kids, tag (valgfri: "ul","ol","li","article","header","footer","blockquote").
-- div: neutral boks. Felter: cls, kids.
-- heading: overskrift. Felter: text, tag ("h1" til "h6"), cls.
-- text: afsnit eller span. Felter: text, tag ("p","span","div"), cls.
-- button: knap. Felter: text, style ("primary","secondary","dark","light"), size ("md","lg","xl"), link ("kontakt" eller "telefon"), cls.
-- image: billede (pladsholder, som brugeren selv udskifter). Felter: alt, cls.
-- icon: ikon. Felter: name (fx "shield-halved","clock","hammer","check","star","location-dot","phone","leaf","bolt","heart","award","users","handshake","wrench","paint-roller","house","lightbulb","gear","gem","lock","truck","fire","droplet","sun"), cls.
-- counter: tal der tæller op. Felter: to (heltal), suffix, cls.
-Alle "cls" skal starte med "u-" (fx "u-hero-title"), højst 3 klasser pr. element. Ingen andre elementer eller felter. Maks 60 elementer. Overskrifter og tekster må ikke være tomme.
-
-STRUKTUR (jeres Bricks-standard; sektionen omsættes automatisk til globale klasser med Bricks' egne indstillinger)
-- Hierarki: section → container → block → div. Rodnoden er den ene container; alt indhold ligger i block-elementer (og div inde i dem). Brug aldrig en container inde i en container.
-- Brug flex til layout. Brug kun grid, hvor flex ikke kan det (fx gitre med ens celler eller bento).
-- Ingen egne CSS-variabler (--u-…). Brug kun temaets variabler.
-- Alt der ændrer sig med skærmstørrelse skrives som @media (max-width:…) med PRÆCIS disse breakpoints (de bliver Bricks' egne): 1199px (liggende iPad), 991px (stående iPad), 767px (mobil liggende) og 478px (mobil). Brug ingen andre bredder og ingen min-width.
-- Skriv hver klasses regler samlet i ÉN regel (%root% .u-x{…}) og brug simple selektorer. Sammensatte selektorer, :hover og ::before/::after må kun bruges til det, der ikke kan skrives som almindelig egenskab.
-- Hold dig til egenskaber, Bricks kan sætte direkte: display, flex-direction, flex-wrap, align-items, justify-content, gap, grid-template-columns, width/min/max, height/min/max, padding, margin, background-color, color, font-size, font-weight, line-height, letter-spacing, text-transform, text-align, border, border-radius, position, top/right/bottom/left, z-index, overflow, opacity, aspect-ratio, object-fit, transform (kun rotate, translateX/Y, scale). Det Bricks ikke kan (gradient, clip-path, box-shadow, animation, text-stroke, backdrop-filter, ::before) skriver du sparsomt, og det lægges i klassens egen CSS.
-- Giv hver klasse sin egen fulde styling. Undgå, at to klasser på samme element sætter samme egenskab (fx en basisklasse og en modifikatorklasse, der begge sætter top eller width). Brug i stedet ét element-specifikt klassenavn.
-
-CSS-REGLER
-1. Alle selektorer starter med %root% (sektionen). Eksempel: %root% .u-card{…}. Skriv aldrig regler uden %root%. Sektionens egen baggrund og padding sættes med %root%{…}.
-2. Brug kun variablerne i TEMA til farver, størrelser, afstande og radius. Egne farvekoder er forbudt; brug color-mix(in srgb, var(--cta) 20%, transparent), gradienter af temaets variabler og rgba af hvid/sort. Skygger skrives med rgba.
-3. Bricks sætter som standard container/block til display:flex; flex-direction:column; width:100%. Sæt derfor selv display, flex-direction eller grid-template-columns, gap, width og align-items eksplicit på hver layoutboks, du bruger. Brug minmax(0,1fr) i grids, så indhold ikke sprænger kolonnerne.
-4. Responsivt er et krav og skal virke fra 360px til 1920px, med breakpointsene ovenfor. På mobil skal alt stakke til én kolonne (undtagen bevidst vandret scroll med scroll-snap) uden vandret overflow. Store typografistørrelser skal bruge clamp(). Brug aldrig vw til bredder; brug %. Ingen faste bredder, der kan blive bredere end skærmen. Gitre skal gå op: ingen tomme celler, medmindre det er bevidst.
-5. Læsbarhed: kontrast mindst 4,5:1 mellem tekst og baggrund. Ligger tekst over et billede eller en farveflade, skal du selv sætte en mørk eller lys overlay-flade bagved. Brødtekst mindst var(--text-s).
-6. Billeder: brug image-elementet og style det med %root% .u-x img{width:100%;height:100%;object-fit:cover}. Giv billedboksen en fast aspect-ratio eller højde. Skal tekst ligge over et billede, så læg billedet som absolut lag (position:absolute;inset:0;z-index:0) bag en overlay og indholdet med position:relative;z-index:2.
-7. Bevægelse: kun CSS (transition, @keyframes, hover). Hold den rolig, og indhold må aldrig ligge skjult uden bevægelse. @keyframes skal hedde u-… Ingen JavaScript.
-8. Forbudt: position:fixed, @import, @font-face, eksterne url(), z-index over 20, selektorer til body, html eller :root.
-9. Knapper har temaets egen styling. Skal en knap se anderledes ud, så sæt reglerne på %root% .u-din-klasse og brug !important på de egenskaber, temaet ellers vinder over.
-10. Overskrifter og afsnit har margin:0 fra start; styr afstande med gap og padding.
-11. Sticky: position:sticky virker kun, hvis sektionen har %root%{overflow:clip} (aldrig overflow:hidden) og ingen forælder klipper. Giv den sticky kolonne align-self:start og et top-mål.
-12. Lange ord: i smalle kolonner skal store overskrifter kunne ombrydes eller være små nok. Brug overflow-wrap:anywhere og hyphens:auto, eller clamp() med en rimelig øvre grænse, så ord som "kontaktperson" aldrig er bredere end kolonnen.
-13. Intet indhold må ligge helt eller delvist skjult bag andre elementer. Når kort eller flader overlapper, skal teksten ligge i det øverste lag (z-index), og labels skal være frit synlige.
-
-DESIGNKRAV
-- Sektionen skal se designet ud og ikke som en skabelon: bevidst typografi (stor størrelsesforskel, vægt, versaler, linjehøjde), tydeligt hierarki, rytme af luft og tæthed, og ét gennemgående detalje-motiv fra konceptet.
-- Brug konceptets retninger og begrænsninger konkret. Sektionen må ikke ligne en standardblok.
-- Skriv ægte, konkret dansk tekst tilpasset kundens branche. Opfind aldrig fakta (antal år, priser, certifikater, kundenavne, rigtige citater). Tal er pladsholdere.
-- Layoutet skal matche beskrivelsen i planen, ikke en gennemsnitlig version af den.
-- Sektionen skal se flot ud UDEN fotos: billeder er grå pladsholdere, som kunden udskifter senere. Lad aldrig effekten afhænge af billeder, og brug ikke :has(), billedskift ved hover eller andre skrøbelige tricks.
-- Vælg få, stærke greb pr. sektion (typografi, farveflade, form, rytme) frem for mange små effekter. Det skal se bevidst og rent ud i en rigtig Bricks-side, ikke fyldt med dekoration.
-- Flader og former skal have en tydelig farve (--cta, --dark eller --light med nuance), så de også er synlige på sider med en anden brandfarve.
-
-SELVTJEK FØR DU SVARER: alle cls starter med u-; alle selektorer starter med %root%; hver layoutboks har eksplicit display og retning; mobil er stakket uden overflow; kontrasten er høj nok; ingen tekst er skjult bag andre elementer eller bredere end sin kolonne; sticky-sektioner bruger overflow:clip; ingen opfundne fakta (heller ikke byer eller årstal); JSON er gyldig.
-
-EKSEMPEL (viser kun FORMATET. Lav dit eget layout, din egen stil og dit eget greb):
-{"navn":"Kort navn","tree":{"el":"container","cls":"u-wrap u-box","kids":[{"el":"heading","tag":"h2","text":"Overskrift","cls":"u-h"},{"el":"text","text":"Kort tekst.","cls":"u-p"},{"el":"button","text":"Kontakt os","link":"kontakt","style":"primary","cls":"u-btn"}]},"css":"%root%{background:var(--white);color:var(--font)}\n%root% .u-box{display:flex;flex-direction:column;gap:var(--space-s);align-items:flex-start}\n%root% .u-h{font-size:var(--text-3xl);color:var(--heading)}\n%root% .u-p{font-size:var(--text-m);line-height:1.6}"}`;
-
-function aiConceptPrompt(b, LIB, USE, SITES, VARS, cr, recent, outline, reg) {
-  const fn = new Set(['Header', 'Kontakt sektion', 'FAQ', 'Anmeldelser']);
-  const cat = catalog(LIB, USE).split('\n').filter(l => fn.has(categoryOf(l.split(' | ')[0]))).join('\n');
-  const insp = inspirationText(SITES, b.branche, b.sidetype, 8);
-  return `Du er art director og senior webdesigner. Du skal finde på et vildt, unikt og gennemført designkoncept til et udkast til en hjemmeside, som bagefter bygges som sektioner i Bricks Builder. Målet er, at en kollega kigger på siden og siger: "wow, det her ligner ikke de andre". Siden skal være modig og tydelig, men stadig brugbar for kundens kunder.
-
-OPGAVE
-${briefText(b)}
-${SIDETYPE_RULES[b.sidetype] || SIDETYPE_RULES['Forside']}
-${outline && outline.length ? '\nKUNDENS NUVÆRENDE SIDE (sektioner i rækkefølge; brug den kun til at forstå emnerne, og lav gerne en meget bedre opbygning):\n' + outlineText(outline, LIB, USE) + '\n' : ''}
-TEMA (siden bruger kundens tema)
-${themeDoc()}
-
-KREATIVE RETNINGER TIL DETTE UDKAST (kombinér og tolk dem, så de passer til kunden og branchen; giv dem gerne dit eget navn)
-${cr.dirs.map(d => `- ${d[0]}: ${d[1]}`).join('\n')}
-
-BEGRÆNSNINGER (skal overholdes)
-${cr.cons.map(c => '- ' + c).join('\n')}
-
-STILREGISTER FOR DETTE UDKAST (følg det på tværs af hele siden)
-${reg ? Object.entries({ Hjørner: reg.hjoerner, Typografi: reg.typo, Tæthed: reg.taethed, Farve: reg.farve }).map(([k, v]) => `- ${k}: ${v}`).join('\n') : '- frit'}
-
-UNDGÅ (klichéer og standardløsninger, medmindre konceptet direkte kræver dem)
-${AI_CLICHES.map(c => '- ' + c).join('\n')}
-- vandret løbende tekstbånd, store outline-tal i rækker og sticky venstre kolonne med trin (de er brugt til udmattelse)
-${recent && recent.length ? '\nUNDGÅ AT LIGNE DE SENESTE KONCEPTER (de er allerede brugt)\n' + recent.map(r => '- ' + r).join('\n') + '\n' : ''}${insp ? '\n' + insp.replace('INSPIRATION:', 'INSPIRATION (kun til at forstå branchen; kopiér dem ikke):') + '\n' : ''}
-SÅDAN ARBEJDER DU
-1. Find ÉN stor idé, der binder siden sammen (en visuel metafor, et gennemgående greb eller en tone), og som passer til kundens branche og personlighed.
-2. Beslut sektionerne i rækkefølge. Hold dig til antallet i sidetype-reglen, og højst 9 sektioner.
-3. Sektionerne skal skabe rytme: veksl mellem tæt og luftig, lys og mørk, stor og lille typografi. To nabosektioner må ikke have samme opbygning.
-4. For hver sektion skriver du formål, indhold og et KORT layoutforslag (højst 25 ord). Selve layoutgrebet bliver valgt bagefter, så vær ikke bundet af en bestemt opbygning, og beskriv ikke bånd, sticky kolonner eller store tal som standard.
-5. Skriv den konkrete danske tekst til sektionen (overskrifter, afsnit, knapper, korte punkter). Tonen skal passe til branchen. Opfind aldrig fakta (antal år, priser, certifikater, kundenavne). Tal er pladsholdere.
-6. Brug en færdig template (type "tpl") KUN, hvor funktion er nødvendig: kontakt med formular, FAQ med harmonika, anmeldelser og en hero med formular. Alt andet bygges som type "ai".
-7. Første sektion er heroen og indeholder den ene H1.
-
-KATALOG OVER FÆRDIGE TEMPLATES (kun de funktionelle; brug nøglen præcis som skrevet)
-${cat}
-
-SVAR KUN MED JSON:
-{"koncept":{"navn":"kort navn på idéen","idé":"2-3 sætninger om den store idé","visuelt_sprog":"konkret: typografi, former, farveanvendelse, billedbrug og bevægelse","rytme":"hvordan siden veksler mellem lys/mørk og tæt/luftig","uforglemmeligt":"det ene, man husker"},"sektioner":[{"type":"ai","navn":"kort navn","formål":"hvad sektionen skal opnå","layout":"kort layoutforslag, højst 25 ord","indhold":"den konkrete danske tekst og elementer","stil":"lys|graa|primaer|moerk|billede"},{"type":"tpl","tpl":"kontaktsektion-2","navn":"Kontakt","hvorfor":"max 12 ord"}]}`;
-}
-
-function aiSectionPrompt(b, concept, plan, idx, plans, VARS, prev, instruktion, arch, reg) {
-  const names = plans.map((p, i) => `${i + 1}. ${p.navn || p.tpl || '?'}${p.stil ? ' (' + p.stil + ')' : ''}${i === idx ? '  ← DEN DU SKAL BYGGE' : ''}`).join('\n'); const k = concept.koncept || {};
-  return `Du er senior front-end-designer og bygger ÉN sektion til et udkast til en hjemmeside i Bricks Builder. Du får designkonceptet og planen for sektionen, og du leverer sektionens struktur og CSS som JSON.
-
-KUNDE OG SIDE
-${briefText(b)}
-
-DESIGNKONCEPT (hele siden følger det)
-Navn: ${k.navn || ''}
-Idé: ${k['idé'] || ''}
-Visuelt sprog: ${k.visuelt_sprog || ''}
-Rytme: ${k.rytme || ''}
-Det uforglemmelige: ${k.uforglemmeligt || ''}
-
-SIDENS SEKTIONER I RÆKKEFØLGE
-${names}
-
-DIN SEKTION (nr. ${idx + 1} af ${plans.length})
-Navn: ${plan.navn || ''}
-Formål: ${plan['formål'] || ''}
-Layoutforslag fra planen (kun inspiration): ${plan.layout || ''}
-Indhold og tekst: ${plan.indhold || ''}
-Stil: ${plan.stil || ''}
-${arch ? `\nLAYOUTGREB DU SKAL BRUGE (overstyrer planens layoutforslag; tilpas det til indholdet, men grundgrebet skal tydeligt kunne genkendes): ${arch.beskrivelse}\n` : ''}${reg ? `STILREGISTER (hele siden følger det): hjørner ${reg.hjoerner}; typografi ${reg.typo}; tæthed ${reg.taethed}; farve ${reg.farve}.\n` : ''}${idx === 0 ? 'Dette er sidens hero: den indeholder sidens ENESTE H1.' : 'Brug ikke H1 (brug h2 til sektionsoverskriften).'}
-${prev ? `\nFORRIGE VERSION (lav en tydeligt anderledes opbygning og et andet layoutgreb, men samme formål, og behold den gode tekst):\n${JSON.stringify(prev).slice(0, 5000)}\n` : ''}${instruktion ? `\nÆNDRING DER ØNSKES (har forrang): ${instruktion}\n` : ''}
-TEMA
-${themeDoc()}
-
-${AI_RULES}`;
-}
-
-function aiRepairPrompt(b, raw, issues, VARS) {
-  return `Du er senior front-end-designer. En sektion, du har bygget, er blevet tjekket automatisk i en browser, og tjekket fandt problemer. Ret KUN det, der er nødvendigt for at løse problemerne. Behold idé, layout, tekst og stil, så langt det er muligt.
-
-PROBLEMER
-${issues.map(i => '- ' + i).join('\n')}
-
-SEKTIONEN (JSON)
-${JSON.stringify(raw).slice(0, 9000)}
-
-TEMA
-${themeDoc()}
-
-${AI_RULES}
-
-Svar med den rettede sektion som ét JSON-objekt i samme format.`;
-}
-
-
-/* ============================================================================
-   NATIVISERING: omsætter sektionens CSS til jeres struktur.
-   Styling lægges i globale klasser med Bricks' egne indstillinger (_display, _padding, _typography …),
-   media queries bliver til Bricks' breakpoints, og kun det Bricks ikke kan natively ligger i klassens egen CSS.
-   Hierarki: section → container → block → div.
-   ============================================================================ */
-
-/* Portable tokens fra jeres Bricks-palette (findes på både templates-sitet og stock-sites): --cta (brand, rød/blå), --links, --heading, --font, --white
-   plus --dark/--light med nuancer og jeres space-/text-/radius-variabler. Ældre navne (--primary osv.) oversættes automatisk. */
 const TOKEN_MAP = { '--primary': 'var(--cta)', '--secondary': 'var(--links)', '--tertiary': 'var(--links)', '--text-title': 'var(--heading)', '--text-body': 'var(--font)', '--bg-surface': 'var(--white)', '--bg-body': 'var(--dark-5)', '--border-primary': 'var(--dark-20)', '--success': 'var(--cta)', '--error': 'var(--cta)' };
 const palCss = s => String(s).replace(/var\(\s*(--[\w-]+)\s*\)/g, (m, n) => TOKEN_MAP[n] || m);
 const colObj = v => ({ raw: palCss(String(v).trim()) });
-const AI_SAFE_VARS = new Set([...['4xs', '3xs', '2xs', 'xs', 's', 'm', 'l', 'xl', '2xl', '3xl', '4xl'].map(x => '--space-' + x), ...['xs', 's', 'm', 'l', 'xl', '2xl', '3xl', '4xl'].map(x => '--text-' + x), '--radius-none', '--radius-xs', '--radius-s', '--radius-m', '--radius-l', '--radius-xl', '--radius-full', '--dark', '--light', ...[5, 10, 20, 30, 40, 50, 60, 70, 80, 90].flatMap(n => ['--dark-' + n, '--light-' + n]), '--cta', '--links', '--heading', '--font', '--white']);
-function aiVarNames() { return AI_SAFE_VARS; }
 const NAT_SLUGS = new Set(); const NAT_IDS = new Set();
 const natSlug = base => { const s = String(base || 'sektion').toLowerCase().replace(/æ/g, 'ae').replace(/ø/g, 'oe').replace(/å/g, 'aa').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 26) || 'sektion'; let out = s, i = 1; while (NAT_SLUGS.has(out)) out = s + '-' + (++i); NAT_SLUGS.add(out); return out; };
 const bpOf = n => { n = +n; return n <= 478 ? 'mobile_portrait' : n <= 767 ? 'mobile_landscape' : n <= 991 ? 'tablet_portrait' : n <= 1199 ? 'tablet_landscape' : null; };
@@ -1032,7 +536,6 @@ const stockPrev = o => { if (!o || typeof o !== 'object') return PH_URL; const n
 
 /* ---------- picker: nyeste templates og grupper ---------- */
 const dateKey = (LIB, k) => (SHEETDATE[k] && SHEETDATE[k].d) || (LIB[k] && LIB[k].added) || '';
-const natNum = k => { const m = String(k).match(/(\d+)/g); return m ? +m[m.length - 1] : 0; };
 function sortKeys(LIB, keys, mode, useFn) {
   const ord = {}; Object.keys(LIB).forEach((k, i) => ord[k] = i); const idx = k => (SHEETDATE[k] ? SHEETDATE[k].i : 1e6 + ord[k]);
   const byNew = (a, b) => dateKey(LIB, b).localeCompare(dateKey(LIB, a)) || idx(a) - idx(b);
@@ -1082,7 +585,6 @@ function guessBranche(name, msg, SITES) {
   const all = pool.map(s => s.b); return all.length ? { b: all[Math.floor(Math.random() * all.length)], via: 'tilfældigt' } : { b: '', via: 'tilfældigt' };
 }
 const re_test = (kw, b, text) => { const x = kw.find(k => k[0] === b); return !!(x && x[1].test(text)); };
-function siteInfo(LIB, k) { const t = LIB && LIB[k]; return t && t.site ? { site: t.site, url: t.url || '', branche: t.branche || '', added: t.added || '' } : null; }
 function localPlan(b, LIB, n, existing, SITES) {
   const keys = allowedKeys(LIB, true); const used = new Set([].concat(...(existing || []))); const msg = String((b && b.msg) || '').toLowerCase(); const type = (b && b.sidetype) || 'Forside'; const has = re => re.test(msg);
   const gb = b && b.branche ? { b: b.branche, via: 'dit valg' } : guessBranche(b && b.navn, b && b.msg, SITES); const team = has(/medarbejder|team|folk/);
@@ -1232,8 +734,6 @@ function resizeGroup(sec, n, CLASSES) {
   const warn = fitGrid(mapOf(sec.els)[g.id], fin, cur, n, CLASSES);
   return { ok: true, changed: true, from: cur, to: n, warn };
 }
-const groupSize = els => { const g = primaryGroup(els); return g ? g.items.length : 0; };
-function fixExtraH1(sections) { let seen = false, n = 0; for (const s of sections) for (const e of s.els) if (e.name === 'heading' && (e.settings || {}).tag === 'h1') { if (!seen) seen = true; else { e.settings.tag = 'h2'; n++; } } return n; }
 function groupInfoSec(sec) { return sec && sec.ai ? null : sec && sec.fri ? friGroupInfo(sec) : groupInfo(sec.els, sec.tpl); }
 function groupInfo(els, tpl) {
   const ru = rowUnits(els); if (ru) return { n: ru.units.length, label: 'trin', adjustable: true, rows: true };
@@ -1249,64 +749,6 @@ function groupInfo(els, tpl) {
 
 
 /* ---------- spejl et sites opbygning: sektion for sektion ---------- */
-const rootCount = els => rootsOf(els).filter(e => e.name !== 'code').length;
-function featsOf(LIB, key) {
-  const els = LIB[key].els; const c = n => els.filter(e => e.name === n).length; const gi = groupInfo(els, key);
-  const bg = els.filter(e => e.settings && e.settings._background && e.settings._background.image).length;
-  return { cat: categoryOf(key), n: gi && gi.adjustable ? gi.n : 0, i: c('image') + bg * 0.5, b: c('button'), t: c('text') + c('text-basic'), k: c('counter'), form: els.some(e => e.name === 'form' || (e.name === 'template' && String(e.settings.template) === '1699')), list: c('list') + els.filter(e => e.name === 'text' && /<ul/i.test((e.settings || {}).text || '')).length };
-}
-function suggestForOutline(o, LIB, used, USE) {
-  const cat = o.c; if (!cat || cat === 'CTA' || WHOLE_PAGE.has(cat)) return [];
-  const list = variantsOf(LIB, cat).filter(k => rootCount(LIB[k].els) === 1);
-  const sc = list.map(k => {
-    const f = featsOf(LIB, k); let s = 0;
-    if (o.f) s += f.form ? 3 : -1; else if (f.form) s -= 0.6;
-    if (o.n > 0) { if (f.n === o.n) s += 3; else if (f.n > 0) s += 1 - 0.25 * Math.abs(f.n - o.n); else s -= 1; } else if (f.n >= 3 && cat === 'Content') s -= 0.8;
-    s -= 0.5 * Math.abs(f.i - Math.min(o.i || 0, 6)); s -= 0.4 * Math.abs(f.b - Math.min(o.b || 0, 3));
-    if (o.l > 0) s += f.list ? 1.2 : -0.3;
-    if (f.k > 0) s += o.k > 0 ? 1.2 : -1.8;                                   // tællere kun hvis siden har tællere
-    if (typeof o.p === 'number') s -= 0.2 * Math.abs(f.t - Math.min(o.p + 1, 6));
-    s -= 1.5 * used.filter(u => u === k).length; if (USE && USE[k]) s += Math.min(USE[k][0], 20) * 0.03;
-    return [k, s];
-  }).sort((a, b) => b[1] - a[1]);
-  return sc.map(x => x[0]);
-}
-function mirrorSections(outline, LIB, tlf, USE) {
-  const used = [], out = [];
-  for (const o of outline || []) {
-    if (!o || !o.c || o.c === 'CTA') continue; const cand = suggestForOutline(o, LIB, used, USE); if (!cand.length) continue;
-    const key = cand[0]; used.push(key); const secs = makeSections(LIB, key, `Spejler «${String(o.h || o.c).slice(0, 40)}»`, tlf);
-    if (o.n > 0) { const gi = groupInfo(secs[0].els, key); if (gi && gi.adjustable && gi.n !== o.n) { const r = resizeGroup(secs[0], o.n, ENV.CLASSES); if (r.ok) secs[0].warns = r.warn; } }
-    out.push(...secs);
-  }
-  return out;
-}
-function outlineText(outline, LIB, USE) {
-  const used = [];
-  return (outline || []).map((o, i) => {
-    if (!o) return ''; const sug = suggestForOutline(o, LIB, used, USE).slice(0, 3); if (sug[0]) used.push(sug[0]);
-    const bits = []; if (o.f) bits.push('formular'); if (o.n) bits.push(o.n + ' kort/elementer'); if (o.l) bits.push(o.l + ' punkter i liste'); if (o.k) bits.push(o.k + ' tællere'); if (typeof o.p === 'number') bits.push(o.p + ' afsnit'); bits.push((o.i || 0) + ' billeder'); bits.push((o.b || 0) + ' knapper');
-    return `${i + 1}. ${o.c}${o.h ? ' – «' + String(o.h).slice(0, 50) + '»' : ''} – ${bits.join(', ')}${sug.length ? ' → foreslåede templates: ' + sug.join(', ') : (o.c === 'CTA' ? ' → (CTA, udelades)' : '')}`;
-  }).filter(Boolean).join('\n');
-}
-function findSite(SITES, name) {
-  if (!name) return null; const q = name.toLowerCase().trim();
-  return SITES.find(x => x.n.toLowerCase() === q) || SITES.find(x => x.n.toLowerCase().includes(q) || x.u.toLowerCase().includes(q)) || null;
-}
-function outlineFromImport(site, pageIdx) {
-  const bl = siteBlocks(site, pageIdx); const imgs = (site.pages[pageIdx || 0] || {}).images || []; const segs = []; let cur = null;
-  bl.forEach((b, idx) => { if (b.t === 'h1' || b.t === 'h2' || !cur) { cur = { start: idx, h: (b.t === 'h1' || b.t === 'h2') ? b.text : '', blocks: [] }; segs.push(cur); } cur.blocks.push(b); });
-  return segs.map((s, i) => {
-    const next = segs[i + 1] ? segs[i + 1].start : bl.length; const t = s.blocks; const n = t.filter(b => b.t === 'h3' || b.t === 'h4').length; const li = t.filter(b => b.t === 'li').length;
-    const btn = t.filter(b => b.t === 'btn').length; const par = t.filter(b => b.t === 'p').length; const im = imgs.filter(x => typeof x.at === 'number' && x.at >= s.start && x.at < next).length; const txt = t.map(b => b.text).join(' ').toLowerCase();
-    let c = 'Content'; const last = i >= segs.length - 2;
-    if (i === 0) c = 'Header'; else if (/\bfaq\b|ofte stillede|spørgsmål/.test(txt)) c = 'FAQ'; else if (/anmeld|udtalelser|trustpilot|kunderne siger|siger om os/.test(txt)) c = 'Anmeldelser'; else if (n >= 2 && /\bpris|pakke/.test(txt)) c = 'Priser';
-    else if (/\bcase|projekter|referenc|vores arbejde/.test(s.h.toLowerCase()) && im >= 3) c = 'Cases'; else if (last && /kontakt/.test(s.h.toLowerCase()) && par <= 2) c = 'Kontakt sektion'; else if (n >= 3) c = 'Ydelser'; else if (par === 0 && btn >= 1 && t.length <= 3) c = 'CTA';
-    return { c, h: s.h, n: c === 'Ydelser' || c === 'Cases' || c === 'Priser' ? n : 0, i: im, b: btn, f: false, l: n ? 0 : li, p: par, k: 0 };
-  });
-}
-
-/* ---------- operationer (AI-redigering) ---------- */
 const SETTING_WHITELIST = new Set(['_background', '_typography', '_padding', '_margin', '_direction', '_alignItems', '_justifyContent', '_width', '_widthMax', '_widthMin', '_heightMin', '_height', '_rowGap', '_columnGap', '_border', '_flexWrap', '_gradient']);
 function applyOps(state, ops, LIB, tlf, CLASSES) {
   const log = [], added = [], warns = [];
@@ -1633,53 +1075,6 @@ function renderSections(sections, CLASSES, VARS, ropts) {
 }
 
 /* ---------- prompts ---------- */
-const KIND_DESC = { hero: 'Hero/topsektion', ydelse: 'Ydelser/tjenester', anmeldelse: 'Anmeldelser', cases: 'Cases/referencer', faq: 'FAQ', kontaktsektion: 'Kontaktsektion', kontakformular: 'Kontaktformular', priser: 'Priser', content: 'Indholdssektion', underside: 'HEL underside (flere sektioner)', geo: 'GEO-lokationsside (hel side)', seo: 'SEO-blogindlæg (hel side)', blog: 'Blog-oversigt (hel side)', viden: 'Viden/GEO-hub (hel side)' };
-function catalog(LIB, USE) {
-  return allowedKeys(LIB, true).map(k => {
-    const els = LIB[k].els; const roots = rootsOf(els).filter(e => e.name !== 'code').length; const cnt = n => els.filter(e => e.name === n).length;
-    const u = USE[k] || [0, 0]; const cat = categoryOf(k);
-    const bits = [`${displayName(k)} · type ${cat}${WHOLE_PAGE.has(cat) ? ' (HEL side)' : ''}`, roots > 1 ? roots + ' sektioner' : '1 sektion'];
-    if (cnt('button')) bits.push(cnt('button') + ' knap(per)'); if (cnt('image')) bits.push(cnt('image') + ' billede(r)');
-    const gi = groupInfo(els, k); if (gi && gi.adjustable) bits.push('har ' + gi.n + ' ' + gi.label + ' (antal kan ændres)'); if (cnt('form') || cnt('template')) bits.push('indeholder formular');
-    const d = describeKey(k);
-    return `${k} | ${bits.join(', ')}${d ? ' | beskrivelse: ' + d : ''} | brugt af ${u[0]} sites (sikker, klasse) / ${u[1]} (usikker, struktur)`;
-  }).join('\n');
-}
-function refSites(SITES, branche) {
-  let list = SITES.filter(s => s.b === branche);
-  if (list.length < 5) list = list.concat(SITES.filter(s => s.b !== branche && s.k.length).sort((a, b) => b.k.length - a.k.length).slice(0, 8));
-  return list.filter(s => (s.c && s.c.length) || s.k.length || s.s.length).slice(0, 12).map(s => (s.c && s.c.length) ? `- ${s.n} (${s.b}): sektioner i rækkefølge [${s.c.join(' → ')}]` : `- ${s.n} (${s.b}): klasse-templates [${s.k.filter(k => categoryOf(k) !== 'CTA').join(', ')}] · sektionsrækkefølge [${s.s.filter(k => categoryOf(k) !== 'CTA').join(' → ')}]`).join('\n');
-}
-const briefText = b => `Kunde: ${b.navn || '(ikke angivet)'}\nSidetype: ${b.sidetype || 'Forside'}\nFrihed: ${FRIHED_LABEL[b.frihed || 'mix']}${b.branche ? '\nBranche: ' + b.branche : ''}\nBrugerens ønske (fritekst, skrevet som til en kollega):\n${b.msg || '(intet – vælg selv en fornuftig forside)'}`;
-
-function typicalOrder(SITES) {
-  const have = SITES.filter(s => Array.isArray(s.c) && s.c.length >= 3); if (have.length < 30) return '';
-  const pos = {}; for (const s of have) { const n = s.c.length; s.c.forEach((c, i) => { (pos[c] = pos[c] || []).push(i / (n - 1 || 1)); }); }
-  const avg = Object.entries(pos).map(([c, a]) => [c, a.reduce((x, y) => x + y, 0) / a.length, a.length]).filter(x => x[2] >= have.length * 0.15).sort((a, b) => a[1] - b[1]);
-  return `FAKTISK TYPISK RÆKKEFØLGE på jeres ${have.length} sites (andel der har sektionen): ${avg.map(x => `${x[0]} (${Math.round(x[2] * 100 / have.length)}%)`).join(' → ')}`;
-}
-
-/* ---------- undersider fra jeres sites (kontakt-, pris- og ydelsessider) ---------- */
-function pickSubpage(site, sidetype) {
-  if (!site) return null; const pages = []; if (site.o && site.o.length) pages.push({ u: '/', t: 'Forside', o: site.o }); for (const p of site.u2 || []) pages.push(p); if (!pages.length) return null;
-  const cat = SECTION_ONLY[sidetype]; if (cat) return pages.find(p => p.o.some(s => s.c === cat)) || null;
-  if (sidetype === 'Kontaktside') return pages.find(p => p.t === 'Kontakt') || null;
-  if (sidetype === 'Om os-side') return pages.find(p => p.t === 'Om os') || null;
-  if (sidetype === 'Ydelsesoversigt') return pages.find(p => p.t !== 'Forside' && p.o.some(s => s.c === 'Ydelser')) || null;
-  if (sidetype === 'Underside') return pages.find(p => p.t === 'Ydelse') || null;
-  return null;
-}
-function subpageRefs(SITES, branche, sidetype, limit) {
-  const rows = []; for (const s of SITES) { const p = pickSubpage(s, sidetype); if (p) rows.push({ s, p, same: s.b === branche }); }
-  rows.sort((a, b) => (b.same ? 1 : 0) - (a.same ? 1 : 0));
-  return rows.slice(0, limit || 10).map(r => `- ${r.s.n} (${r.s.b}) ${r.p.u}: [${r.p.o.filter(x => x.c !== 'CTA').map(x => x.c + (x.n ? '(' + x.n + ')' : '')).join(' → ')}]`).join('\n');
-}
-
-function refSiteText(SITES, name) {
-  if (!name) return ''; const q = name.toLowerCase().trim(); const s = SITES.find(x => x.n.toLowerCase() === q) || SITES.find(x => x.n.toLowerCase().includes(q) || x.u.toLowerCase().includes(q)); if (!s) return '';
-  const seq = (s.c && s.c.length) ? `Sektioner på siden i rækkefølge: [${s.c.join(' → ')}].` : `Template-genkendelse på siden: klasse [${s.k.filter(k => categoryOf(k) !== 'CTA').join(', ') || 'ingen'}], sektionsrækkefølge [${s.s.filter(k => categoryOf(k) !== 'CTA').join(' → ') || 'ukendt'}] (usikker).`;
-  return `BRUGEREN VIL HAVE NOGET I STIL MED DETTE SITE: ${s.n} (${s.u}), branche ${s.b}. ${seq} Brug det som inspiration til opbygning og rækkefølge, men lav det med Best Templates. Tekst er pladsholdertekst og farver kommer fra temaet, så intet af det gamle sites udseende tages med.`;
-}
 function sanitizePlan(list, LIB) {
   const out = []; const count = {};
   for (const x of list || []) {
@@ -1693,150 +1088,7 @@ function sanitizePlan(list, LIB) {
   { const hi = out.findIndex(o => o.tpl && categoryOf(o.tpl) === 'Header'); if (hi > 0) out.unshift(out.splice(hi, 1)[0]); }   // hero altid som første sektion
   return out.slice(0, 12);
 }
-const SIDETYPE_RULES = {
-  'Forside': '- Forside: 5-8 sektioner. Én hero (Header) som nr. 1. Afslut med en Kontakt sektion, medmindre brugeren siger andet.',
-  'Underside': '- Underside (fx en ydelse eller en by): en enkel Header først, derefter Content-sektioner (gerne med billede), evt. Ydelser, Anmeldelser og FAQ, og til sidst en Kontakt sektion. 4-6 sektioner. Hele sider (Underside/Marketing-templates) kun hvis brugeren beder om det.',
-  'Ydelsesoversigt': '- Ydelsesoversigt: en kort Header, derefter en Ydelser-sektion med et kort pr. ydelse (gerne 6, medmindre brugeren siger andet), evt. en Content-sektion med kort tekst, og til sidst en Kontakt sektion. 3-5 sektioner.',
-  'Om os-side': '- Om os-side: en enkel Header, Content-sektioner med tekst og billede (gerne en med tællere), evt. Anmeldelser, og til sidst en Kontakt sektion. Vi har ingen medarbejder-skabeloner endnu. 4-6 sektioner.',
-  'Kontaktside': '- Kontaktside: KUN en kort Header og en Kontakt sektion med formular (evt. et lille Content-afsnit). Højst 3 sektioner. Ingen ydelser, anmeldelser eller FAQ.',
-  'Pris-sektion': '- Pris-sektion: byg KUN pris-sektioner (type Priser), evt. efterfulgt af en FAQ. Højst 2 sektioner. Ingen hero og ingen kontakt sektion.',
-  'Cases-sektion': '- Cases-sektion: byg KUN sektioner af typen Cases, evt. en kort Header først. Højst 3 sektioner. Ingen kontakt sektion.',
-  'Anmeldelses-sektion': '- Anmeldelses-sektion: byg KUN sektioner af typen Anmeldelser (gerne flere varianter at vælge imellem), evt. en kort Header først. Højst 3 sektioner.',
-  'Hero': '- Hero: byg KUN heroes (type Header), præcis én hero pr. udkast. Vælg en ANDEN hero-skabelon til hvert udkast, så de er forskellige. Ingen andre sektioner.',
-  'Menu': '- Menu: byg KUN en menu (type Menu), præcis én pr. udkast, og vælg forskellige menu-skabeloner til hvert udkast. Ingen andre sektioner.',
-  'FAQ-sektion': '- FAQ-sektion: byg KUN FAQ-sektioner (type FAQ), evt. en kort Header først. Højst 2 sektioner.',
-};
 const SECTION_ONLY = { 'Hero': 'Header', 'Menu': 'Menu', 'Pris-sektion': 'Priser', 'Cases-sektion': 'Cases', 'Anmeldelses-sektion': 'Anmeldelser', 'FAQ-sektion': 'FAQ' };
-const refLabel = t => t === 'Kontaktside' ? 'KONTAKTSIDER' : t === 'Om os-side' ? 'OM OS-SIDER' : t === 'Ydelsesoversigt' ? 'YDELSESOVERSIGTER' : SECTION_ONLY[t] ? 'SIDER MED ' + SECTION_ONLY[t].toUpperCase() : 'UNDERSIDER';
-
-/* ---------- inspiration fra de crawlede sites (bruges af planlæggeren, ikke som facit) ---------- */
-function inspirationText(SITES, branche, sidetype, limit) {
-  limit = limit || 10;
-  if (sidetype && sidetype !== 'Forside') { const t = subpageRefs(SITES, branche, sidetype, limit); return t ? `INSPIRATION: ${refLabel(sidetype).toLowerCase()} på jeres sites (samme branche først; sektioner i rækkefølge):\n${t}` : ''; }
-  const all = SITES.filter(s => s.o && s.o.length).sort(() => Math.random() - 0.5); const same = all.filter(s => s.b === branche), other = all.filter(s => s.b !== branche);
-  const rows = [...same, ...other].slice(0, limit).map(s => `- ${s.n} (${s.b}): ${s.o.filter(x => x.c !== 'CTA').map(x => x.c + (x.n ? '(' + x.n + ')' : '')).join(' → ')}`);
-  return rows.length ? `INSPIRATION: opbygning af forsider på jeres sites (samme branche først):\n${rows.join('\n')}` : '';
-}
-
-const FRIHED_LABEL = { templates: 'kun jeres templates', mix: 'mix: templates og nye sektioner', ai: 'AI forslag' };
-function friDocs(b) {
-  const mode = b.frihed || 'mix'; if (mode === 'templates') return '';
-  const only = b.sidetype && (SECTION_ONLY[b.sidetype] || b.sidetype === 'Kontaktside');
-  return `\nNYE SEKTIONER (frie sektioner, bygget af temaets farver og størrelser). Du kan bruge dem ved siden af templates. I "sektioner" skriver du en ny sektion som {"fri":"<type>", …felter, "hvorfor":"max 12 ord"} i stedet for {"tpl":…}.
-Typer og felter (alle tekster på dansk):
-- intro: eyebrow, overskrift, tekst, knapper, stil
-- split (tekst + billede): eyebrow, overskrift, tekst, tekst2, punkter (3-5 korte), knapper, layout ("billede-hoejre" eller "billede-venstre"), stil
-- cards: eyebrow, overskrift, tekst, kort [{ikon,titel,tekst}] (2-8), stil
-- features (fordele): eyebrow, overskrift, tekst, kort [{ikon,titel,tekst}] (2-8), knapper, stil
-- steps: eyebrow, overskrift, tekst, trin [{titel,tekst}] (2-6), stil
-- stats (tal): eyebrow, overskrift, tal [{tal,suffix,label}] (2-4), stil ("primaer" eller "moerk")
-- trust (tillidsbånd): kort [{ikon,titel}] (2-5, meget korte titler som "Gratis tilbud")
-- quote: eyebrow, citat {tekst,navn,titel}
-- gallery: eyebrow, overskrift, tekst, antal (3-9)
-stil: "lys" | "graa" | "primaer" | "moerk". Variér stilen fra sektion til sektion, så siden får rytme. Mørke og primære bånd bruges sparsomt (højst to).
-ikon: præcis en af ${FRI_ICONS.map(i => i.replace('fas fa-', '')).join(', ')}.
-knapper: [{"tekst":"Kontakt os","type":"kontakt"},{"type":"telefon"}] (højst 2).
-SKRIV tekst som en dygtig tekstforfatter: korte, stærke overskrifter og 1-2 sætninger pr. tekst, tilpasset kundens branche. Opfind ALDRIG fakta: ingen antal år, priser, certifikater, kundenavne eller rigtige citater. Tal i "tal" er pladsholdere (brug fx 100), og citater er eksempeltekst skrevet neutralt.
-MIX: Brug templates, hvor de er stærke (hero, kontakt med formular, FAQ, anmeldelser), og lav mindst to nye sektioner, hvor de løfter siden (fx et tillidsbånd efter hero, tal som bevis, trin, fordele, et galleri).
-${only ? 'Denne sidetype er snæver: brug kun nye sektioner, hvis de passer direkte til typen (fx quote til anmeldelser, gallery eller cards til cases).' : ''}
-`;
-}
-function planPrompt(b, LIB, USE, SITES, n, existing, siteInfo, outline) {
-  return `Du er hjemmeside-planlægger hos Best One, et dansk webbureau der bygger i Bricks Builder. Brugeren beskriver kort hvad der skal laves, som til en kollega. Du vælger hvilke sektion-templates fra Best Templates en ny kundeside skal bygges af, og i hvilken rækkefølge. ${(b.frihed || 'mix') === 'templates' ? 'Du skriver INGEN tekster; teksten er pladsholdertekst fra templaterne.' : 'Templates har pladsholdertekst. Til NYE sektioner skriver du selv kort, konkret dansk tekst.'}
-
-${briefText(b)}
-${siteInfo ? '\n' + siteInfo + '\n' : ''}
-${outline && outline.length ? 'KUNDENS NUVÆRENDE SIDE (sektioner i rækkefølge):\n' + outlineText(outline, LIB, USE) + '\n\n' : ''}${typicalOrder(SITES) ? typicalOrder(SITES) + '\n\n' : ''}${inspirationText(SITES, b.branche, b.sidetype) ? inspirationText(SITES, b.branche, b.sidetype) + '\n' : ''}${friDocs(b)}
-
-TEMPLATE-KATALOG (nøgle | beskrivelse | brug):
-${catalog(LIB, USE)}
-${existing && existing.length ? '\nALLEREDE LAVEDE FORSLAG (lav noget tydeligt anderledes):\n' + existing.map((e, i) => `${i + 1}. ${e.join(' → ')}`).join('\n') + '\n' : ''}
-OPGAVE: Lav ${n} ${n === 1 ? 'forslag' : 'FORSKELLIGE forslag'}.
-
-REGLER
-- Brug KUN nøgler fra kataloget, præcis som skrevet. Der findes ingen CTA-sektioner; vælg aldrig noget der starter med cta-.
-- Følg brugerens ønsker om sektioner og rækkefølge PRÆCIST, hvis de er nævnt.
-${SIDETYPE_RULES[b.sidetype] || SIDETYPE_RULES['Forside']}
-${outline && outline.length ? '- Kunden har en eksisterende side (se "KUNDENS NUVÆRENDE SIDE"). Brug den til at forstå, hvilke emner og hvor mange kort der skal med, men lav gerne en bedre og mere varieret opbygning end den gamle.\n' : ''}- HELE sider (underside-*) bruges kun hvis brugeren beder om en hel underside.
-- Samme template højst to gange pr. forslag.
-${b.branche ? `- Kundens branche er \"${b.branche}\". Lad sites i samme branche under INSPIRATION give idéer til, hvad der virker, men kopiér dem ikke.\n` : ''}
-KREATIVITET
-- Lav noget, der føles gennemtænkt og anderledes, ikke bare gennemsnittet af jeres sites. Brug INSPIRATION som idébank: lån gode greb (fx tællere som bevis, en process-sektion, cases tidligt, en hero med formular) og kombinér dem på en måde, der passer til kunden og branchen.
-- Vælg varianter med omtanke. Brug forskellige templates, hvor det giver mening, og undgå den samme standardopskrift hver gang.
-- Opfind ikke sektioner, der ikke findes i kataloget. Brug kun nøgler fra kataloget.
-
-SAMMENHÆNG (så siden hænger sammen og ikke får mærkelige opstillinger)
-- Typisk rækkefølge hos os: Header (hero) → Ydelser eller Content (hvad vi laver) → bevis (Anmeldelser, Cases, tællere) → uddybning (Content) → FAQ → Kontakt sektion til sidst.
-- Højst én hero, én FAQ og én Kontakt sektion pr. side. Ingen to ens sektioner lige efter hinanden. Stak ikke flere tunge billedmosaikker i træk.
-- Bevis (anmeldelser, cases) kommer efter, at siden har fortalt hvad virksomheden laver.
-- Brug feltet "beskrivelse" i kataloget til at forstå hvad en template kan, og hold dig til brugerens eksplicitte ønsker.
-- Nævner brugeren et antal (fx "6 ydelser", "3 anmeldelser"), sæt "antal" på den sektion. Programmet tilføjer eller fjerner selv kort og gør layoutet responsivt. Udelad "antal" ellers.
-${n > 1 ? '- Forslagene skal adskille sig tydeligt: brug forskellige varianter af hero og ydelser (andre nøgler), ikke bare omrokering. Alle følger stadig brugerens eksplicitte ønsker.\n' : ''}${siteInfo ? '- Kunden har en eksisterende side. Lad dens struktur inspirere valget af sektioner.\n' : ''}
-Svar KUN med JSON:
-{"forslag":[{"navn":"kort navn på forslaget","note":"1 sætning om valget","sektioner":[{"tpl":"hero-4","hvorfor":"max 12 ord"},{"tpl":"ydelse-1","antal":6,"hvorfor":"kunden har 6 ydelser"}${(b.frihed || 'mix') === 'templates' ? '' : ',{"fri":"trust","kort":[{"ikon":"shield-halved","titel":"Fast pris"},{"ikon":"clock","titel":"Hurtig opstart"}],"hvorfor":"tillid lige efter hero"}'}]}]}`;
-}
-function contentPrompt(b, sections, allSections, site, pageIdx, usedBlocks) {
-  const bl = siteBlocks(site, pageIdx); const imgs = siteImages(site, pageIdx);
-  const blocks = bl.map((x, i) => `[${i}] ${x.t}: ${String(x.text).slice(0, 150).replace(/\n/g, ' ')}${x.text.length > 150 ? '…' : ''} (${x.text.length} tegn)`).join('\n');
-  const images = imgs.map((x, i) => `[${i}] ${x.w && x.h ? x.w + 'x' + x.h : '?'} · ${x.role || ''} · alt: ${JSON.stringify((x.alt || '').slice(0, 60))} · ${x.file ? x.file.split('/').pop() : fileOf(x.src)}`).join('\n');
-  const body = sections.map((s, i) => `SEKTION id "${s.uid}" · template ${s.tpl}\n${contentSlotsText(s)}`).join('\n\n');
-  return `Du placerer kundens EKSISTERENDE indhold i en ny Bricks-side. Du skriver ikke selv noget: du peger kun på hvilke af kundens tekstblokke og billeder der skal i hvilke felter. Programmet kopierer teksten ordret.
-
-${briefText(b)}
-
-SIDENS SEKTIONER (rækkefølge): ${allSections.map((s, i) => `${i + 1}. ${s.tpl}`).join(' → ')}
-${usedBlocks && usedBlocks.length ? 'Allerede brugte tekstblokke i andre sektioner (undgå dem): ' + usedBlocks.join(', ') + '\n' : ''}
-KUNDENS TEKSTBLOKKE (nummer, type, tekst):
-${blocks}
-
-KUNDENS BILLEDER (nummer, størrelse, rolle, alt, filnavn):
-${images}
-
-FELTER DER SKAL UDFYLDES:
-${body}
-
-REGLER
-- Placér blokkene i naturlig læserækkefølge: kundens h1 og første afsnit til hero, derefter sektion for sektion. Brug hver tekstblok højst én gang.
-- Overskrifts- og knapfelter får én blok. Et tekstfelt (text) kan få flere blokke, fx [4,5,6] (afsnit/punkter i rækkefølge). Passer en blok ikke i feltet (fx for lang til en overskrift), brug en anden eller lad feltet stå tomt.
-- Lad et felt stå ude af svaret, hvis kundens indhold ikke har noget der passer. Opfind og omskriv ikke.
-- Billeder: vælg billeder der passer til feltet (store og brede til hero/baggrund, ensartede til kort og gallerier). Brug hvert billede højst én gang. Logoer, ikoner og små billeder bruges ikke som motiv.
-
-Svar KUN med JSON:
-{"sektioner":{"s1":{"tekst":{"abc123":4,"def456":[5,6]},"billeder":{"ghi789":2}}}}`;
-}
-function editPrompt(b, state, LIB, USE, request) {
-  const cur = state.sections.map((s, i) => `${i + 1}. ${s.tpl} (${displayName(s.tpl)}, ${categoryOf(s.tpl)}${s.parts > 1 ? `, del ${s.part} af ${s.parts}` : ''})`).join('\n');
-  return `Du redigerer et udkast til en Bricks-side hos Best One efter brugerens ønske. Svar med en liste af operationer, som et program udfører. Du skriver ingen tekster.
-
-${briefText(b)}
-
-NUVÆRENDE SIDE (nummereret):
-${cur}
-
-TEMPLATE-KATALOG:
-${catalog(LIB, USE)}
-
-BRUGERENS ØNSKE:
-${request}
-
-TILLADTE OPERATIONER (index er sektionens nummer i listen ovenfor, startende ved 1):
-{"op":"remove","index":3}
-{"op":"move","index":4,"to":2}
-{"op":"add","tpl":"faq-1","at":5,"hvorfor":"…"}
-{"op":"swap","index":2,"tpl":"ydelse-4","hvorfor":"…"}
-{"op":"count","index":2,"antal":6}                    (ændrer antal gentagne kort/elementer i sektionen; layoutet tilpasses selv)\n{"op":"redesign","index":3,"instruktion":"gør layoutet mere asymmetrisk"}   (kun for sektioner, der hedder "AI · …": AI laver sektionen om efter instruktionen)\n{"op":"add","at":3,"fri":{"fri":"stats","tal":[{"tal":"100","suffix":"+","label":"Tilfredse kunder"}],"stil":"primaer"}}   (ny fri sektion; typer: intro, split, cards, features, steps, stats, trust, quote, gallery)
-{"op":"setting","index":1,"key":"_background","value":{"color":{"raw":"var(--dark)"}}}      (id udeladt = sektionen selv; ellers "id":"abc123")
-
-REGLER
-- Brug kun nøgler fra kataloget (ingen cta-). Foretræk et skift af template frem for indstillinger.
-- "setting" kun hvis ønsket ikke kan løses med templates. Tilladte nøgler: ${[...SETTING_WHITELIST].join(', ')} (evt. med breakpoint-suffix som ":mobile_portrait"). Brug variabler som var(--dark), var(--light), var(--cta), var(--space-m). Ingen egen CSS. Bliver baggrunden mørk, skal tekstfarven i sektionen også ændres.
-- Ændr kun det der er bedt om.
-
-Svar KUN med JSON: {"ops":[…],"svar":"1-2 sætninger på dansk om hvad du gjorde, eller hvorfor du ikke kunne"}`;
-}
-
-/* ---------- templates fra Drive (Bricks' template-eksporter) ---------- */
-// Nøglen er templatens navn i Bricks (= adressen på templatesitet, fx cta-1). Uden navn: filnavnet uden "template-" og dato.
 const tplKeyOf = (d, file) => { const n = String((d && d.name) || '').trim().toLowerCase(); if (/^[a-z0-9-]+$/.test(n)) return n;
   return String(file || '').toLowerCase().replace(/\.json$/, '').replace(/^templates?-/, '').replace(/-?\d{4}-\d{2}-\d{2}$/, '').replace(/[^a-z0-9-]+/g, '-').replace(/^-|-$/g, ''); };
 function libFromExports(files, baseClasses) {
@@ -2040,5 +1292,5 @@ addEventListener('load',function(){post({udkast:'ready'})});})();<\/script>
 </body></html>`;
 }
 
-const API = { renderBricks, bricksDoc, setBricks, libFromExports, keyAlias, clone, esc, stripTags, mapOf, rootsOf, walk, getSlots, applyText, makeSection, applyOps, applyPhone, applyContent, imgSlots, buildExport, validate, renderSections, catalog, buildAiRaw, buildFri, nativize, natRegister, pickArchetypes, pickRegister, archPurpose, AI_ARCH, setStock, stockify, videoify, sortKeys, localPlan, guessBranche, siteInfo, onlineClean, BS_VIDEO, loremify, loremText, fixH1, newestKeys, groupKeys, STOCK_BASE, makeAi, rebuildAi, normAi, pickCreative, aiConceptPrompt, aiSectionPrompt, aiRepairPrompt, themeDoc, AI_DIRECTIONS, looseJson, sanitizeAiCss, secTitle, aiVarNames, fixExtraH1, planPrompt, contentPrompt, inspirationText, makeFri, normFri, cycleFri, groupInfoSec, setFriClasses, FRI_TYPES, FRI_STIL, SECTION_ONLY, pickSubpage, subpageRefs, makeSections, splitParts, mirrorSections, suggestForOutline, outlineText, outlineFromImport, findSite, featsOf, parsePhone, classPrefix, setEnv, editPrompt, removeSubtree, categoryOf, displayName, describeKey, setMeta, getMissing, variantsOf, nextVariant, allowedKeys, catList, sanitizePlan, TYPE_ORDER, WHOLE_PAGE, cleanSettings, resizeGroup, groupSize, groupInfo, getGroups, siteSummary, siteBlocks, siteImages, FORM_ID, PH_URL, plainToHtml, htmlToPlain, unitFix };
+const API = { renderBricks, bricksDoc, setBricks, libFromExports, keyAlias, clone, esc, stripTags, mapOf, rootsOf, walk, makeSection, applyOps, applyPhone, buildExport, validate, renderSections, buildFri, nativize, natRegister, setStock, stockify, videoify, sortKeys, localPlan, guessBranche, onlineClean, BS_VIDEO, loremify, loremText, fixH1, newestKeys, groupKeys, STOCK_BASE, secTitle, makeFri, normFri, groupInfoSec, setFriClasses, FRI_TYPES, FRI_STIL, SECTION_ONLY, makeSections, splitParts, parsePhone, classPrefix, setEnv, removeSubtree, categoryOf, displayName, describeKey, setMeta, variantsOf, nextVariant, allowedKeys, catList, sanitizePlan, TYPE_ORDER, WHOLE_PAGE, cleanSettings, resizeGroup, groupInfo, getGroups, FORM_ID, PH_URL, unitFix };
 if (typeof module !== 'undefined') module.exports = API;

@@ -20,7 +20,7 @@ Preview viser udkastet, som Bricks selv tegner det: HTML'en laves med Bricks' eg
 GitHub kører det automatisk ved hver udgivelse og hver nat, så preview følger jeres opsætning.
 
 ## Mapper
-- `src/` – selve værktøjet (`app.js`, `engine.js`, `github-shim.js`, `index.tpl.html`, `data.json` med klasser/variabler/inspiration, `bricks.json`)
+- `src/` – selve værktøjet (`app.js`, `engine.js`, `index.tpl.html`, `data.json` med klasser/variabler/inspiration, `bricks.json`)
 - `apps-script/` – login og data (templates fra Drive, kunder fra ClickUp)
 - `build.py` – bygger `index.html` (den fil GitHub udgiver; ligger ikke i repoet)
 - `hent-bricks.py` – henter Bricks-opsætningen til preview (`src/bricks.json`)

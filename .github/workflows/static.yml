@@ -23,7 +23,7 @@ jobs:
       - run: python3 build.py
       - run: |
           mkdir _site
-          cp index.html config.js _site/
+          cp index.html _site/
           touch _site/.nojekyll
       - uses: actions/upload-pages-artifact@v3
         with:
