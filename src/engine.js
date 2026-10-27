@@ -33,8 +33,8 @@ function removeSubtree(els, id) {
 }
 
 /* ---------- kategorier / varianter (navne som i skabelon-arket) + meta fra arket ---------- */
-const TYPE_ORDER = ['Header', 'Ydelser', 'Anmeldelser', 'Cases', 'Priser', 'FAQ', 'Content', 'Galleri', 'Kontakt sektion', 'Underside', 'Marketing', 'CTA'];
-const PREFIX_TYPE = { hero: 'Header', ydelse: 'Ydelser', anmeldelse: 'Anmeldelser', cases: 'Cases', priser: 'Priser', faq: 'FAQ', content: 'Content', kontaktsektion: 'Kontakt sektion', kontakformular: 'CTA', underside: 'Underside', geo: 'Marketing', viden: 'Marketing', seo: 'Marketing', blog: 'Marketing', galleri: 'Galleri', medarbejdere: 'Galleri', cta: 'CTA' };
+const TYPE_ORDER = ['Header', 'Ydelser', 'Anmeldelser', 'Cases', 'Priser', 'FAQ', 'Content', 'Galleri', 'Medarbejdere', 'Kontakt sektion', 'Underside', 'Marketing', 'CTA'];
+const PREFIX_TYPE = { hero: 'Header', ydelse: 'Ydelser', anmeldelse: 'Anmeldelser', cases: 'Cases', priser: 'Priser', faq: 'FAQ', content: 'Content', kontaktsektion: 'Kontakt sektion', kontakformular: 'CTA', underside: 'Underside', geo: 'Marketing', viden: 'Marketing', seo: 'Marketing', blog: 'Marketing', galleri: 'Galleri', medarbejdere: 'Medarbejdere', cta: 'CTA' };
 const WHOLE_PAGE = new Set(['Underside', 'Marketing', 'Menu', 'Footer']);                   // hele sider: kun hvis der bedes om det
 const SHEET_ALIAS = { underside: 'underside-1', 'seo-underside': 'seo-blogindlg', 'seo-blogindlaeg': 'seo-blogindlg' };
 let META = {}; let MISSING = []; let CATS = {}, TITLES = {}; let SHEETDATE = {};
@@ -639,7 +639,12 @@ function analyzeSite(html, LIB, CLASSES) {
 }
 // hero med kontaktformular: formularen ligger direkte i templaten eller i en indlejret Bricks-template (kendes fra templatesitet)
 const hasForm = (LIB, k) => !!(LIB[k] && (LIB[k].els || []).some(e => e.name === 'form')) || Object.keys(BX.html || {}).some(x => x.startsWith('form:' + k + ':'));
-const WANT_ORDER = ['Ydelser', 'Anmeldelser', 'Cases', 'Priser', 'Galleri', 'FAQ', 'CTA', 'Kontakt sektion'];
+// tekstafsnit: Content med H2 og et tekstfelt med brødtekst (min. 40 ord) · afsluttende CTA-afsnit: CTA/kontakt med H2 og kort tekst (8–60 ord)
+const CTA_TEXT = 'CTA-afsnit';
+const textStats = k => { let h2 = 0, words = 0, longest = 0; for (const e of (BX_LIB[k] || {}).els || []) { const st = e.settings || {}; if (e.name === 'heading' && (st.tag || 'h3') === 'h2') h2++; if (/^(text|text-basic|rich-text)$/.test(e.name)) { const w = String(st.text || '').replace(/<[^>]+>/g, ' ').split(/\s+/).filter(Boolean).length; words += w; longest = Math.max(longest, w); } } return { h2, words, longest }; };
+const isBodyH2 = k => { if (categoryOf(k) !== 'Content') return false; const t = textStats(k); return t.h2 >= 1 && t.longest >= 40; };   // ét rigtigt tekstfelt, ikke mange små
+const isCtaText = k => { if (isExcluded(k) || !['CTA', 'Kontakt sektion'].includes(categoryOf(k))) return false; const t = textStats(k); return t.h2 >= 1 && t.words >= 8 && t.words <= 60; };
+const WANT_ORDER = ['Ydelser', 'Anmeldelser', 'Cases', 'Priser', 'Galleri', 'Medarbejdere', 'FAQ', 'CTA', 'Kontakt sektion'];
 function localPlan(b, LIB, n, existing, SITES) {
   const keys = allowedKeys(LIB, true), keysAll = allowedKeys(LIB); const want = Array.isArray(b && b.want) ? b.want.filter(c => c && c !== 'Header' && c !== 'Content' && !EXCLUDED_CATS.has(c)) : []; const used = new Set([].concat(...(existing || []))); const msg = String((b && b.msg) || '').toLowerCase(); const type = (b && b.sidetype) || 'Forside'; const has = re => re.test(msg);
   const gb = b && b.branche ? { b: b.branche, via: 'dit valg' } : guessBranche(b && b.navn, b && b.msg, SITES); const team = has(/medarbejder|team|folk/);
@@ -667,15 +672,19 @@ function localPlan(b, LIB, n, existing, SITES) {
       cats = ['Header', ...seq];
     }
     { let sawRev = false; cats = cats.filter(c => c !== 'Anmeldelser' || (!sawRev && (sawRev = true))); }          // kun 1 anmeldelses-sektion pr. udkast
-    if (type !== 'Hero' && type !== 'Menu') {   // basisregel: altid præcis 2 Content-sektioner
-      let nc = 0; cats = cats.filter(c => c !== 'Content' || ++nc <= 2);
-      while (cats.filter(c => c === 'Content').length < 2) { const k = cats.lastIndexOf('Content'); cats.splice(k < 0 ? Math.min(2, Math.max(1, cats.length - 1)) : Math.min(k + 2, Math.max(k + 1, cats.length - 1)), 0, 'Content'); }
+    if (type !== 'Hero' && type !== 'Menu') {   // basisregel: tekstafsnit (H2) = (antal − 1) Content med brødtekst + 1 afsluttende CTA-afsnit. Standard 3 → 2 Content
+      const nH2 = Math.max(2, Math.min(5, parseInt(b && b.h2, 10) || 3)), nC = nH2 - 1;
+      let nc = 0; cats = cats.filter(c => c !== 'Content' || ++nc <= nC);
+      while (cats.filter(c => c === 'Content').length < nC) { const k = cats.lastIndexOf('Content'); cats.splice(k < 0 ? Math.min(2, Math.max(1, cats.length - 1)) : Math.min(k + 2, Math.max(k + 1, cats.length - 1)), 0, 'Content'); }
+      if (cats[cats.length - 1] !== 'Kontakt sektion') cats.push(CTA_TEXT);   // står kontakt sidst, er den det afsluttende afsnit
     }
     const mine = new Set(); const sek = [];
     for (const c of cats) {
-      let pool = (want.includes(c) ? keysAll : keys).filter(k => categoryOf(k) === c);   // en valgt type må gerne være en, der ellers ikke bruges automatisk (fx CTA)
-      if (c === 'Header' && b && typeof b.heroForm === 'boolean') { const f = pool.filter(k => hasForm(LIB, k) === b.heroForm); if (f.length) pool = f; }   // med eller uden kontaktformular if (c === 'Galleri') pool = pool.filter(k => (team ? /^medarbejdere/ : /^galleri/).test(k) || (LIB[k] && LIB[k].group === 'Live sektioner'));
-      if (!pool.length) continue; let fresh = pool.filter(k => !used.has(k) && !mine.has(k)); if (!fresh.length) fresh = pool.filter(k => !mine.has(k)); if (!fresh.length) fresh = pool;
+      let pool = c === CTA_TEXT ? keysAll.filter(isCtaText) : (want.includes(c) ? keysAll : keys).filter(k => categoryOf(k) === c);   // en valgt type må gerne være en, der ellers ikke bruges automatisk (fx CTA)
+      if (c === 'Header' && b && typeof b.heroForm === 'boolean') { const f = pool.filter(k => hasForm(LIB, k) === b.heroForm); if (f.length) pool = f; }   // med eller uden kontaktformular
+      if (c === 'Content') { const f = pool.filter(isBodyH2); if (f.length) pool = f; }   // tekstafsnit: H2 med brødtekst
+      if (c === 'Kontakt sektion' && cats.indexOf(CTA_TEXT) < 0 && cats.lastIndexOf('Kontakt sektion') === cats.length - 1) { const f = pool.filter(isCtaText); if (f.length) pool = f; }   // kontakt sidst er det afsluttende tekstafsnit
+      if (!pool.length) continue; let fresh = pool.filter(k => !used.has(k) && !mine.has(k)); if (!fresh.length) fresh = pool.filter(k => !mine.has(k)); if (!fresh.length) continue;   // aldrig samme template to gange i ét udkast
       const wts = fresh.map(k => { const t = LIB[k] || {}; return t.group === 'Live sektioner' && t.site ? (t.branche && t.branche === gb.b ? 4 : 1.8) : 1; }); const tot = wts.reduce((a, x) => a + x, 0); let r = Math.random() * tot, pick = fresh[0];
       for (let q = 0; q < fresh.length; q++) { r -= wts[q]; if (r <= 0) { pick = fresh[q]; break; } }
       const like = (pref[c] || []).find(k => fresh.includes(k)); if (like) { pick = like; pref[c] = pref[c].filter(k => k !== like); }
@@ -1361,5 +1370,5 @@ addEventListener('load',function(){post({udkast:'ready'})});})();<\/script>
 </body></html>`;
 }
 
-const API = { hasForm, analyzeSite, guessBranche, renderBricks, bricksDoc, setBricks, libFromExports, keyAlias, clone, esc, stripTags, mapOf, rootsOf, walk, makeSection, applyOps, applyPhone, buildExport, validate, renderSections, buildFri, nativize, natRegister, setStock, stockify, videoify, sortKeys, localPlan, guessBranche, onlineClean, BS_VIDEO, loremify, loremText, fixH1, newestKeys, groupKeys, STOCK_BASE, secTitle, makeFri, normFri, groupInfoSec, setFriClasses, FRI_TYPES, FRI_STIL, SECTION_ONLY, makeSections, splitParts, parsePhone, classPrefix, setEnv, removeSubtree, categoryOf, displayName, describeKey, setMeta, variantsOf, nextVariant, allowedKeys, catList, sanitizePlan, TYPE_ORDER, WHOLE_PAGE, cleanSettings, resizeGroup, groupInfo, getGroups, FORM_ID, PH_URL, unitFix };
+const API = { isBodyH2, isCtaText, hasForm, analyzeSite, guessBranche, renderBricks, bricksDoc, setBricks, libFromExports, keyAlias, clone, esc, stripTags, mapOf, rootsOf, walk, makeSection, applyOps, applyPhone, buildExport, validate, renderSections, buildFri, nativize, natRegister, setStock, stockify, videoify, sortKeys, localPlan, guessBranche, onlineClean, BS_VIDEO, loremify, loremText, fixH1, newestKeys, groupKeys, STOCK_BASE, secTitle, makeFri, normFri, groupInfoSec, setFriClasses, FRI_TYPES, FRI_STIL, SECTION_ONLY, makeSections, splitParts, parsePhone, classPrefix, setEnv, removeSubtree, categoryOf, displayName, describeKey, setMeta, variantsOf, nextVariant, allowedKeys, catList, sanitizePlan, TYPE_ORDER, WHOLE_PAGE, cleanSettings, resizeGroup, groupInfo, getGroups, FORM_ID, PH_URL, unitFix };
 if (typeof module !== 'undefined') module.exports = API;
