@@ -556,6 +556,11 @@ html[data-theme=dark] .composer #navn::placeholder{color:#e3e8ee;font-weight:500
 .h2opts label{justify-content:center}
 body.home #briefCard #h2Box{margin-bottom:0}
 .hi b{font-weight:700}
+/* knappen arbejder */
+.btn.send .gspin{display:none;width:17px;height:17px;border-radius:50%;border:2.5px solid rgba(255,255,255,.35);border-top-color:#fff;animation:bootspin .8s linear infinite}
+.btn.send.loading .gspin{display:inline-block}.btn.send.loading .wand{display:none}
+.btn.send.loading,.btn.send.loading:disabled{opacity:1;cursor:progress}
+.btn.send.loading .twk{display:none}
 </style>
 </head>
 <body>
@@ -573,7 +578,7 @@ body.home #briefCard #h2Box{margin-bottom:0}
       <div class="cpick"><input type="text" id="navn" class="bigin" autocomplete="off" placeholder="Vælg din kunde" aria-label="Vælg din kunde" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="custList"><ul id="custList" role="listbox" hidden></ul></div><div id="custInfo" hidden></div>
       <fieldset class="wants heros" id="heroBox"><legend>Header <small>vælg</small></legend><div class="hopts"><label><input type="radio" name="hero" value="form"> Med kontaktformular</label><label><input type="radio" name="hero" value="noform"> Uden kontaktformular</label></div></fieldset><fieldset class="wants" id="h2Box"><legend>Tekstafsnit <small>vælg</small></legend><div class="hopts h2opts"><label><input type="radio" name="h2" value="2"> 2</label><label><input type="radio" name="h2" value="3" checked> 3</label><label><input type="radio" name="h2" value="4"> 4</label><label><input type="radio" name="h2" value="5"> 5</label></div></fieldset><fieldset class="wants" id="wantBox"><legend>Ønsker <small>valgfrit</small></legend><div id="wants"></div></fieldset>
       <div id="sidetype" hidden><input type="radio" name="sidetype" value="Forside" checked><input type="radio" name="sidetype" value="Underside"><input type="radio" name="sidetype" value="Hero"></div>
-      <div class="composer-bar"><button class="btn primary send" id="genBtn" data-lock><span class="fx"></span><span class="lbl"><span class="wand" aria-hidden="true">🪄</span>Generer udkast</span></button></div>
+      <div class="composer-bar"><button class="btn primary send" id="genBtn" data-lock><span class="fx"></span><span class="lbl"><span class="wand" aria-hidden="true">🪄</span><span class="gspin" aria-hidden="true"></span><span class="gtxt">Generer udkast</span></span></button></div>
       <div class="prefixline">Dine classes starter med: <code id="prefixShow">kundens-navn</code> <button class="linkbtn" id="prefixEdit" type="button">ret</button><input type="text" id="prefix" autocomplete="off" placeholder="Fx best-renovering" aria-label="Klasse-præfiks" hidden></div>
       <select id="count" hidden><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option></select>
       <div class="status" id="status" role="status" aria-live="polite"></div>

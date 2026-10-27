@@ -174,9 +174,9 @@ async function loadTemplates(msg) {
     const b = readBrief();
     if (!more) { if (!b.navn) { setStatus('Vælg din kunde først.', 'warn'); return; } if (b.heroForm === null) { $('heroBox').classList.add('need'); setStatus('Vælg header: med eller uden kontaktformular.', 'warn'); return; } state.brief = b; } else b.navn = state.brief.navn;
     const brief = more ? state.brief : b; const n = more ? 1 : +$('count').value;
-    setStatus(''); pushHist();
+    setStatus(''); pushHist(); genBusy(true); const t0 = Date.now();
     try {
-      const existing = (more ? state.proposals : []).map(p => p.sections.map(s => s.tpl)); $('genBtn').disabled = true;
+      const existing = (more ? state.proposals : []).map(p => p.sections.map(s => s.tpl));
       const insp = await inspirationFor(brief, n, more);
       const res = insp ? E.localPlan(Object.assign({}, brief, { branche: insp.gb.b }), LIB, n, existing, insp.sites) : E.localPlan(more && state.guess && !brief.branche ? Object.assign({}, brief, { branche: state.guess.b }) : brief, LIB, n, existing, []);
       if (insp) res.branche = insp.gb; else if (more && state.guess && !brief.branche) res.branche = state.guess; if (res.branche && res.branche.via === 'dit valg' && brief.kunde) res.branche = Object.assign({}, res.branche, { via: 'fra ClickUp' }); if (!more) state.guess = res.branche || null;
@@ -187,7 +187,8 @@ async function loadTemplates(msg) {
       state.active = more ? state.proposals.length - 1 : 0;
       setStatus((made.length > 1 ? `${made.length} udkast klar.` : 'Udkast klar.') + guessNote, 'ok');
     } catch (e) { hist.pop(); setStatus(errCopy(e), 'err'); }
-    $('genBtn').disabled = false; render();
+    await new Promise(r => setTimeout(r, Math.max(0, 450 - (Date.now() - t0))));   // vis cirklen et øjeblik, så man ser, at der sker noget
+    genBusy(false); render();
   }
   function burst(btn, e) {
     const r = btn.getBoundingClientRect(); const x = (e && e.clientX ? e.clientX : r.left + r.width / 2) - r.left, y = (e && e.clientY ? e.clientY : r.top + r.height / 2) - r.top;
@@ -197,7 +198,9 @@ async function loadTemplates(msg) {
       p.style.cssText = `left:${x}px;top:${y}px;--dx:${Math.cos(an) * d}px;--dy:${Math.sin(an) * d}px;--s:${4 + Math.random() * 6}px;background:${cols[i % cols.length]};animation-delay:${Math.random() * 70}ms`; btn.appendChild(p); setTimeout(() => p.remove(), 1000); }
     btn.classList.remove('go'); void btn.offsetWidth; btn.classList.add('go'); setTimeout(() => btn.classList.remove('go'), 1600);
   }
-  $('genBtn').onclick = e => { burst($('genBtn'), e); generate(false); };
+  // knappen viser en drejende cirkel, mens udkastet laves
+  function genBusy(on) { const b = $('genBtn'); b.disabled = on; b.classList.toggle('loading', on); b.querySelector('.gtxt').textContent = on ? 'Genererer udkast…' : 'Generer udkast'; const m = $('moreBtn'); if (m) m.disabled = on; }
+  $('genBtn').onclick = e => { if ($('genBtn').disabled) return; burst($('genBtn'), e); generate(false); };
   // små stjerner fra tryllestaven, mens man holder musen over knappen
   { const btn = $('genBtn'); let tw = null;
     const sparkle = () => { const w = btn.querySelector('.wand'); if (!w || btn.disabled) return; const b = btn.getBoundingClientRect(), r = w.getBoundingClientRect();
