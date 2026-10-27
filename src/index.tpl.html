@@ -528,6 +528,14 @@ html[data-theme=dark] .composer .prefixline{color:#b4c0cc}
 #wants label:has(input:checked){border-color:#3a7cc0;background:#1d2c3b}
 .composer .prefixline{margin:12px 0 0}
 .composer .prefixline .linkbtn,html[data-theme=dark] .composer .prefixline .linkbtn{color:inherit!important;text-decoration:underline;text-underline-offset:2px;background:none;border:0;padding:0 2px}
+/* luft og én linje i tjeklisten */
+.composer .cpick{margin-bottom:6px}
+.wants{margin:14px 0 18px}
+.wants legend{margin-bottom:10px}
+#wants{gap:10px}
+#wants label{font-size:12.5px;white-space:nowrap;padding:11px 12px}
+#wants label{overflow:hidden;text-overflow:ellipsis}
+.composer .prefixline{margin-top:16px}
 </style>
 </head>
 <body>
@@ -543,7 +551,7 @@ html[data-theme=dark] .composer .prefixline{color:#b4c0cc}
     <details class="card composer" id="briefCard" open>
       <summary>Beskrivelse</summary>
       <div class="cpick"><input type="text" id="navn" class="bigin" autocomplete="off" placeholder="Vælg din kunde" aria-label="Vælg din kunde" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="custList"><ul id="custList" role="listbox" hidden></ul></div><div id="custInfo" hidden></div>
-      <fieldset class="wants" id="wantBox"><legend>Hvad skal med? <small>Hero og 2× Content er altid med</small></legend><div id="wants"></div></fieldset>
+      <fieldset class="wants" id="wantBox"><legend>Ønsker</legend><div id="wants"></div></fieldset>
       <div id="sidetype" hidden><input type="radio" name="sidetype" value="Forside" checked><input type="radio" name="sidetype" value="Underside"><input type="radio" name="sidetype" value="Hero"></div>
       <div class="composer-bar"><button class="btn primary send" id="genBtn" data-lock><span class="fx"></span><span class="lbl"><span class="wand" aria-hidden="true">🪄</span>Generer udkast</span></button></div>
       <div class="prefixline">Dine classes starter med: <code id="prefixShow">kundens-navn</code> <button class="linkbtn" id="prefixEdit" type="button">ret</button><input type="text" id="prefix" autocomplete="off" placeholder="Fx best-renovering" aria-label="Klasse-præfiks" hidden></div>
