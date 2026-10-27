@@ -437,7 +437,7 @@ const CTA_TEXT = 'CTA-afsnit';
 const textStats = k => { let h2 = 0, words = 0, longest = 0, buttons = 0; for (const e of (BX_LIB[k] || {}).els || []) { const st = e.settings || {}; if (e.name === 'button') buttons++; if (e.name === 'heading' && (st.tag || 'h3') === 'h2') h2++; if (/^(text|text-basic|rich-text)$/.test(e.name)) { const w = String(st.text || '').replace(/<[^>]+>/g, ' ').split(/\s+/).filter(Boolean).length; words += w; longest = Math.max(longest, w); } } return { h2, words, longest, buttons }; };
 const isBodyH2 = k => { if (categoryOf(k) !== 'Content') return false; const t = textStats(k); return t.h2 >= 1 && t.longest >= 40; };   // ét rigtigt tekstfelt, ikke mange små
 const isCtaText = k => { if (isExcluded(k) || categoryOf(k) !== 'Kontakt sektion' || hasForm(BX_LIB, k)) return false; const t = textStats(k); return t.h2 >= 1 && t.buttons >= 1 && t.words >= 8 && t.words <= 60; };   // CTA-sektion: kontaktsektion uden formular, med H2, kort tekst og knap
-const WANT_ORDER = ['Ydelser', 'Anmeldelser', 'Cases', 'Priser', 'Galleri', 'Medarbejdere', 'FAQ', 'Kontakt sektion'];
+const WANT_ORDER = ['Ydelser', 'Anmeldelser', 'Cases', 'Priser', 'Galleri', 'Medarbejdere', 'FAQ', 'CTA sektion', 'Kontakt sektion'];   // "CTA sektion" = et ekstra CTA-afsnit midt på siden
 function localPlan(b, LIB, n, existing, SITES) {
   const keys = allowedKeys(LIB, true), keysAll = allowedKeys(LIB); const want = Array.isArray(b && b.want) ? b.want.filter(c => c && c !== 'Header' && c !== 'Content' && !EXCLUDED_CATS.has(c)) : []; const used = new Set([].concat(...(existing || []))); const msg = String((b && b.msg) || '').toLowerCase(); const type = (b && b.sidetype) || 'Forside'; const has = re => re.test(msg);
   const gb = b && b.branche ? { b: b.branche, via: 'dit valg' } : guessBranche(b && b.navn, b && b.msg, SITES); const team = has(/medarbejder|team|folk/);
@@ -470,6 +470,7 @@ function localPlan(b, LIB, n, existing, SITES) {
       let nc = 0; cats = cats.filter(c => c !== 'Content' || ++nc <= nC);
       while (cats.filter(c => c === 'Content').length < nC) { const k = cats.lastIndexOf('Content'); cats.splice(k < 0 ? Math.min(2, Math.max(1, cats.length - 1)) : Math.min(k + 2, Math.max(k + 1, cats.length - 1)), 0, 'Content'); }
       { const k = cats.lastIndexOf('Kontakt sektion'); if (k === cats.length - 1) cats.splice(k, 0, CTA_TEXT); else cats.push(CTA_TEXT); }   // CTA-afsnittet til sidst, men før en kontaktsektion med formular
+      { const m = cats.indexOf('CTA sektion'); if (m >= 0) { cats.splice(m, 1); cats.splice(Math.max(2, Math.floor(cats.length / 2)), 0, CTA_TEXT); } }   // valgt "CTA sektion": et ekstra CTA-afsnit midt på siden
     }
     const mine = new Set(); const sek = [];
     for (const c of cats) {

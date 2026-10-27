@@ -25,6 +25,8 @@ Alle templates må gerne ligge i Drive-mappen. Reglerne ligger i værktøjet (`s
 - Altid præcis **1 Header (hero)** øverst. Man vælger "med" eller "uden kontaktformular".
 - **Tekstafsnit** (standard 3, kan vælges 2–5): antal − 1 Content med H2 og brødtekst (min. 40 ord i ét tekstfelt) og til sidst et kort **CTA-afsnit**.
 - **CTA-afsnit** = en kontaktsektion *uden* formular med H2, kort tekst (8–60 ord) og en knap. Værktøjet finder dem selv. "Kontakt sektion" under Ønsker giver en kontaktsektion *med* formular, og den står sidst efter CTA-afsnittet.
+- "CTA sektion" under Ønsker giver et ekstra CTA-afsnit midt på siden (ud over det afsluttende).
+- Heroens **H1 er kundens navn**, både i preview og i JSON'en. "Prøv næste variant" på heroen holder sig til med/uden kontaktformular.
 - Er der ikke flere ledige templates til et tekstafsnit, bruges den bedste anden template med tekst som erstatning, og det står i "Tjek følgende igennem efter paste". Et tekstafsnit mangler aldrig.
 - **Bruges aldrig:** Menu, Footer, Marketing, Underside, Knapper (tidl. CTA), Kontakt side og Kontaktformular (`EXCLUDED_CATS`, `EXCLUDED_RE`).
 - Samme template bruges aldrig to gange i ét udkast.

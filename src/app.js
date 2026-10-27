@@ -155,7 +155,7 @@ async function loadTemplates(msg) {
 
   /* ---------- tjekliste: hvilke typer skal med (alle typer fra templates, undtagen hero og Content, der altid er med) ---------- */
   for (const r of document.querySelectorAll('input[name=hero]')) r.addEventListener('change', () => { $('heroBox').classList.remove('need'); if (/header/i.test($('status').textContent)) setStatus(''); });
-  $('wants').innerHTML = E.catList(LIB).filter(c => c !== 'Header' && c !== 'Content').map(c => `<label><input type="checkbox" value="${E.esc(c)}"> ${E.esc(c)}</label>`).join('');
+  $('wants').innerHTML = [...E.catList(LIB).filter(c => c !== 'Header' && c !== 'Content'), ...(Object.keys(LIB).some(E.isCtaText) ? ['CTA sektion'] : [])].map(c => `<label><input type="checkbox" value="${E.esc(c)}"> ${E.esc(c)}</label>`).join('');   // CTA sektion: kontaktsektioner uden formular
 
   /* ---------- kundens navn → klasse-præfiks og telefon ---------- */
   let prefixTouched = false;
@@ -277,7 +277,9 @@ async function loadTemplates(msg) {
     pendingAnim = { i: a === 'up' ? i - 1 : a === 'down' ? i + 1 : i, a };
     if (a === 'copy') { copySection(s, b); return; }
     if (a === 'inc' || a === 'dec') { const n = (E.groupInfoSec(s) || { n: 0 }).n + (a === 'inc' ? 1 : -1); pushHist(); const r = E.resizeGroup(s, n, CLASSES); if (r.ok) s.warns = r.warn; else setStatus(r.msg, 'warn'); render(); return; }
-    if (a === 'variant') { const used = p.sections.map(x => x.tpl); const nx = E.nextVariant(LIB, s.tpl, used); if (nx) swapTo(i, nx); return; }
+    if (a === 'variant') { const used = p.sections.map(x => x.tpl); const hf = (state.brief || {}).heroForm; let nx = E.nextVariant(LIB, s.tpl, used);
+      if (E.categoryOf(s.tpl) === 'Header' && typeof hf === 'boolean') for (let g = 0; nx && g < 40 && E.hasForm(LIB, nx) !== hf; g++) nx = E.nextVariant(LIB, nx, used);   // heroen bliver med/uden kontaktformular, som valgt
+      if (nx && nx !== s.tpl) swapTo(i, nx); return; }
     if (a === 'pick') { openPicker({ mode: 'swap', index: i, cat: E.categoryOf(s.tpl) }); return; }
     pushHist();
     E.applyOps(p, [a === 'up' ? { op: 'move', index: i, to: i - 1 } : a === 'down' ? { op: 'move', index: i, to: i + 1 } : { op: 'remove', index: i }], LIB, tlf(), CLASSES); render();
@@ -364,6 +366,12 @@ async function loadTemplates(msg) {
   }
   $('copyBtn').onclick = () => { if (exp) copyJson(); };
   const CHECK_SVG = '<svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
+  // heroens H1 er kundens navn (H1 i heroen, ellers heroens første overskrift)
+  function nameH1(p) {
+    const navn = String((state.brief || {}).navn || '').trim(); const hero = p && p.sections.find(s => E.categoryOf(s.tpl) === 'Header'); if (!navn || !hero) return;
+    const hs = hero.els.filter(e => e.name === 'heading'); const h = hs.find(e => (e.settings || {}).tag === 'h1') || hs[0]; if (!h) return;
+    h.settings = Object.assign({}, h.settings, { text: navn });
+  }
   async function copySection(s, btn) {
     const ex = E.buildExport(Object.assign({}, cur(), { sections: [s] }), CLASSES, { prefix: readBrief().prefix, h1: 'hero' }); const text = JSON.stringify(ex.json); let ok = false;
     try { await navigator.clipboard.writeText(text); ok = true; } catch (_) { try { const ta = document.createElement('textarea'); ta.value = text; ta.style.cssText = 'position:fixed;opacity:0'; document.body.appendChild(ta); ta.select(); ok = document.execCommand('copy'); ta.remove(); } catch (_) { } }
@@ -395,7 +403,7 @@ async function loadTemplates(msg) {
     if (!has) { exp = null; $('valWrap').hidden = true; $('tabs').innerHTML = ''; $('size').textContent = ''; return; }
     $('tabs').innerHTML = state.proposals.map((x, i) => `<button class="tab" data-tab="${i}" aria-pressed="${i === state.active}" aria-label="Udkast ${i + 1}">Udkast ${i + 1}</button>`).join('');
     if (state.proposals.length < MAX_PROPOSALS) $('tabs').insertAdjacentHTML('beforeend', `<button class="tab more" id="moreBtn" data-lock>+ Et udkast mere (${state.proposals.length}/${MAX_PROPOSALS})</button>`);
-    exp = E.buildExport(p, CLASSES, { prefix: readBrief().prefix }); const val = E.validate(exp); const fails = val.filter(v => !v.pass);
+    nameH1(p); exp = E.buildExport(p, CLASSES, { prefix: readBrief().prefix }); const val = E.validate(exp); const fails = val.filter(v => !v.pass);
     const pageLike = !E.SECTION_ONLY[(state.brief || {}).sidetype]; const h1n = exp.json.content.filter(e => e.name === 'heading' && (e.settings || {}).tag === 'h1').length; const h1bad = pageLike && h1n !== 1; const h1msg = h1n === 0 ? 'Siden har ingen H1. Der bør være præcis én (typisk hero-overskriften).' : `Siden har ${h1n} H1-overskrifter. Der bør kun være én.`;
     $('valWrap').hidden = !fails.length; const vb = $('valBadge'); vb.dataset.ok = fails.length ? 'no' : 'yes'; vb.textContent = (fails.length ? `⚠ ${fails.length} tjek fejler` : `✓ Klar til Bricks · ${val.length}/${val.length} tjek`) + (h1bad ? ' · ⚠ H1' : '');
     $('valList').innerHTML = val.map(v => `<li data-p="${v.pass}"><span>${v.pass ? '✓' : '✗'}</span> ${E.esc(v.name)}${v.pass ? '' : ' – ' + E.esc(v.detail)}</li>`).join('') + (pageLike ? `<li data-p="${!h1bad}"><span>${h1bad ? '⚠' : '✓'}</span> Præcis én H1 (SEO)${h1bad ? ' – ' + E.esc(h1msg) : ''}</li>` : '');
