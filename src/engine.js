@@ -53,7 +53,7 @@ function categoryOf(key) { if (String(key).startsWith('ai-')) return 'AI sektion
 function displayName(key) { if (String(key).startsWith('ai-')) return 'AI sektion'; if (String(key).startsWith('fri-')) return 'Ny · ' + ((FRI_TYPES[key.slice(4)] || {}).name || key); if (META[key]) return META[key].name; if (TITLES[key] && !/^[a-z]+-\d+$/.test(key)) return TITLES[key]; const m = key.match(/^([a-zæøå]+)-(\d+)/i); return m ? m[1].charAt(0).toUpperCase() + m[1].slice(1) + ' #' + m[2] : key; }
 let DESCS = {};
 const describeKey = key => (META[key] && META[key].desc) || DESCS[key] || '';
-const EXCLUDED_CATS = new Set(['Marketing']);                                  // GEO, blog og viden bruges ikke her
+const EXCLUDED_CATS = new Set(['Menu', 'Footer', 'Marketing', 'Underside']);   // basisregel: bruges ALDRIG (hverken i udkast eller i "Tilføj sektion")
 const EXCLUDED_KEYS = new Set(['seo-blogindlg', 'seo-blogindlaeg', 'blog-underside', 'geo-underside', 'viden-geo']);
 const allowedKeys = (LIB, auto) => Object.keys(LIB).filter(k => !EXCLUDED_CATS.has(categoryOf(k)) && !EXCLUDED_KEYS.has(k) && (!auto || categoryOf(k) !== 'CTA')).sort((a, b) => a.localeCompare(b, 'da', { numeric: true }));
 const variantsOf = (LIB, cat) => allowedKeys(LIB).filter(k => categoryOf(k) === cat);
@@ -593,7 +593,7 @@ const re_test = (kw, b, text) => { const x = kw.find(k => k[0] === b); return !!
    Hver sektion i sidens <main> sammenlignes med alle templates: først på templatens egne klasser (overlever ofte på siden, evt. med kundens præfiks),
    ellers på opbygningen (hvor mange overskrifter, billeder, kort, formular, accordion osv.). Resultatet behøver ikke være 1:1 – det er det nærmeste bud. */
 const FP_STRONG = new Set(['form', 'accordion', 'accordion-nested', 'slider', 'slider-nested', 'carousel', 'counter', 'rating', 'map', 'video', 'tabs', 'tabs-nested', 'pricing-tables']);
-const FP_SKIP_CATS = new Set(['Menu', 'Footer', 'Underside', 'CTA']);
+const FP_SKIP_CATS = new Set(['Menu', 'Footer', 'Underside', 'Marketing', 'CTA']);
 function fpOf(root) {
   const v = {}; let rep = 0;
   for (const el of [root, ...root.querySelectorAll('*')]) {
@@ -655,6 +655,10 @@ function localPlan(b, LIB, n, existing, SITES) {
     }
     if (type !== 'Hero' && type !== 'Menu') { cats = cats.filter(c => c !== 'Header'); cats.unshift('Header'); }          // altid præcis 1 hero, og den er først
     { let sawRev = false; cats = cats.filter(c => c !== 'Anmeldelser' || (!sawRev && (sawRev = true))); }          // kun 1 anmeldelses-sektion pr. udkast
+    if (type !== 'Hero' && type !== 'Menu') {   // basisregel: altid præcis 2 Content-sektioner
+      let nc = 0; cats = cats.filter(c => c !== 'Content' || ++nc <= 2);
+      while (cats.filter(c => c === 'Content').length < 2) { const k = cats.lastIndexOf('Content'); cats.splice(k < 0 ? Math.min(2, Math.max(1, cats.length - 1)) : Math.min(k + 2, Math.max(k + 1, cats.length - 1)), 0, 'Content'); }
+    }
     const mine = new Set(); const sek = [];
     for (const c of cats) {
       let pool = keys.filter(k => categoryOf(k) === c); if (c === 'Galleri') pool = pool.filter(k => (team ? /^medarbejdere/ : /^galleri/).test(k) || (LIB[k] && LIB[k].group === 'Live sektioner'));

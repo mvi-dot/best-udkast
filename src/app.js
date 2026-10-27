@@ -108,7 +108,6 @@ async function loadTemplates(msg) {
 
   /* ---------- brief ---------- */
   function readBrief() { return { navn: $('navn').value.trim(), branche: (selCust && selCust.branche) || '', kunde: selCust ? { id: selCust.id, name: selCust.name, website: selCust.website } : null, msg: $('msg').value.trim(), sidetype: (document.querySelector('input[name=sidetype]:checked') || {}).value || 'Forside', prefix: $('prefix').value.trim().toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/^-+|-+$/g, '') }; }
-  if (Object.keys(LIB).some(k => E.categoryOf(k) === 'Menu')) $('sidetype').insertAdjacentHTML('beforeend', '<label><input type="radio" name="sidetype" value="Menu"> Menu</label>');
 
   /* ---------- kunde fra ClickUp (Opstarter: to-do, afventer, i gang, på ugen – med HOS/HOS+/RE/RE+) ----------
      Uden ClickUp (lokalt, eller hvis det fejler) skriver man bare kundens navn. */
