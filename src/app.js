@@ -266,8 +266,8 @@ async function loadTemplates(msg) {
   };
 
   /* ---------- fortryd ---------- */
-  document.addEventListener('keydown', e => { if ((e.metaKey || e.ctrlKey) && !e.shiftKey && e.key.toLowerCase() === 'z' && !/^(INPUT|TEXTAREA|SELECT)$/.test((document.activeElement || {}).tagName || '') && hist.length) { e.preventDefault(); $('undoBtn').click(); } });
-  $('undoBtn').onclick = () => { if (!hist.length) return; state = JSON.parse(hist.pop()); setStatus('Fortrudt.', 'ok'); render(); };
+  const undo = () => { if (!hist.length) return; state = JSON.parse(hist.pop()); setStatus('Fortrudt.', 'ok'); render(); };
+  document.addEventListener('keydown', e => { if ((e.metaKey || e.ctrlKey) && !e.shiftKey && e.key.toLowerCase() === 'z' && !/^(INPUT|TEXTAREA|SELECT)$/.test((document.activeElement || {}).tagName || '') && hist.length) { e.preventDefault(); undo(); } });   // Cmd/Ctrl + Z fortryder
 
   /* ---------- sektionsliste: rækkefølge, variant, vælg, fjern ---------- */
   function swapTo(index, tpl) {
@@ -277,7 +277,8 @@ async function loadTemplates(msg) {
   $('list').addEventListener('click', ev => {
     const b = ev.target.closest('button[data-a]');
     if (!b) { const li = ev.target.closest('li[data-uid]'); if (li) { if (selUid === li.dataset.uid) { selUid = null; render(); return; } selUid = li.dataset.uid; render(); if (!pvFrame.hidden) { if (pvFrame.contentWindow) pvFrame.contentWindow.postMessage({ udkast: 'where', uid: li.dataset.uid }, '*'); } else { const el = root.querySelector(`[data-sec="${li.dataset.uid}"]`); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' }); } } return; }
-    const i = +b.dataset.i, a = b.dataset.a, p = cur(), s = p.sections[i - 1];
+    let i = +b.dataset.i; const a = b.dataset.a, p = cur(); let s = p.sections[i - 1];
+    if ((a === 'variant' || a === 'pick') && s.part > 1) { let j = i - 1; while (j > 0 && !(p.sections[j - 1].tpl === s.tpl && p.sections[j - 1].part === 1)) j--; if (j > 0) { i = j; s = p.sections[j - 1]; } }   // del 2 af en template: skift hele templaten
     pendingAnim = { i, a };
     if (a === 'copy') { copySection(s, b); return; }
     if (a === 'inc' || a === 'dec') { const n = (E.groupInfoSec(s) || { n: 0 }).n + (a === 'inc' ? 1 : -1); pushHist(); const r = E.resizeGroup(s, n, CLASSES); if (r.ok) s.warns = r.warn; else setStatus(r.msg, 'warn'); render(); return; }
@@ -398,12 +399,13 @@ async function loadTemplates(msg) {
     const scale = Math.min(1, avail / w); frame.style.cssText = `width:${w}px;transform:scale(${scale});transform-origin:top left;container-type:inline-size;background:var(--bg-body,#fff);`;
     outer.style.width = Math.round(w * scale) + 'px'; outer.style.height = Math.round(frame.offsetHeight * scale) + 'px';
   }
-  new ResizeObserver(() => { if (cur()) fit(); }).observe($('canvas'));
+  { const ro = new ResizeObserver(() => { if (cur()) fit(); }); ro.observe($('canvas')); ro.observe(document.documentElement); }
+  addEventListener('resize', () => { if (cur()) requestAnimationFrame(fit); });   // preview zoomer ud, så den altid passer i pladsen
 
   function render() {
     const p = cur(); const has = !!p; document.body.classList.toggle('home', !has);
     $('empty').hidden = has; $('pvOuter').hidden = !has; $('listCard').hidden = !has; $('tabs').hidden = !has; $('tabrow').hidden = !has; $('chromeUrl').textContent = ((state.brief || {}).navn || 'Udkast') + ' · ' + ((state.brief || {}).sidetype || 'Forside');
-    $('undoBtn').disabled = !hist.length; $('copyBtn').disabled = !has;
+    $('copyBtn').disabled = !has;
     if (has !== lastHas) { $('briefCard').open = true; lastHas = has; } $('briefCard').hidden = has; renderBriefSum();
     if (!has) { exp = null; $('valWrap').hidden = true; $('tabs').innerHTML = ''; $('size').textContent = ''; return; }
     $('tabs').innerHTML = `<span class="tab name" aria-pressed="true">Udkast til ${E.esc((state.brief || {}).navn || 'kunden')}</span><button class="tab more" id="moreBtn" type="button" data-lock title="Laver et nyt udkast med samme kunde og valg. Fortryd giver det forrige tilbage"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11a8 8 0 0 0-14.3-4.6L4 8.5M4 4v4.5h4.5M4 13a8 8 0 0 0 14.3 4.6L20 15.5M20 20v-4.5h-4.5"/></svg>Generer nyt udkast på samme indstillinger</button>`;
@@ -413,7 +415,7 @@ async function loadTemplates(msg) {
     $('valList').innerHTML = val.map(v => `<li data-p="${v.pass}"><span>${v.pass ? '✓' : '✗'}</span> ${E.esc(v.name)}${v.pass ? '' : ' – ' + E.esc(v.detail)}</li>`).join('') + (pageLike ? `<li data-p="${!h1bad}"><span>${h1bad ? '⚠' : '✓'}</span> Præcis én H1 (SEO)${h1bad ? ' – ' + E.esc(h1msg) : ''}</li>` : '');
     const prevUids = lastUids; lastUids = new Set(p.sections.map(s => s.uid));
     $('list').innerHTML = p.sections.map((s, i) => `<li draggable="true" data-i="${i + 1}" data-uid="${s.uid}" class="${s.uid === selUid ? 'sel ' : ''}${s.part > 1 ? 'cont ' : ''}${prevUids.has(s.uid) ? '' : 'new'}"><span class="grip" aria-hidden="true">⠿</span><span class="n">${i + 1}</span><div class="t"><b>${(t => { const m = t.match(/^(.*?)\s*(#\s*\d+.*)$/); return m ? `${E.esc(m[1])} <span class="num">${E.esc(m[2])}</span>` : E.esc(t); })(E.secTitle(s))}${s.parts > 1 ? ` <em class="part" title="${E.esc(E.displayName(s.tpl))} består af ${s.parts} sektioner i Bricks. De kan flyttes eller fjernes hver for sig.">sektion ${s.part} af ${s.parts}</em>` : ''}</b>${/^Erstatning/.test(s.why || '') ? `<small class="secwarn" title="${E.esc(s.why.replace(/^Erstatning: /, ''))}">⚠ Erstatning – der manglede en ledig template til tekstafsnittet</small>` : ''}${s.part > 1 || E.categoryOf(s.tpl) === 'Header' ? '' : E.hasForm(LIB, s.tpl) ? '<small class="secwarn">⚠ Tjek formular-ID efter paste</small>' : ''}${(() => { const gi = E.groupInfoSec(s); return gi && gi.adjustable ? `<span class="cnt" title="Antal ${gi.label} i sektionen. Layoutet tilpasser sig selv"><button data-a="dec" data-i="${i + 1}" data-lock aria-label="Et færre">−</button><b>${gi.n}</b><button data-a="inc" data-i="${i + 1}" data-lock aria-label="Et mere">+</button><em>${gi.label}</em></span>` : ''; })()}</div><div class="ac">
-      <button data-a="variant" data-i="${i + 1}" data-lock ${s.part > 1 ? 'disabled' : ''} aria-label="Prøv en anden variant" title="${s.part > 1 ? 'Er en del af ' + E.esc(E.displayName(s.tpl)) + '. Skift på del 1.' : 'Prøv næste variant (fx en anden hero)'}"><svg viewBox="0 0 24 24"><path d="M20 11a8 8 0 0 0-14.3-4.6L4 8.5M4 4v4.5h4.5M4 13a8 8 0 0 0 14.3 4.6L20 15.5M20 20v-4.5h-4.5"/></svg></button><button data-a="pick" data-i="${i + 1}" data-lock ${s.part > 1 ? 'disabled' : ''} aria-label="Vælg variant" title="${s.part > 1 ? 'Er en del af ' + E.esc(E.displayName(s.tpl)) + '. Skift på del 1.' : 'Vælg variant med billeder'}"><svg viewBox="0 0 24 24"><rect x="4" y="4" width="7" height="7" rx="1.8"/><rect x="13" y="4" width="7" height="7" rx="1.8"/><rect x="4" y="13" width="7" height="7" rx="1.8"/><rect x="13" y="13" width="7" height="7" rx="1.8"/></svg></button><button data-a="copy" data-i="${i + 1}" aria-label="Kopiér sektionens JSON" title="Kopiér denne sektions JSON"><svg viewBox="0 0 24 24"><rect x="8.5" y="8.5" width="11" height="11" rx="2.2"/><path d="M15.5 8.5V6.7a2.2 2.2 0 0 0-2.2-2.2H6.7a2.2 2.2 0 0 0-2.2 2.2v6.6a2.2 2.2 0 0 0 2.2 2.2h1.8"/></svg></button><span class="gap"></span><button data-a="del" data-i="${i + 1}" data-lock aria-label="Fjern" title="Fjern sektion"${delArm === s.uid ? ' class="arm"' : ''}>${delArm === s.uid ? '<span class="blbl">Er du sikker?</span>' : ''}<svg viewBox="0 0 24 24"><path d="M4.5 7h15M9.5 7V4.5h5V7M6.5 7l.8 12.2a1.5 1.5 0 0 0 1.5 1.3h6.4a1.5 1.5 0 0 0 1.5-1.3L17.5 7M10 11v6M14 11v6"/></svg></button></div></li>`).join('');
+      <button data-a="variant" data-i="${i + 1}" data-lock aria-label="Prøv en anden variant" title="${s.part > 1 ? 'Prøv næste variant af hele ' + E.esc(E.displayName(s.tpl)) : 'Prøv næste variant (fx en anden hero)'}"><svg viewBox="0 0 24 24"><path d="M20 11a8 8 0 0 0-14.3-4.6L4 8.5M4 4v4.5h4.5M4 13a8 8 0 0 0 14.3 4.6L20 15.5M20 20v-4.5h-4.5"/></svg></button><button data-a="pick" data-i="${i + 1}" data-lock aria-label="Vælg variant" title="${s.part > 1 ? 'Vælg en anden variant af hele ' + E.esc(E.displayName(s.tpl)) : 'Vælg variant med billeder'}"><svg viewBox="0 0 24 24"><rect x="4" y="4" width="7" height="7" rx="1.8"/><rect x="13" y="4" width="7" height="7" rx="1.8"/><rect x="4" y="13" width="7" height="7" rx="1.8"/><rect x="13" y="13" width="7" height="7" rx="1.8"/></svg></button><button data-a="copy" data-i="${i + 1}" aria-label="Kopiér sektionens JSON" title="Kopiér denne sektions JSON"><svg viewBox="0 0 24 24"><rect x="8.5" y="8.5" width="11" height="11" rx="2.2"/><path d="M15.5 8.5V6.7a2.2 2.2 0 0 0-2.2-2.2H6.7a2.2 2.2 0 0 0-2.2 2.2v6.6a2.2 2.2 0 0 0 2.2 2.2h1.8"/></svg></button><span class="gap"></span><button data-a="del" data-i="${i + 1}" data-lock aria-label="Fjern" title="Fjern sektion"${delArm === s.uid ? ' class="arm"' : ''}>${delArm === s.uid ? '<span class="blbl">Er du sikker?</span>' : ''}<svg viewBox="0 0 24 24"><path d="M4.5 7h15M9.5 7V4.5h5V7M6.5 7l.8 12.2a1.5 1.5 0 0 0 1.5 1.3h6.4a1.5 1.5 0 0 0 1.5-1.3L17.5 7M10 11v6M14 11v6"/></svg></button></div></li>`).join('');
     if (pendingAnim) { const pa = pendingAnim; pendingAnim = null; const li = $('list').querySelector(`li[data-i="${pa.i}"]`); if (li) { if (pa.a === 'up' || pa.a === 'down') li.classList.add('moved'); const bt = li.querySelector(`button[data-a="${pa.a}"]`); if (bt && (pa.a === 'variant' || pa.a === 'pick')) bt.classList.add('spin'); } }
     $('planNote').textContent = ''; $('planNote').hidden = true;
     if (BRICKS_OK) showFrame(p); else { useFrame(false);
@@ -423,18 +425,6 @@ async function loadTemplates(msg) {
     
   }
 
-  /* ---------- træk i bredden på venstre side (som i Bricks) ---------- */
-  (function () {
-    const app = document.querySelector('.app'), rz = $('resizer'); const MIN = 300, MAX = 780;
-    const apply = w => { w = Math.max(MIN, Math.min(MAX, Math.min(w, window.innerWidth - 480))); app.style.setProperty('--side-w', w + 'px'); return w; };
-    try { const v = parseInt(localStorage.getItem('bo-side-w'), 10); if (v) apply(v); } catch (_) { }
-    let w0 = 0; const save = w => { try { localStorage.setItem('bo-side-w', String(Math.round(w))); } catch (_) { } };
-    const move = e => { const left = app.getBoundingClientRect().left + parseFloat(getComputedStyle(app).paddingLeft || 0); w0 = apply(e.clientX - left - 7); };
-    const end = () => { window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', end); window.removeEventListener('pointercancel', end); rz.classList.remove('drag'); document.body.classList.remove('resizing'); if (w0) save(w0); };
-    rz.addEventListener('pointerdown', e => { e.preventDefault(); rz.classList.add('drag'); document.body.classList.add('resizing'); window.addEventListener('pointermove', move); window.addEventListener('pointerup', end); window.addEventListener('pointercancel', end); });
-    rz.addEventListener('dblclick', () => { app.style.removeProperty('--side-w'); try { localStorage.removeItem('bo-side-w'); } catch (_) { } });
-    rz.addEventListener('keydown', e => { if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return; e.preventDefault(); const cur = parseFloat(getComputedStyle(app).getPropertyValue('--side-w')) || 420; const w = apply(cur + (e.key === 'ArrowRight' ? 20 : -20)); save(w); });
-  })();
 
   render();
 })();

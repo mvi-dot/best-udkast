@@ -32,7 +32,7 @@ Alle templates må gerne ligge i Drive-mappen. Reglerne ligger i værktøjet (`s
 - Samme template bruges aldrig to gange i ét udkast.
 - Ekstra sektioner med formular (ikke heroen) får "⚠ Tjek formular-ID efter paste", og erstatninger får "⚠ Erstatning" i listen.
 - Tomme sektioner i en template (bruges til interne noter) kommer aldrig med i udkastet.
-- Der er ét udkast ad gangen. "Generer nyt udkast på samme indstillinger" erstatter det, og Fortryd giver det forrige tilbage.
+- Der er ét udkast ad gangen. "Generer nyt udkast på samme indstillinger" erstatter det, og Cmd/Ctrl + Z giver det forrige tilbage.
 
 ## Inspiration fra HOS-sider
 Med ClickUp sat op (se apps-script/LAES-MIG.md) henter værktøjet kunderne med HOS, HOS+, RE eller RE+ (åbne opgaver i Kunder-listen). Når der laves et udkast, kigger det på forsiden af nogle af dem i samme branche og finder, hvilke templates sektionerne ligner. Det sker på templatens egne klasser, eller ellers på opbygningen (overskrifter, billeder, kort, formular osv.). Udkastet bruger så sidens rækkefølge og de templates, der ligner bedst. Det behøver ikke være 1:1. Resultatet gemmes i browseren i 7 dage. Uden ClickUp bruges standardopbygningen.

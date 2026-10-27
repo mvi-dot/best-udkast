@@ -574,6 +574,11 @@ svg.ic{width:16px;height:16px;flex:none;fill:none;stroke:currentColor;stroke-wid
 #list .ac button[data-a=del].arm svg{display:none}#list .ac button[data-a=del].arm .blbl{white-space:nowrap}
 /* "Er du sikker?" på Start forfra: neutral, ikke hvid/rød */
 #resetBtn.warn,html[data-theme=dark] #resetBtn.warn{background:#2c3540!important;border-color:#5d6b7a!important;color:#eef2f6!important}
+/* sektionsknapper: ingen drejende animation */
+#list .ac button[data-a=variant] svg,#list .ac button[data-a=pick] svg{transform:none!important;animation:none!important;transition:none!important}
+/* sidebaren tilpasser sig indholdet (så smal som muligt uden ombrydning) */
+@media (min-width:981px){body:not(.home) .app{grid-template-columns:fit-content(480px) minmax(0,1fr);gap:16px}body:not(.home) .app>.side{width:max-content;min-width:300px;max-width:480px}}
+#canvas{min-width:0;overflow:hidden}#pvOuter{max-width:100%}
 </style>
 </head>
 <body>
@@ -601,13 +606,12 @@ svg.ic{width:16px;height:16px;flex:none;fill:none;stroke:currentColor;stroke-wid
       <h2>Sektioner</h2>
       <p class="hint" id="planNote" hidden></p>
       <ol id="list"></ol>
-      <div class="btns" style="margin-top:10px"><button class="btn" id="addBtn" data-lock>+ Tilføj sektion</button><button class="btn" id="undoBtn" disabled>Fortryd</button></div>
+      <div class="btns" style="margin-top:10px"><button class="btn" id="addBtn" data-lock style="width:100%">+ Tilføj sektion</button></div>
     </section>
 
 
 
   </aside>
-  <div id="resizer" role="separator" aria-orientation="vertical" aria-label="Træk for at ændre bredden på venstre side" tabindex="0" title="Træk for at ændre bredden (dobbeltklik nulstiller)"></div>
 
   <section class="stage">
     <div class="tabrow" id="tabrow" hidden>
