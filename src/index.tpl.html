@@ -378,14 +378,14 @@ html[data-theme=dark] .ctx{background:#181d23!important;border-color:#36404b!imp
 /* ===== v9: animation, mindre felter, fyldte designforslag ===== */
 @keyframes rise{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
 @keyframes slideIn{from{opacity:0;transform:translateX(-10px)}to{opacity:1;transform:none}}
-@keyframes hint{0%,100%{box-shadow:0 0 0 0 rgba(58,124,192,0);border-color:#d8d4c6}50%{box-shadow:0 0 0 5px rgba(58,124,192,.15);border-color:rgba(58,124,192,.75)}}
-@keyframes phpulse{0%,100%{opacity:1}50%{opacity:.4}}
+
+
 body.home .hello .bmark{animation:rise .6s .05s cubic-bezier(.2,.8,.2,1) both}
 body.home .hello .hi{animation:rise .6s .13s cubic-bezier(.2,.8,.2,1) both}
 body.home .hello .hi-sub{animation:rise .6s .21s cubic-bezier(.2,.8,.2,1) both}
 body.home .composer{animation:rise .6s .3s cubic-bezier(.2,.8,.2,1) both}
-.bigin:placeholder-shown:not(:focus),.ctx:placeholder-shown:not(:focus){animation:hint 2.6s ease-in-out infinite}
-.bigin:placeholder-shown:not(:focus)::placeholder{animation:phpulse 1.3s ease-in-out infinite}
+
+
 #list li{animation:slideIn .38s cubic-bezier(.2,.8,.2,1) both}
 #list li:nth-child(2){animation-delay:.04s}#list li:nth-child(3){animation-delay:.08s}#list li:nth-child(4){animation-delay:.12s}#list li:nth-child(5){animation-delay:.16s}#list li:nth-child(n+6){animation-delay:.2s}
 #pvOuter{animation:rise .5s cubic-bezier(.2,.8,.2,1) both}.tab{animation:rise .35s both}
@@ -504,6 +504,9 @@ html[data-theme=dark] .tab[aria-pressed=true]{background:#225581;border-color:#2
 #custInfo .crow{display:flex;flex-wrap:wrap;gap:4px 14px}
 #custInfo details{margin-top:6px}#custInfo summary{cursor:pointer;color:var(--ink)}
 #custInfo pre{white-space:pre-wrap;font:12.5px/1.5 Montserrat,sans-serif;margin:6px 0 0;max-height:220px;overflow:auto}
+.cpick::after{content:"";position:absolute;right:18px;top:calc(50% - 4px);width:9px;height:9px;border-right:2px solid var(--muted);border-bottom:2px solid var(--muted);transform:translateY(-50%) rotate(45deg);pointer-events:none;transition:transform .2s}
+.cpick:has(#navn[aria-expanded=true])::after{transform:translateY(-15%) rotate(225deg)}
+.cpick #navn{padding-right:44px!important;padding-left:44px!important;cursor:pointer}
 </style>
 </head>
 <body>
