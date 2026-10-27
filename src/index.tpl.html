@@ -492,6 +492,18 @@ html[data-theme=dark] .tab[aria-pressed=true]{background:#225581;border-color:#2
 .btn.send .lbl::after{content:"🪄"}
 .btn.send:hover:not(:disabled) .lbl::after{transform:rotate(-12deg) scale(1.1)}
 .btn.send.go .lbl::after{content:"🪄";animation:none}
+/* kundevalg fra ClickUp */
+.cpick{position:relative}
+#custList{position:absolute;left:0;right:0;top:calc(100% - 6px);z-index:50;margin:0;padding:6px;list-style:none;max-height:340px;overflow:auto;background:var(--panel);border:1px solid var(--line);border-radius:10px;box-shadow:0 14px 40px rgba(0,0,0,.45);text-align:left}
+#custList li{padding:9px 12px;border-radius:7px;cursor:pointer;display:flex;flex-direction:column;gap:1px}
+#custList li b{font-weight:600;color:var(--ink)}#custList li small{color:var(--muted);font-size:12.5px}
+#custList li[aria-selected=true],#custList li:hover{background:var(--soft)}
+#custList .cempty{color:var(--muted);cursor:default}#custList .cempty:hover{background:none}
+#custInfo{margin:-2px 0 12px;padding:10px 14px;border:1px solid var(--line);border-radius:10px;background:var(--soft);font-size:13px;color:var(--muted);text-align:left}
+#custInfo b{color:var(--ink);font-weight:600}#custInfo a{color:#9cc3e6}
+#custInfo .crow{display:flex;flex-wrap:wrap;gap:4px 14px}
+#custInfo details{margin-top:6px}#custInfo summary{cursor:pointer;color:var(--ink)}
+#custInfo pre{white-space:pre-wrap;font:12.5px/1.5 Montserrat,sans-serif;margin:6px 0 0;max-height:220px;overflow:auto}
 </style>
 </head>
 <body>
@@ -506,7 +518,7 @@ html[data-theme=dark] .tab[aria-pressed=true]{background:#225581;border-color:#2
     <section class="card bsum" id="briefSum" hidden aria-label="Beskrivelse"></section>
     <details class="card composer" id="briefCard" open>
       <summary>Beskrivelse</summary>
-      <input type="text" id="navn" class="bigin" autocomplete="off" placeholder="Kundens navn, fx Best Renovering ApS" aria-label="Kundens navn">
+      <div class="cpick"><input type="text" id="navn" class="bigin" autocomplete="off" placeholder="Vælg din kunde" aria-label="Vælg din kunde" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="custList"><ul id="custList" role="listbox" hidden></ul></div><div id="custInfo" hidden></div>
       <textarea id="msg" class="ctx" rows="2" placeholder="Ønsker du noget bestemt til udkastet ud fra Best Templates? (valgfrit)"></textarea>
       <div class="prefixline">Klasserne starter med <code id="prefixShow">kundens-navn</code> <button class="linkbtn" id="prefixEdit" type="button">ret</button><input type="text" id="prefix" autocomplete="off" placeholder="Fx best-renovering" aria-label="Klasse-præfiks" hidden></div>
       <div id="sidetype" hidden><input type="radio" name="sidetype" value="Forside" checked><input type="radio" name="sidetype" value="Underside"><input type="radio" name="sidetype" value="Hero"></div>

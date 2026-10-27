@@ -105,8 +105,38 @@ async function loadTemplates(msg) {
   const tlf = () => '';                                   // telefonnummer er droppet: templates beholder deres pladsholder
 
   /* ---------- brief ---------- */
-  function readBrief() { return { navn: $('navn').value.trim(), branche: ($('branche') && $('branche').value) || '', msg: $('msg').value.trim(), sidetype: (document.querySelector('input[name=sidetype]:checked') || {}).value || 'Forside', prefix: $('prefix').value.trim().toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/^-+|-+$/g, '') }; }
+  function readBrief() { return { navn: $('navn').value.trim(), branche: (selCust && selCust.branche) || '', kunde: selCust ? { id: selCust.id, name: selCust.name, website: selCust.website } : null, msg: $('msg').value.trim(), sidetype: (document.querySelector('input[name=sidetype]:checked') || {}).value || 'Forside', prefix: $('prefix').value.trim().toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/^-+|-+$/g, '') }; }
   if (Object.keys(LIB).some(k => E.categoryOf(k) === 'Menu')) $('sidetype').insertAdjacentHTML('beforeend', '<label><input type="radio" name="sidetype" value="Menu"> Menu</label>');
+
+  /* ---------- kunde fra ClickUp (Opstarter: to-do, afventer, i gang, på ugen – med HOS/HOS+/RE/RE+) ----------
+     Uden ClickUp (lokalt, eller hvis det fejler) skriver man bare kundens navn. */
+  let CUST = null, selCust = null, custHi = -1;
+  const custP = (IN_GAS ? gas('customers') : fetch('.claude/dev-customers.json', { cache: 'no-store' }).then(r => r.ok ? r.json() : null)).then(l => (CUST = Array.isArray(l) && l.length ? l : null)).catch(() => null);   // lokal test: .claude/dev-customers.json (ligger ikke i repoet)
+  custP.then(l => { if (!l) { $('navn').placeholder = 'Kundens navn, fx Best Renovering ApS'; $('navn').setAttribute('aria-label', 'Kundens navn'); } else if (document.activeElement === $('navn')) renderCust(); });
+  const custHits = () => { const q = $('navn').value.trim().toLowerCase(); if (!CUST) return []; return (q && !(selCust && selCust.name.toLowerCase() === q) ? CUST.filter(c => (c.name + ' ' + (c.branche || '') + ' ' + (c.website || '')).toLowerCase().includes(q)) : CUST).slice(0, 80); };
+  function renderCust() {
+    const ul = $('custList'); const open = !!CUST && document.activeElement === $('navn'); ul.hidden = !open; $('navn').setAttribute('aria-expanded', String(open)); if (!open) return;
+    const hits = custHits(); if (custHi >= hits.length) custHi = hits.length - 1;
+    ul.innerHTML = hits.length ? hits.map((c, i) => `<li role="option" data-id="${E.esc(c.id)}" aria-selected="${i === custHi}"><b>${E.esc(c.name)}</b><small>${E.esc(c.status || '')}${c.branche ? ' · ' + E.esc(c.branche) : ''}</small></li>`).join('') : '<li class="cempty">Ingen kunder i Opstarter matcher. Skriv bare navnet.</li>';
+    const a = ul.querySelector('[aria-selected=true]'); if (a) a.scrollIntoView({ block: 'nearest' });
+  }
+  const hostOfUrl = u => { try { return new URL(/^https?:/i.test(u) ? u : 'https://' + u).hostname.replace(/^www\./, ''); } catch (_) { return u; } };
+  function renderCustInfo() {
+    const el = $('custInfo'), c = selCust; el.hidden = !c; if (!c) { el.innerHTML = ''; return; }
+    const notes = [c.note, c.description].filter(Boolean).join('\n\n').trim();
+    el.innerHTML = `<div class="crow"><span><b>${E.esc(c.status || '')}</b></span><span>Branche: <b>${E.esc(c.branche || 'ikke angivet')}</b></span>${c.website ? `<span><a href="${E.esc(/^https?:/i.test(c.website) ? c.website : 'https://' + c.website)}" target="_blank" rel="noopener">${E.esc(hostOfUrl(c.website))}</a></span>` : ''}${c.seller ? `<span>Sælger: ${E.esc(c.seller)}</span>` : ''}${c.url ? `<span><a href="${E.esc(c.url)}" target="_blank" rel="noopener">Åbn i ClickUp</a></span>` : ''}</div>${notes ? `<details><summary>Noter fra ClickUp</summary><pre>${E.esc(notes)}</pre></details>` : ''}`;
+  }
+  function pickCust(c) { selCust = c; custHi = -1; $('navn').value = c.name; $('navn').dispatchEvent(new Event('input')); $('custList').hidden = true; $('navn').setAttribute('aria-expanded', 'false'); renderCustInfo(); }
+  $('navn').addEventListener('input', () => { if (selCust && $('navn').value.trim() !== selCust.name) { selCust = null; renderCustInfo(); } custHi = -1; renderCust(); });
+  $('navn').addEventListener('focus', renderCust);
+  $('navn').addEventListener('blur', () => setTimeout(() => { $('custList').hidden = true; $('navn').setAttribute('aria-expanded', 'false'); }, 120));
+  $('custList').addEventListener('mousedown', e => { const li = e.target.closest('li[data-id]'); if (!li) return; e.preventDefault(); const c = (CUST || []).find(x => x.id === li.dataset.id); if (c) pickCust(c); });
+  $('navn').addEventListener('keydown', e => {
+    const open = !$('custList').hidden, hits = open ? custHits() : [];
+    if (open && (e.key === 'ArrowDown' || e.key === 'ArrowUp') && hits.length) { e.preventDefault(); custHi = (custHi + (e.key === 'ArrowDown' ? 1 : hits.length - 1)) % hits.length; renderCust(); return; }
+    if (e.key === 'Escape' && open) { $('custList').hidden = true; return; }
+    if (e.key === 'Enter' && !e.isComposing && !e.shiftKey) { e.preventDefault(); if (open && custHi >= 0 && hits[custHi]) { pickCust(hits[custHi]); return; } $('genBtn').click(); }
+  });
 
   /* ---------- kundens navn → klasse-præfiks og telefon ---------- */
   let prefixTouched = false;
@@ -127,8 +157,8 @@ async function loadTemplates(msg) {
       const existing = (more ? state.proposals : []).map(p => p.sections.map(s => s.tpl)); $('genBtn').disabled = true;
       const insp = await inspirationFor(brief, n, more);
       const res = insp ? E.localPlan(Object.assign({}, brief, { branche: insp.gb.b }), LIB, n, existing, insp.sites) : E.localPlan(more && state.guess && !brief.branche ? Object.assign({}, brief, { branche: state.guess.b }) : brief, LIB, n, existing, SITES);
-      if (insp) res.branche = insp.gb; else if (more && state.guess && !brief.branche) res.branche = state.guess; if (!more) state.guess = res.branche || null;
-      const guessNote = res.branche && res.branche.b ? (res.branche.via === 'dit valg' ? ` Branche: ${res.branche.b}.` : ` Branche gættet: ${res.branche.b}${res.branche.via === 'tilfældigt' ? ' (tilfældigt – vælg Branche ved Designforslag, hvis du vil styre det)' : ''}.`) : '';
+      if (insp) res.branche = insp.gb; else if (more && state.guess && !brief.branche) res.branche = state.guess; if (res.branche && res.branche.via === 'dit valg' && brief.kunde) res.branche = Object.assign({}, res.branche, { via: 'fra ClickUp' }); if (!more) state.guess = res.branche || null;
+      const guessNote = res.branche && res.branche.b ? (res.branche.via === 'dit valg' || res.branche.via === 'fra ClickUp' ? ` Branche: ${res.branche.b} (${res.branche.via}).` : ` Branche gættet: ${res.branche.b}${res.branche.via === 'tilfældigt' ? ' (tilfældigt – vælg Branche ved Designforslag, hvis du vil styre det)' : ''}.`) : '';
       const made = (res.forslag || []).slice(0, n).map((f, i) => ({ id: 'p' + Date.now() + i + 'x', name: f.navn || ('Udkast ' + (state.proposals.length + i + 1)), note: f.note || '', sections: planToSections(f) })).filter(p => p.sections.length);
       if (!made.length) throw new Error('Kunne ikke sætte et udkast sammen af templates.');
       if (!more) state.proposals = made; else state.proposals.push(...made);
@@ -146,12 +176,11 @@ async function loadTemplates(msg) {
     btn.classList.remove('go'); void btn.offsetWidth; btn.classList.add('go'); setTimeout(() => btn.classList.remove('go'), 1600);
   }
   $('genBtn').onclick = e => { burst($('genBtn'), e); generate(false); };
-  $('navn').addEventListener('keydown', e => { if (e.key === 'Enter' && !e.isComposing && !e.shiftKey) { e.preventDefault(); $('genBtn').click(); } });
 
 
 
   /* ---------- beskrivelse (resumé når der er et udkast) ---------- */
-  const VIA = { 'navnet': 'gættet ud fra navnet', 'konteksten': 'gættet ud fra dine ønsker', 'navnet (ligner et kendt site)': 'gættet: navnet ligner et kendt site', 'tilfældigt': 'gættet tilfældigt', 'dit valg': 'dit valg' };
+  const VIA = { 'navnet': 'gættet ud fra navnet', 'konteksten': 'gættet ud fra dine ønsker', 'navnet (ligner et kendt site)': 'gættet: navnet ligner et kendt site', 'tilfældigt': 'gættet tilfældigt', 'dit valg': 'dit valg', 'fra ClickUp': 'fra ClickUp' };
   function renderBriefSum() {
     const el = $('briefSum'); const b = state.brief || {}; const has = !!cur(); el.hidden = !has; if (!has) return;
     const g = state.guess; const side = b.sidetype && b.sidetype !== 'Forside' ? b.sidetype : 'Forside'; const antal = state.proposals.length;
@@ -182,8 +211,9 @@ async function loadTemplates(msg) {
   const shuffle = a => { a = a.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
   async function inspirationFor(brief, n, more) {
     const list = await inspP; if (!list) return null;
-    const gb = brief.branche ? { b: brief.branche, via: 'dit valg' } : more && state.guess ? state.guess : E.guessBranche(brief.navn, brief.msg, list);
-    const same = shuffle(list.filter(x => x.b === gb.b)).slice(0, n + 2); if (!same.length) return { gb, sites: [] };
+    const gb = brief.branche ? { b: brief.branche, via: brief.kunde ? 'fra ClickUp' : 'dit valg' } : more && state.guess ? state.guess : E.guessBranche(brief.navn, brief.msg, list);
+    const own = brief.kunde && brief.kunde.website ? hostOfUrl(brief.kunde.website) : '';
+    const same = shuffle(list.filter(x => x.b === gb.b && (!own || hostOfUrl(x.u) !== own))).slice(0, n + 2); if (!same.length) return { gb, sites: [] };
     setStatus(`Kigger på ${same.length} HOS-${same.length === 1 ? 'side' : 'sider'} i branchen ${gb.b}…`);
     const ms = await Promise.all(same.map(siteMatch));
     return { gb, sites: same.map((x, i) => ms[i] && ms[i].length >= 3 ? Object.assign({}, x, { m: ms[i], c: ms[i].map(y => y.c) }) : null).filter(Boolean) };
@@ -194,7 +224,7 @@ async function loadTemplates(msg) {
   let resetT = null;
   function doReset() {
     state = { brief: {}, proposals: [], active: 0, guess: null }; hist = []; selUid = null; exp = null; lastHas = false; prefixTouched = false;
-    for (const id of ['navn', 'prefix', 'msg']) $(id).value = ''; $('count').value = '1'; if ($('branche')) $('branche').value = ''; syncCount(); const f = document.querySelector('input[name=sidetype][value=Forside]'); if (f) f.checked = true;
+    selCust = null; renderCustInfo(); for (const id of ['navn', 'prefix', 'msg']) $(id).value = ''; $('count').value = '1'; if ($('branche')) $('branche').value = ''; syncCount(); const f = document.querySelector('input[name=sidetype][value=Forside]'); if (f) f.checked = true;
     $('briefCard').open = true;
     syncPrefix(); $('prefix').hidden = true; setStatus('Startet forfra.', 'ok'); window.scrollTo({ top: 0 }); render();
   }

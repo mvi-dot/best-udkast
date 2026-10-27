@@ -4,7 +4,7 @@
 
    Data:
    - Templates:  Drive-mappen "Best Templates" (Bricks-eksporter, .json)
-   - Kunder:     ClickUp → Produktionen → Opstarter (kun hovedopgaver)
+   - Kunder:     ClickUp → Produktionen → Opstarter: hovedopgaver i to-do, afventer, i gang eller på ugen, med HOS, HOS+, RE eller RE+
    - Inspiration: ClickUp → Produktionen → Kunder med HOS, HOS+, RE eller RE+ i "Produkter" (kun hovedopgaver)
    - HOS-sidernes opbygning: henter forsiden af et inspirationssite (kun dem fra listen ovenfor), så værktøjet kan se, hvilke templates den ligner
 
@@ -18,6 +18,7 @@ const CFG = {
   TEMPLATE_FOLDER: '1sANGowevyCg9iJqpqipx_MdTFwI5VLJ9',
   CLICKUP: {
     OPSTARTER: '900800029466',
+    OPSTARTER_STATUS: ['to-do', 'afventer', 'i gang', 'på ugen'],   // kun kunder i disse statusser kan vælges ("på ugen 🔥" tæller med)
     KUNDER: '900800029468',
     F_PRODUKTER: 'a98fb65b-50a1-4dad-a5e1-b36bbd6615ce',
     HOS: ['f2f35750-7945-47e9-9586-03360e061572', 'dc76a526-a1e3-4915-b3a1-81d22ca8e1bc', 'c71b80c5-7558-45af-bd9b-43d6eb27996f', '505b8c0a-a3ed-4a11-a88f-eb8b488612d5'],   // HOS, HOS+, RE, RE+ (ikke H0S)
@@ -98,17 +99,21 @@ function dropdownName_(f) {
   const o = opts.find(x => x.id === f.value || x.orderindex === f.value || String(x.orderindex) === String(f.value));
   return o ? (o.name || o.label || '') : '';
 }
+const hasHos_ = t => { const p = field_(t, CFG.CLICKUP.F_PRODUKTER); return !!(p && Array.isArray(p.value) && p.value.some(v => CFG.CLICKUP.HOS.indexOf(v && v.id ? v.id : v) >= 0)); };
+const statusName_ = t => String((t.status && t.status.status) || '').toLowerCase().replace(/[^a-zæøå -]/g, '').trim();   // "på ugen 🔥" -> "på ugen"
 const textOf_ = f => (f && f.value !== undefined && f.value !== null) ? String(f.value) : '';
 function customer_(t) {
   const C = CFG.CLICKUP; const s = field_(t, C.F_SAELGER);
   return { id: t.id, name: t.name, url: t.url, status: t.status && t.status.status, website: textOf_(field_(t, C.F_HJEMMESIDE)), branche: dropdownName_(field_(t, C.F_BRANCHE)),
     postnummer: textOf_(field_(t, C.F_POSTNUMMER)), seller: s && Array.isArray(s.value) && s.value[0] ? (s.value[0].username || s.value[0].email || '') : '',
-    note: textOf_(field_(t, C.F_DESCRIPTION)), description: String(t.text_content || t.description || '').slice(0, 4000), updated: +t.date_updated || 0 };
+    note: textOf_(field_(t, C.F_DESCRIPTION)), description: String(t.text_content || t.description || '').slice(0, 1500), updated: +t.date_updated || 0 };
 }
 // Kunder der skal laves udkast til
 function customers() {
   const cache = CacheService.getScriptCache(); const hit = cache.get('customers'); if (hit) return JSON.parse(hit);
-  const out = listTasks_(CFG.CLICKUP.OPSTARTER).map(customer_).sort((a, b) => b.updated - a.updated);
+  const C = CFG.CLICKUP; const filter = JSON.stringify([{ field_id: C.F_PRODUKTER, operator: 'ANY', value: C.HOS }]);
+  const out = listTasks_(C.OPSTARTER, { custom_fields: filter }).filter(t => C.OPSTARTER_STATUS.indexOf(statusName_(t)) >= 0).filter(hasHos_)
+    .map(customer_).sort((a, b) => a.name.localeCompare(b.name, 'da'));
   try { cache.put('customers', JSON.stringify(out), 120); } catch (e) { }
   return out;
 }
@@ -118,7 +123,7 @@ function inspiration() {
   const C = CFG.CLICKUP; const filter = JSON.stringify([{ field_id: C.F_PRODUKTER, operator: 'ANY', value: C.HOS }]);
   const out = listTasks_(C.KUNDER, { custom_fields: filter })   // kun åbne opgaver: "nedlukket" og "afsluttet" er ikke online
     .filter(t => !(t.status && /^(done|closed)$/.test(t.status.type)))   // "nedlukket" (done) og "afsluttet" (closed) er ikke online
-    .filter(t => { const p = field_(t, C.F_PRODUKTER); return p && Array.isArray(p.value) && p.value.some(v => C.HOS.indexOf(v) >= 0); })
+    .filter(hasHos_)
     .map(t => ({ name: t.name, website: textOf_(field_(t, C.F_HJEMMESIDE)), branche: dropdownName_(field_(t, C.F_BRANCHE)) })).filter(x => x.website);
   try { cache.put('inspiration', JSON.stringify(out), 3600); } catch (e) { }
   return out;
