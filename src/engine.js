@@ -55,7 +55,7 @@ function displayName(key) { if (String(key).startsWith('ai-')) return 'AI sektio
 let DESCS = {};
 const describeKey = key => (META[key] && META[key].desc) || DESCS[key] || '';
 const EXCLUDED_CATS = new Set(['Marketing']);                                  // GEO, blog og viden bruges ikke her
-const EXCLUDED_KEYS = new Set(['seo-blogindlg', 'blog-underside', 'geo-underside', 'viden-geo']);
+const EXCLUDED_KEYS = new Set(['seo-blogindlg', 'seo-blogindlaeg', 'blog-underside', 'geo-underside', 'viden-geo']);
 const allowedKeys = (LIB, auto) => Object.keys(LIB).filter(k => !EXCLUDED_CATS.has(categoryOf(k)) && !EXCLUDED_KEYS.has(k) && (!auto || categoryOf(k) !== 'CTA')).sort((a, b) => a.localeCompare(b, 'da', { numeric: true }));
 const variantsOf = (LIB, cat) => allowedKeys(LIB).filter(k => categoryOf(k) === cat);
 function catList(LIB) { const have = new Set(allowedKeys(LIB).map(categoryOf)); return TYPE_ORDER.filter(c => have.has(c)).concat([...have].filter(c => !TYPE_ORDER.includes(c)).sort()); }
@@ -1835,6 +1835,36 @@ REGLER
 Svar KUN med JSON: {"ops":[…],"svar":"1-2 sætninger på dansk om hvad du gjorde, eller hvorfor du ikke kunne"}`;
 }
 
+/* ---------- templates fra Drive (Bricks' template-eksporter) ---------- */
+// Nøglen er templatens navn i Bricks (= adressen på templatesitet, fx cta-1). Uden navn: filnavnet uden "template-" og dato.
+const tplKeyOf = (d, file) => { const n = String((d && d.name) || '').trim().toLowerCase(); if (/^[a-z0-9-]+$/.test(n)) return n;
+  return String(file || '').toLowerCase().replace(/\.json$/, '').replace(/^templates?-/, '').replace(/-?\d{4}-\d{2}-\d{2}$/, '').replace(/[^a-z0-9-]+/g, '-').replace(/^-|-$/g, ''); };
+function libFromExports(files, baseClasses) {
+  const LIB = {}, CLASSES = Object.assign({}, baseClasses || {}), SHEET = [], bad = [];
+  for (const f of files || []) {
+    let d; try { d = typeof f.text === 'string' ? JSON.parse(f.text) : f.json; } catch (_) { bad.push(f.name + ' (ugyldig JSON)'); continue; }
+    if (!d || typeof d !== 'object') { bad.push(f.name); continue; }
+    const type = d.templateType || d.type || 'content';
+    const els = [d[type], d.content, d.header, d.footer].find(x => Array.isArray(x) && x.length);   // eksport (content/header/footer) eller kopieret JSON (content)
+    if (!els) { bad.push(f.name + ' (ingen elementer)'); continue; }
+    const key = tplKeyOf(d, f.name); if (!key) { bad.push(f.name + ' (intet navn)'); continue; }
+    const cat = type === 'header' ? 'Menu' : type === 'footer' ? 'Footer' : (PREFIX_TYPE[prefixOf(key)] ? null : (Array.isArray(d.bundles) && d.bundles[0] ? String(d.bundles[0]).charAt(0).toUpperCase() + String(d.bundles[0]).slice(1) : null));
+    const date = String(d.date || '').slice(0, 10);
+    const prev = LIB[key]; if (prev && (prev.modified || 0) > (f.modified || 0)) continue;   // samme template to gange: nyeste fil vinder
+    LIB[key] = Object.assign({ kind: type, title: d.title || key, els, added: date, page: d.permalink || '', thumb: d.thumbnail || '', modified: f.modified || 0, file: f.name }, cat ? { cat } : {});
+    for (const c of d.global_classes || d.globalClasses || []) if (c && c.id && c.name) CLASSES[c.id] = c;
+    const m = date.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    SHEET.push({ n: d.title || key, t: cat || categoryOf(key), d: m ? `${m[3]}-${m[2]}-${m[1]}` : '', s: key, u: d.permalink || '', b: '' });
+  }
+  return { LIB, CLASSES, SHEET, bad };
+}
+// Gamle nøgler (fx cta-1-double-text) peger på de nye (cta-1) – bruges til statistik og inspirationsdata fra før
+function keyAlias(oldKeys, LIB) {
+  const norm = x => String(x).replace(/ae|oe|aa|[^a-z0-9]/g, ''); const keys = Object.keys(LIB); const out = {};
+  for (const o of oldKeys) { if (LIB[o]) { out[o] = o; continue; } const k = keys.find(k => o.startsWith(k + '-') && !keys.includes(o)) || keys.find(k => norm(k) === norm(o)); if (k) out[o] = k; }
+  return out;
+}
+
 /* ---------- preview v3: Bricks' egen markup, tegnet med jeres rigtige CSS (src/bricks.json fra hent-bricks.py) ----------
    HTML'en laves som Bricks selv gør (brxe-klasser, #brxe-id, samme tags) og vises i en iframe med stocksitets CSS og JS.
    Element-CSS: Bricks' egen (hentet fra templatesitet), når elementets styling er uændret – ellers genereres den. */
@@ -1844,12 +1874,13 @@ function setBricks(b, LIB) { if (b) { BX = b; BX_PAGES = new Set(b.pages || []);
 const BX_BP = () => Object.entries(BX.bp || {}).sort((a, b) => b[1] - a[1]);          // [['tablet_portrait',1470], …] – kun jeres aktive breakpoints
 // Indstillinger der kun ændrer indhold (HTML) og ikke CSS – de må gerne være ændret, uden at Bricks' CSS bliver forkert
 const BX_CONTENT = new Set(['text', 'content', 'title', 'subtitle', 'link', 'url', 'image', 'items', 'icon', 'iconPosition', 'tag', 'customTag', 'label', 'altText', 'logo', 'logoInverse', 'logoText', 'logoUrl', 'fields', 'countTo', 'countFrom', 'prefix', 'suffix', 'rating', 'accordions', 'icons', 'youTubeId', 'vimeoId', 'videoType', 'submitButtonText', 'placeholder', 'caption', 'description', 'meta', 'code', 'javascriptCode', 'cssCode', 'shortcode', 'template', 'menu', '_attributes', '_interactions']);
+const bxHid = e => String(((e && e.settings) || {})._cssId || '').trim() || 'brxe-' + (e && e.id);   // elementets HTML-id i Bricks
 const bxOrig = (sec, e) => { const L = sec && BX_LIB[sec.tpl]; if (!L) return null; const id = e._src || e.id; return L.els.find(x => x.id === id && x.name === e.name) || null; };
 const bxUrls = (o, out) => { if (typeof o === 'string') { if (/^https?:\/\//.test(o)) out.push(o); } else if (o && typeof o === 'object') for (const k in o) bxUrls(o[k], out); return out; };
 // Bricks' egen CSS for elementet (med udskiftede billed-URL'er), eller null hvis stylingen er ændret / ikke hentet
 function bxHarvestCss(sec, e, hid) {
   const o = bxOrig(sec, e); if (!o || !BX_PAGES.has(sec.tpl)) return null;
-  const a = o.settings || {}, b = e.settings || {}; let out = BX.elements[sec.tpl + ':' + o.id] || '';
+  const a = o.settings || {}, b = e.settings || {}; let out = BX.elements[sec.tpl + ':' + bxHid(o)] || '';
   for (const k of new Set([...Object.keys(a), ...Object.keys(b)])) {
     if (BX_CONTENT.has(k.split(':')[0])) continue;
     if (JSON.stringify(a[k]) === JSON.stringify(b[k])) continue;
@@ -1943,7 +1974,7 @@ function renderBricks(sections, CLASSES, ropts) {
           if (!s.executeCode) return s.code ? `<div ${A(` data-script-id="${e.id}"`)}><pre id="${esc(hid)}" class="brxe-code">${esc(s.code)}</pre></div>` : `<div ${A()}></div>`;
           return `<div ${A()}>${String(s.code || '') + (s.cssCode ? `<style>${s.cssCode}</style>` : '') + (s.javascriptCode ? `<script>${s.javascriptCode}<\/script>` : '')}</div>`;
         case 'form': {
-          const hv = BX.html['form:' + sec.tpl + ':' + ((bxOrig(sec, e) || {}).id)]; if (hv) { css += hv.css || ''; return hv.html.replace('%SEL%', hid); }
+          const hv = BX.html['form:' + sec.tpl + ':' + bxHid(bxOrig(sec, e) || e)]; if (hv) { css += hv.css || ''; return hv.html.replace('%SEL%', hid); }
           const f = (Array.isArray(s.fields) ? s.fields : []).filter(x => !x.isHoneypot).map(x => { const ph = esc((x.placeholder || x.label || '') + (x.required ? ' *' : ''));
             const opts = String(x.options || '').split('\n').map(o => o.trim()).filter(Boolean);
             const inp = x.type === 'textarea' ? `<textarea placeholder="${ph}"></textarea>` : x.type === 'select' ? `<select><option value="" class="placeholder">${ph}</option>${opts.map(o => `<option>${esc(o)}</option>`).join('')}</select>`
@@ -1953,7 +1984,7 @@ function renderBricks(sections, CLASSES, ropts) {
             return `<div class="form-group${x.type === 'file' ? ' file' : ''}" role="group"${x.width ? ` style="width:${esc(x.width)}"` : ''}>${inp}</div>`; }).join('');
           return `<form ${A(' method="post"')}>${f}<div class="form-group submit-button-wrapper"><button type="submit" class="bricks-button bricks-background-primary ${esc(s.submitButtonSize || 'md')}"><span class="text">${esc(s.submitButtonText || 'Send')}</span></button></div></form>`; }
         case 'template': case 'nav-menu': case 'shortcode': case 'post-toc': case 'post-meta': case 'post-title': case 'post-content': case 'post-excerpt': case 'post-taxonomy': case 'post-author': case 'posts': case 'related-posts': case 'breadcrumbs': case 'pagination': case 'search': case 'sidebar': case 'wordpress': {   // bygges af WordPress: Bricks' færdige HTML fra templatesitet
-          const o = bxOrig(sec, e) || e; const hv = BX.html[n + ':' + sec.tpl + ':' + o.id] || BX.html[n === 'template' ? 'template:' + s.template : 'menu:' + s.menu];
+          const o = bxOrig(sec, e) || e; const hv = BX.html[n + ':' + sec.tpl + ':' + bxHid(o)] || BX.html[n === 'template' ? 'template:' + s.template : 'menu:' + s.menu];
           if (hv) { css += hv.css || ''; return hv.html.replace('%SEL%', hid); }
           return n === 'template' ? `<div ${A()}><div style="padding:24px;border:2px dashed #9aa6b2;text-align:center;font:13px system-ui;color:#5b6773">Bricks-template ${esc(s.template || '')}</div></div>` : `<div ${A()}></div>`; }
         case 'slider-nested': cls.push('splide'); return `<div ${A(` data-script-id="${e.id}" data-splide="${esc(JSON.stringify(bxSplide(s)))}"`)}><div class="splide__track"><div class="splide__list">${kids()}</div></div></div>`;
@@ -2009,5 +2040,5 @@ addEventListener('load',function(){post({udkast:'ready'})});})();<\/script>
 </body></html>`;
 }
 
-const API = { renderBricks, bricksDoc, setBricks, clone, esc, stripTags, mapOf, rootsOf, walk, getSlots, applyText, makeSection, applyOps, applyPhone, applyContent, imgSlots, buildExport, validate, renderSections, catalog, buildAiRaw, buildFri, nativize, natRegister, pickArchetypes, pickRegister, archPurpose, AI_ARCH, setStock, stockify, videoify, sortKeys, localPlan, guessBranche, siteInfo, onlineClean, BS_VIDEO, loremify, loremText, fixH1, newestKeys, groupKeys, STOCK_BASE, makeAi, rebuildAi, normAi, pickCreative, aiConceptPrompt, aiSectionPrompt, aiRepairPrompt, themeDoc, AI_DIRECTIONS, looseJson, sanitizeAiCss, secTitle, aiVarNames, fixExtraH1, planPrompt, contentPrompt, inspirationText, makeFri, normFri, cycleFri, groupInfoSec, setFriClasses, FRI_TYPES, FRI_STIL, SECTION_ONLY, pickSubpage, subpageRefs, makeSections, splitParts, mirrorSections, suggestForOutline, outlineText, outlineFromImport, findSite, featsOf, parsePhone, classPrefix, setEnv, editPrompt, removeSubtree, categoryOf, displayName, describeKey, setMeta, getMissing, variantsOf, nextVariant, allowedKeys, catList, sanitizePlan, TYPE_ORDER, WHOLE_PAGE, cleanSettings, resizeGroup, groupSize, groupInfo, getGroups, siteSummary, siteBlocks, siteImages, FORM_ID, PH_URL, plainToHtml, htmlToPlain, unitFix };
+const API = { renderBricks, bricksDoc, setBricks, libFromExports, keyAlias, clone, esc, stripTags, mapOf, rootsOf, walk, getSlots, applyText, makeSection, applyOps, applyPhone, applyContent, imgSlots, buildExport, validate, renderSections, catalog, buildAiRaw, buildFri, nativize, natRegister, pickArchetypes, pickRegister, archPurpose, AI_ARCH, setStock, stockify, videoify, sortKeys, localPlan, guessBranche, siteInfo, onlineClean, BS_VIDEO, loremify, loremText, fixH1, newestKeys, groupKeys, STOCK_BASE, makeAi, rebuildAi, normAi, pickCreative, aiConceptPrompt, aiSectionPrompt, aiRepairPrompt, themeDoc, AI_DIRECTIONS, looseJson, sanitizeAiCss, secTitle, aiVarNames, fixExtraH1, planPrompt, contentPrompt, inspirationText, makeFri, normFri, cycleFri, groupInfoSec, setFriClasses, FRI_TYPES, FRI_STIL, SECTION_ONLY, pickSubpage, subpageRefs, makeSections, splitParts, mirrorSections, suggestForOutline, outlineText, outlineFromImport, findSite, featsOf, parsePhone, classPrefix, setEnv, editPrompt, removeSubtree, categoryOf, displayName, describeKey, setMeta, getMissing, variantsOf, nextVariant, allowedKeys, catList, sanitizePlan, TYPE_ORDER, WHOLE_PAGE, cleanSettings, resizeGroup, groupSize, groupInfo, getGroups, siteSummary, siteBlocks, siteImages, FORM_ID, PH_URL, plainToHtml, htmlToPlain, unitFix };
 if (typeof module !== 'undefined') module.exports = API;

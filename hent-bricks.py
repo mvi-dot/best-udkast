@@ -5,17 +5,16 @@
    - theme:     variabler + theme styles fra stocksitet (inline CSS uden element-regler)
    - bp:        breakpoints (nøgle -> max-width)
    - classes:   CSS for globale klasser, præcis som Bricks har lavet den (stocksitet vinder over templatesitet)
-   - elements:  CSS for hvert template-element, nøglet 'template:element-id' (bruges når elementets styling er uændret)
+   - elements:  CSS for hvert template-element, nøglet 'template:html-id' (bruges når elementets styling er uændret)
+   Templatesne findes via templatesitets sitemap – scriptet er ikke afhængigt af, hvor templatesne ellers ligger (Drive).
    - html:      færdig HTML for elementer Bricks bygger ud fra databasen (menuer, templates, shortcodes)
    - bricksData: opsætning til Bricks' JavaScript (slidere, accordions, faner, mobilmenu)"""
 import re, json, time, pathlib, subprocess, concurrent.futures
 from html.parser import HTMLParser
 
 STOCK = 'https://beststock.kinsta.cloud/'
+TEMPLATES = 'https://best-template.test-one.dk/'
 root = pathlib.Path(__file__).resolve().parent
-data = json.loads((root / 'src' / 'data.json').read_text('utf-8'))
-LIB, CLASSES = data['LIB'], data['CLASSES']
-CLASS_NAMES = {c['name'] for c in CLASSES.values() if isinstance(c, dict) and c.get('name')}
 
 def get(url):  # curl i stedet for urllib: macOS' indbyggede Python har for gammel SSL til templatesitet
     r = subprocess.run(['curl', '-sSL', '--max-time', '40', '-A', 'Mozilla/5.0 (udkast preview)', url], capture_output=True)
@@ -80,7 +79,8 @@ def outer_html(h, eid):
 
 # elementets HTML-id: Bricks bruger _cssId (fx "top-mobile-logo") i stedet for brxe-<id>, hvis det er sat
 own = lambda sel, hid: re.search('#' + re.escape(hid) + r'(?![\w-])', sel) is not None
-hid_of = lambda e: str((e.get('settings') or {}).get('_cssId') or '').strip() or 'brxe-' + e['id']
+# klasser der hører til Bricks/WordPress/ikoner og ikke er jeres globale klasser
+NOT_GLOBAL = re.compile(r'^(brxe-|bricks-|brx-|brxa-|wp-|has-|is-|splide|fa-|fas$|far$|fab$|ion-|ti-|menu-|current|sub-menu|screen-reader|accordion-|tab-|form-group|options-wrapper|icon$|title$|content$|line$)')
 
 # ---------- stocksitet: links, theme, klasser, bricksData ----------
 home = get(STOCK)
@@ -108,7 +108,7 @@ def add_classes(rs, prefer):
     by = {}
     for m, s, b in rs:
         if '#brxe-' in s or s.startswith('@'): continue
-        names = [x for x in re.findall(r'\.([A-Za-z_][\w-]*)', s) if x in CLASS_NAMES]
+        names = [x for x in re.findall(r'\.([A-Za-z_][\w-]*)', s) if not NOT_GLOBAL.match(x)]
         if not names: continue
         by.setdefault(names[0], []).append((m, s, b))
     for name, rr in by.items():
@@ -116,20 +116,9 @@ def add_classes(rs, prefer):
 add_classes(rules(style(home, 'bricks-global-classes-inline-inline-css')), True)
 
 # ---------- templatesitet: element-CSS, klasser og færdig HTML ----------
-# template-nøgle -> side på templatesitet. Navnene er ikke altid ens (cta-1 / cta-1-double-text, seo-blogindlaeg / seo-blogindlg)
-pages = {}
-norm = lambda x: re.sub(r'ae|oe|aa|[^a-z0-9]', '', x.lower())
-sheet = {}
-for s in data['SHEET']: sheet.setdefault(s['s'], s['u'])
-for k, u in sheet.items():
-    if k in LIB: pages[k] = u
-for k, u in sheet.items():
-    if k in LIB: continue
-    cand = [x for x in LIB if x not in pages and not x.startswith('online-') and (x.startswith(k + '-') or norm(x) == norm(k))]
-    if len(cand) == 1: pages[cand[0]] = u
-base = re.match(r'https?://[^/]+/template/', next(iter(sheet.values()), '')) if sheet else None
-for x in LIB:   # resten: prøv /template/<nøgle>/
-    if x not in pages and not x.startswith('online-') and base: pages[x] = base.group(0) + x + '/'
+# alle templates står i sitemappen; nøglen er adressens sidste del (= templatens navn i Bricks, fx cta-1)
+smap = get(TEMPLATES + 'bricks_template-sitemap.xml')
+pages = {u.rstrip('/').rsplit('/', 1)[-1]: u for u in re.findall(r'<loc>([^<]+/template/[^<]+)</loc>', smap)}
 def fetch(item):
     k, u = item
     for n in range(4):   # templatesitet svarer 429 (for mange forespørgsler), hvis vi henter for hurtigt – prøv igen lidt senere
@@ -140,32 +129,37 @@ def fetch(item):
     print('  ! templatesitet afviste', u, '(429)'); return k, ''
 with concurrent.futures.ThreadPoolExecutor(3) as ex: got = dict(ex.map(fetch, pages.items()))
 
+def region(h, k):
+    # templatens indhold: <main>, og for menuer/footere også sidens header/footer (dér viser templatesitet dem)
+    parts = [m.group(0) for m in re.finditer(r'<main\b.*?</main>', h, re.S)]
+    if k.startswith('menu'): parts += [m.group(0) for m in re.finditer(r'<header\b.*?</header>', h, re.S)]
+    if k.startswith('footer'): parts += [m.group(0) for m in re.finditer(r'<footer\b.*?</footer>', h, re.S)]
+    return ''.join(parts)
 elements, html = {}, {}
 # elementer som Bricks bygger ud fra WordPress (menuer, templates, indlægsdata) – her gemmes Bricks' færdige HTML
 DYNAMIC = {'nav-menu', 'template', 'shortcode', 'post-toc', 'form', 'post-meta', 'post-title', 'post-content', 'post-excerpt', 'post-taxonomy', 'post-author', 'posts', 'related-posts', 'breadcrumbs', 'pagination', 'search', 'sidebar', 'wordpress'}
-ok_pages = set()   # kun sider, hvor templatens elementer faktisk findes (ikke 404-sider)
+ok_pages = set()   # sider hvor der faktisk er en template (ikke 404-sider)
 for k, h in sorted(got.items()):
-    if not h or not any(('id="' + hid_of(e) + '"') in h for e in LIB[k]['els']): continue
+    reg = region(h, k) if h else ''
+    tags = [(m.group(1), dict(re.findall(r'([\w-]+)="([^"]*)"', m.group(2)))) for m in re.finditer(r'<(\w+)\b([^>]*\bclass="[^"]*\bbrxe-[^"]*"[^>]*)>', reg)]
+    tags = [(t, a) for t, a in tags if a.get('id')]
+    if not tags: continue
     ok_pages.add(k)
     # alle Bricks' styleblokke: elementer, klasser, templates (dynamic-data) og formularens skjulte spam-felt (unavngivet blok)
     blocks = [m.group(2) for m in re.finditer(r'<style([^>]*)>(.*?)</style>', h, re.S) if not re.search(r'id="(wp-|classic-|global-styles)', m.group(1))]
     rs = [r for b in blocks for r in rules(re.sub(r'/\*# sourceURL=[^*]*\*/', '', b))]
-    add_classes(rs, False)
-    for e in LIB[k]['els']:
-        eid = e['id']; hid = hid_of(e)
-        if ('id="' + hid + '"') not in h: continue
-        mine = [(m, re.sub('#' + re.escape(hid) + r'(?![\w-])', '#%SEL%', s), b) for m, s, b in rs if own(s, hid)]
-        if mine: elements[k + ':' + eid] = emit(mine)
-        n = e['name']; st = e.get('settings') or {}
-        if n in DYNAMIC:
-            oh = outer_html(h, hid)
-            if not oh: continue
-            inner_ids = set(re.findall(r'id="([^"]+)"', oh)) - {hid}
-            fields = set(re.findall(r'id="(form-field-[a-z0-9]+)"', oh))   # fx honeypot-feltet, som Bricks skjuler med div.form-group:has(input#form-field-…)
-            css = emit([r for r in rs if any(own(r[1], i) for i in inner_ids) or any(f in r[1] for f in fields)])
-            item = {'html': oh.replace('id="' + hid + '"', 'id="%SEL%"', 1), 'css': css}
-            html[n + ':' + k + ':' + eid] = item          # præcis dette element
-            if n in ('nav-menu', 'template'): html.setdefault(('menu:' + str(st.get('menu', ''))) if n == 'nav-menu' else 'template:' + str(st.get('template', '')), item)
+    add_classes([r for r in rs if not any(own(r[1], a['id']) for _, a in tags)], False)
+    for tag, a in tags:
+        hid = a['id']; mine = [(m, re.sub('#' + re.escape(hid) + r'(?![\w-])', '#%SEL%', s), b) for m, s, b in rs if own(s, hid)]
+        if mine: elements[k + ':' + hid] = emit(mine)
+        n = next((c[5:] for c in a.get('class', '').split() if c.startswith('brxe-') and c[5:] in DYNAMIC), None)
+        if not n: continue
+        oh = outer_html(h, hid)
+        if not oh: continue
+        inner_ids = set(re.findall(r'id="([^"]+)"', oh)) - {hid}
+        fields = set(re.findall(r'id="(form-field-[a-z0-9]+)"', oh))   # fx honeypot-feltet, som Bricks skjuler med div.form-group:has(input#form-field-…)
+        css = emit([r for r in rs if any(own(r[1], i) for i in inner_ids) or any(f in r[1] for f in fields)])
+        html[n + ':' + k + ':' + hid] = {'html': oh.replace('id="' + hid + '"', 'id="%SEL%"', 1), 'css': css}
 
 out = {'source': STOCK, 'bp': {'tablet_portrait': 1470, 'tablet_landscape': 1024, 'mobile_landscape': 768, 'mobile_portrait': 478},
        'pages': sorted(ok_pages), 'links': links, 'theme': theme, 'classes': classes, 'elements': elements, 'html': html, 'bricksData': bricks_data}

@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="da">
+<head>
+<base target="_top">
+<meta charset="utf-8">
+<style>html,body{margin:0;height:100%;background:#1f1e1d}iframe{border:0;width:100%;height:100%;display:block}</style>
+</head>
+<body>
+<!-- Værktøjet (GitHub Pages) vises her. Det får kun data gennem broen nedenfor, og kun når man er logget ind med best-one.dk -->
+<iframe id="app" src="<?= appUrl ?>?host=gas" allow="clipboard-write" title="Udkast – Best One"></iframe>
+<script>
+(function () {
+  var APP_ORIGIN = <?!= JSON.stringify(appOrigin) ?>;
+  var app = document.getElementById('app');
+  window.addEventListener('message', function (ev) {
+    // kun beskeder fra værktøjets egen adresse og egen iframe
+    if (ev.origin !== APP_ORIGIN || ev.source !== app.contentWindow) return;
+    var d = ev.data || {}; if (d.udkastApi !== 1 || !d.id || typeof d.name !== 'string') return;
+    var reply = function (ok, val) { app.contentWindow.postMessage({ udkastApi: 1, id: d.id, ok: ok, value: val }, APP_ORIGIN); };
+    google.script.run.withSuccessHandler(function (v) { reply(true, v); }).withFailureHandler(function (e) { reply(false, String((e && e.message) || e)); }).api(d.name, d.args || []);
+  });
+})();
+</script>
+</body>
+</html>

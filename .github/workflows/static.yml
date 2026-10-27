@@ -2,6 +2,8 @@ name: Byg og udgiv siden
 on:
   push:
     branches: [main]
+  schedule:
+    - cron: '0 4 * * *'   # hver nat: hent jeres nyeste Bricks-opsætning til preview
   workflow_dispatch:
 permissions:
   contents: read
@@ -15,6 +17,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Hent Bricks-opsætning (CSS til preview) fra stocksite og templatesite
+        run: python3 hent-bricks.py || echo "Kunne ikke hente – bruger src/bricks.json fra repoet"
       - run: python3 build.py
       - run: |
           mkdir _site

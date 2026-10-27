@@ -1,13 +1,59 @@
 /* ===== UI v2 ===== */
-(function () {
+/* ===== Data: templates fra Drive via Apps Script ===== */
+// Værktøjet vises inde i Apps Script-siden (Shell.html), som står for login og data. Uden den får værktøjet ingen templates.
+const IN_GAS = (() => { try { return window.parent !== window && new URLSearchParams(location.search).get('host') === 'gas'; } catch (_) { return false; } })();
+const gas = (() => {
+  let n = 0; const wait = {};
+  addEventListener('message', ev => {
+    const d = ev.data || {}; if (d.udkastApi !== 1 || !wait[d.id] || ev.source !== window.parent) return;
+    let host = ''; try { host = new URL(ev.origin).hostname; } catch (_) { } if (!/\.googleusercontent\.com$/.test(host)) return;   // kun svar fra Apps Script
+    const w = wait[d.id]; delete wait[d.id]; d.ok ? w.res(d.value) : w.rej(new Error(d.value));
+  });
+  return (name, ...args) => new Promise((res, rej) => {
+    const id = 'c' + (++n) + Math.random().toString(36).slice(2, 7); wait[id] = { res, rej };
+    window.parent.postMessage({ udkastApi: 1, id, name, args }, '*');
+    setTimeout(() => { if (wait[id]) { delete wait[id]; rej(new Error('Apps Script svarede ikke')); } }, 120000);
+  });
+})();
+const TPL_CACHE = 'udkast-templates-v1';
+async function loadTemplates(msg) {
+  let cache = {}; try { cache = (JSON.parse(localStorage.getItem(TPL_CACHE) || '{}').files) || {}; } catch (_) { }
+  if (!IN_GAS) {   // lokal test: .claude/dev-templates.json (ligger ikke i repoet)
+    try { const r = await fetch('.claude/dev-templates.json', { cache: 'no-store' }); if (r.ok) return { files: await r.json(), source: 'dev' }; } catch (_) { }
+    return { files: [], source: 'none' };
+  }
+  try {
+    msg('Henter listen over templates fra Drive…'); const idx = await gas('templateIndex');
+    const need = idx.filter(f => !cache[f.id] || cache[f.id].modified !== f.modified).map(f => f.id);
+    for (let i = 0; i < need.length; i += 20) { msg(`Henter templates fra Drive… ${Math.min(i + 20, need.length)}/${need.length}`); for (const g of await gas('templateFiles', need.slice(i, i + 20))) cache[g.id] = g; }
+    const ids = new Set(idx.map(f => f.id)); for (const id of Object.keys(cache)) if (!ids.has(id)) delete cache[id];
+    try { localStorage.setItem(TPL_CACHE, JSON.stringify({ files: cache })); } catch (_) { }
+    return { files: Object.values(cache), source: 'drive', changed: need.length };
+  } catch (e) {   // Drive/Apps Script svarer ikke: brug den sidst hentede udgave
+    const files = Object.values(cache); if (!files.length) throw e;
+    return { files, source: 'cache', error: e.message };
+  }
+}
+
+(async function () {
   const $ = id => document.getElementById(id);
   const E = window.GEN;
   const D = JSON.parse($('data').textContent);
+  // templates fra Drive -> LIB, klasser og skabelonliste
+  const bootMsg = t => { const b = $('boot'); if (b) { b.hidden = false; b.querySelector('span').textContent = t; } };
+  let T; try { T = await loadTemplates(bootMsg); } catch (e) { bootMsg('Kunne ikke hente templates: ' + e.message); return; }
+  if (!T.files.length) { bootMsg(IN_GAS ? 'Der er ingen templates i Drive-mappen.' : 'Åbn værktøjet via Apps Script-linket. Der hentes templates og kunder, når man er logget ind med best-one.dk.'); return; }
+  { const conv = E.libFromExports(T.files, D.CLASSES); D.LIB = conv.LIB; D.CLASSES = conv.CLASSES; D.SHEET = conv.SHEET; D.TPL = T; D.TPL.bad = conv.bad;
+    // statistik og inspiration fra før bruger gamle template-navne (fx cta-1-double-text) – peg dem på de nye
+    const al = E.keyAlias([...Object.keys(D.USE || {}), ...(D.SITES || []).flatMap(x => [...(x.k || []), ...(x.s || [])])], D.LIB); const U = {};
+    for (const [k, v] of Object.entries(D.USE || {})) { const nk = al[k] || k; U[nk] = U[nk] ? [U[nk][0] + v[0], U[nk][1] + v[1]] : v; } D.USE = U;
+    for (const x of D.SITES || []) { if (x.k) x.k = x.k.map(k => al[k] || k); if (x.s) x.s = x.s.map(k => al[k] || k); } }
+  $('boot').hidden = true;
   const { LIB, CLASSES, VARS, SITES, USE, SHEET, STOCK } = D;
   const SHEET_ID = '1k5mrxRSsp5OG5XlsZOvlN52R_sG3GUIf_zYKzD5Ec5g';
   E.setMeta(LIB, SHEET); E.setEnv({ CLASSES }); E.setStock(STOCK); E.setBricks(D.BRICKS, LIB);
   const BRICKS_OK = !!(D.BRICKS && D.BRICKS.links && D.BRICKS.links.css.length);   // preview med jeres rigtige Bricks-CSS (src/bricks.json)
-  let sheetNote = `Skabelonliste: indbygget udgave af arket (${SHEET.length} rækker, 14. okt 2026)`;
+  let sheetNote = `Templates: ${Object.keys(LIB).length} fra ${D.TPL.source === 'drive' ? 'Drive' : D.TPL.source === 'cache' ? 'Drive (gemt udgave – Drive svarede ikke)' : 'lokal testfil'}${D.TPL.bad.length ? ' · ' + D.TPL.bad.length + ' filer kunne ikke læses' : ''}`;
   const BRANCHER = [...new Set(SITES.map(s => s.b))].filter(b => b !== 'Uklar - tjek').sort((a, b) => a.localeCompare(b, 'da'));
   const DEVICES = { desktop: 1600, laptop: 1440, ipadl: 1024, ipadp: 768, mobil: 390 };      // matcher jeres breakpoints: base · max 1470 · max 1024 · max 768 · max 478
   const DEVICE_H = { desktop: 900, laptop: 900, ipadl: 768, ipadp: 1024, mobil: 844 };      // skærmhøjde (bruges til vh-enheder i preview)
