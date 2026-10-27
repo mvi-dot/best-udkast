@@ -6,6 +6,7 @@
    - Templates:  Drive-mappen "Best Templates" (Bricks-eksporter, .json)
    - Kunder:     ClickUp → Produktionen → Opstarter (kun hovedopgaver)
    - Inspiration: ClickUp → Produktionen → Kunder med HOS, HOS+, RE eller RE+ i "Produkter" (kun hovedopgaver)
+   - HOS-sidernes opbygning: henter forsiden af et inspirationssite (kun dem fra listen ovenfor), så værktøjet kan se, hvilke templates den ligner
 
    ClickUp bruges KUN til at læse. Der er ingen kald her, der opretter, retter eller sletter noget.
    Nøglen sættes i Projektindstillinger → Script-egenskaber som CLICKUP_TOKEN (gerne fra en gæst med "Kan se"-adgang). */
@@ -36,7 +37,7 @@ function doGet() {
 }
 
 /* ---------- API (kaldes fra Shell.html via google.script.run) ---------- */
-const API = { me, templateIndex, templateFiles, customers, inspiration };
+const API = { me, templateIndex, templateFiles, customers, inspiration, siteHtml };
 function api(name, args) {
   requireBestOne_();
   if (!Object.prototype.hasOwnProperty.call(API, name)) throw new Error('Ukendt kald: ' + name);
@@ -121,3 +122,24 @@ function inspiration() {
   try { cache.put('inspiration', JSON.stringify(out), 3600); } catch (e) { }
   return out;
 }
+
+/* ---------- opbygningen af en HOS-side ---------- */
+// Kun sites fra inspiration() – så scriptet ikke kan bruges til at hente vilkårlige adresser.
+// Svarer med et skelet af sidens <main>: tags og klasser, uden tekst, scripts og billeder (det er nok til at genkende templates).
+function siteHtml(url) {
+  const host = hostOf_(url); if (!host) throw new Error('Ugyldig adresse');
+  if (!inspiration().some(x => hostOf_(x.website) === host)) throw new Error('Siden er ikke en HOS-kunde i ClickUp');
+  const cache = CacheService.getScriptCache(); const key = 'site:' + host; const hit = cache.get(key); if (hit !== null) return hit;
+  const res = UrlFetchApp.fetch('https://' + host + '/', { followRedirects: true, muteHttpExceptions: true, headers: { 'User-Agent': 'BestOne-Udkast (internt værktøj)' } });
+  if (res.getResponseCode() !== 200) throw new Error(host + ' svarede ' + res.getResponseCode());
+  let h = res.getContentText(); const a = h.search(/<main[\s>]/i), b = h.search(/<\/main>/i); if (a >= 0 && b > a) h = h.slice(a, b + 7);
+  h = skeleton_(h);
+  try { cache.put(key, h, 21600); } catch (e) { }   // 6 timer (max 100 KB)
+  return h;
+}
+function skeleton_(h) {
+  return String(h).replace(/<!--[\s\S]*?-->/g, '').replace(/<(script|style|svg|noscript|template|iframe)\b[\s\S]*?<\/\1>/gi, '')
+    .replace(/<([a-z][a-z0-9-]*)\b([^>]*)>/gi, (m, t, at) => { const c = at.match(/\sclass\s*=\s*"([^"]*)"/i); return '<' + t + (c ? ' class="' + c[1] + '"' : '') + '>'; })   // kun tag og klasse
+    .replace(/>[^<]+</g, '><');
+}
+function hostOf_(u) { const m = String(u || '').trim().match(/^(?:https?:\/\/)?([^\/?#:]+)/i); return m ? m[1].toLowerCase().replace(/^www\./, '') : ''; }

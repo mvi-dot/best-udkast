@@ -53,7 +53,6 @@ async function loadTemplates(msg) {
   E.setMeta(LIB, SHEET); E.setEnv({ CLASSES }); E.setStock(STOCK); E.setBricks(D.BRICKS, LIB);
   const BRICKS_OK = !!(D.BRICKS && D.BRICKS.links && D.BRICKS.links.css.length);   // preview med jeres rigtige Bricks-CSS (src/bricks.json)
   let sheetNote = `Templates: ${Object.keys(LIB).length} fra ${D.TPL.source === 'drive' ? 'Drive' : D.TPL.source === 'cache' ? 'Drive (gemt udgave – Drive svarede ikke)' : 'lokal testfil'}${D.TPL.bad.length ? ' · ' + D.TPL.bad.length + ' filer kunne ikke læses' : ''}`;
-  const BRANCHER = [...new Set(SITES.map(s => s.b))].filter(b => b !== 'Uklar - tjek').sort((a, b) => a.localeCompare(b, 'da'));
   const DEVICES = { desktop: 1600, laptop: 1440, ipadl: 1024, ipadp: 768, mobil: 390 };      // matcher jeres breakpoints: base · max 1470 · max 1024 · max 768 · max 478
   const DEVICE_H = { desktop: 900, laptop: 900, ipadl: 768, ipadp: 1024, mobil: 844 };      // skærmhøjde (bruges til vh-enheder i preview)
   const MAX_PROPOSALS = 5;
@@ -121,8 +120,10 @@ async function loadTemplates(msg) {
     const brief = more ? state.brief : b; const n = more ? 1 : +$('count').value;
     setStatus(''); pushHist();
     try {
-      const existing = (more ? state.proposals : []).map(p => p.sections.map(s => s.tpl));
-      const res = E.localPlan(more && state.guess && !brief.branche ? Object.assign({}, brief, { branche: state.guess.b }) : brief, LIB, n, existing, SITES); if (more && state.guess && !brief.branche) res.branche = state.guess; if (!more) state.guess = res.branche || null;
+      const existing = (more ? state.proposals : []).map(p => p.sections.map(s => s.tpl)); $('genBtn').disabled = true;
+      const insp = await inspirationFor(brief, n, more);
+      const res = insp ? E.localPlan(Object.assign({}, brief, { branche: insp.gb.b }), LIB, n, existing, insp.sites) : E.localPlan(more && state.guess && !brief.branche ? Object.assign({}, brief, { branche: state.guess.b }) : brief, LIB, n, existing, SITES);
+      if (insp) res.branche = insp.gb; else if (more && state.guess && !brief.branche) res.branche = state.guess; if (!more) state.guess = res.branche || null;
       const guessNote = res.branche && res.branche.b ? (res.branche.via === 'dit valg' ? ` Branche: ${res.branche.b}.` : ` Branche gættet: ${res.branche.b}${res.branche.via === 'tilfældigt' ? ' (tilfældigt – vælg Branche ved Designforslag, hvis du vil styre det)' : ''}.`) : '';
       const made = (res.forslag || []).slice(0, n).map((f, i) => ({ id: 'p' + Date.now() + i + 'x', name: f.navn || ('Udkast ' + (state.proposals.length + i + 1)), note: f.note || '', sections: planToSections(f) })).filter(p => p.sections.length);
       if (!made.length) throw new Error('Kunne ikke sætte et udkast sammen af templates.');
@@ -130,7 +131,7 @@ async function loadTemplates(msg) {
       state.active = more ? state.proposals.length - 1 : 0;
       setStatus((made.length > 1 ? `${made.length} udkast klar.` : 'Udkast klar.') + guessNote, 'ok');
     } catch (e) { hist.pop(); setStatus(errCopy(e), 'err'); }
-    render();
+    $('genBtn').disabled = false; render();
   }
   function burst(btn, e) {
     const r = btn.getBoundingClientRect(); const x = (e && e.clientX ? e.clientX : r.left + r.width / 2) - r.left, y = (e && e.clientY ? e.clientY : r.top + r.height / 2) - r.top;
@@ -165,7 +166,28 @@ async function loadTemplates(msg) {
   function setTheme(th, save) { document.documentElement.dataset.theme = th; for (const id of ['themeBtn', 'themeHome']) $(id).innerHTML = THEME_ICON[th === 'dark' ? 'dark' : 'light'];  }
   { const mq = window.matchMedia ? matchMedia('(prefers-color-scheme: dark)') : null; setTheme(mq && mq.matches ? 'dark' : 'light', false); if (mq) { const f = e => setTheme(e.matches ? 'dark' : 'light', false); if (mq.addEventListener) mq.addEventListener('change', f); else if (mq.addListener) mq.addListener(f); } }
   for (const id of ['themeBtn', 'themeHome']) $(id).onclick = () => setTheme(document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark', false);
-  { const sel = $('branche'); if (sel) sel.insertAdjacentHTML('beforeend', [...new Set(SITES.map(s => s.b))].filter(b => b && !/uklar/i.test(b)).sort((x, y) => x.localeCompare(y, 'da')).map(b => `<option>${E.esc(b)}</option>`).join('')); }
+  const fillBranche = list => { const sel = $('branche'); if (!sel) return; const v = sel.value; sel.innerHTML = '<option value="">Gæt selv</option>' + [...new Set(list)].filter(b => b && !/uklar|^andet$/i.test(b)).sort((x, y) => x.localeCompare(y, 'da')).map(b => `<option>${E.esc(b)}</option>`).join(''); sel.value = v; };
+  fillBranche(SITES.map(s => s.b));
+  /* ---------- inspiration: HOS-kunder fra ClickUp. Værktøjet ser selv på deres forsider og finder de templates, sektionerne ligner ----------
+     Uden ClickUp (lokalt, eller før CLICKUP_TOKEN er sat) bruges den indbyggede liste i data.json. */
+  const inspP = IN_GAS ? gas('inspiration').then(l => { const x = (l || []).map(i => ({ n: i.name, u: i.website, b: i.branche })).filter(i => i.u && i.b); if (x.length) fillBranche(x.map(i => i.b)); return x.length ? x : null; }).catch(() => null) : Promise.resolve(null);
+  const SITE_CACHE = 'udkast-sites-v1', SITE_DAYS = 7;
+  const siteCache = () => { try { return JSON.parse(localStorage.getItem(SITE_CACHE) || '{}'); } catch (_) { return {}; } };
+  async function siteMatch(x) {
+    const host = String(x.u).replace(/^https?:\/\//, '').replace(/^www\./, '').split(/[\/?#]/)[0].toLowerCase(); const c = siteCache(); const hit = c[host];
+    if (hit && Date.now() - hit.t < SITE_DAYS * 864e5) return hit.m;
+    try { const m = E.analyzeSite(await gas('siteHtml', x.u), LIB, CLASSES).map(r => ({ k: r.k, c: r.c })); c[host] = { t: Date.now(), m }; try { localStorage.setItem(SITE_CACHE, JSON.stringify(c)); } catch (_) { } return m; }
+    catch (_) { return null; }   // siden svarer ikke: spring den over
+  }
+  const shuffle = a => { a = a.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
+  async function inspirationFor(brief, n, more) {
+    const list = await inspP; if (!list) return null;
+    const gb = brief.branche ? { b: brief.branche, via: 'dit valg' } : more && state.guess ? state.guess : E.guessBranche(brief.navn, brief.msg, list);
+    const same = shuffle(list.filter(x => x.b === gb.b)).slice(0, n + 2); if (!same.length) return { gb, sites: [] };
+    setStatus(`Kigger på ${same.length} HOS-${same.length === 1 ? 'side' : 'sider'} i branchen ${gb.b}…`);
+    const ms = await Promise.all(same.map(siteMatch));
+    return { gb, sites: same.map((x, i) => ms[i] && ms[i].length >= 3 ? Object.assign({}, x, { m: ms[i], c: ms[i].map(y => y.c) }) : null).filter(Boolean) };
+  }
   const greet = () => { const h = new Date().getHours(); const g = h >= 23 || h < 5 ? 'Sent oppe? ' : h < 10 ? 'God morgen. ' : h < 17 ? '' : 'God aften. '; $('hi').textContent = g + (g && h >= 10 && h < 17 ? '' : '') + 'Hvem skal have en ny hjemmeside?'; };
   greet(); syncCount(); if (!matchMedia('(pointer: coarse)').matches) setTimeout(() => { try { $('navn').focus({ preventScroll: true }); } catch (_) { } }, 700);
 

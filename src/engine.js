@@ -576,15 +576,65 @@ const BRANCH_KW = [
   ['Detail / Mad / Event / Rejse', /restaurant|café|cafe|mad|event|rejse|butik|bager|kro/], ['Udlejning / Logistik', /udlej|logistik|transport|kran|lift|container|fragt/],
   ['Rådgivning / Virksomhed', /rådgiv|advokat|revisor|konsulent|bureau|regnskab|ejendomsmægler/], ['Terapi / Coaching', /terapi|coach|psykolog|mindful|samtale/]
 ];
+// søgeord ud fra selve branchenavnet, til brancher der ikke står i BRANCH_KW (ClickUps navne)
+const kwFor = b => { const w = String(b).toLowerCase().split(/[^a-zæøå]+/).filter(x => x.length >= 3 && x !== 'andet' && x !== 'og'); const st = w.flatMap(x => x.length <= 4 ? ['\\b' + x + '\\b'] : x.length >= 8 ? [x.slice(0, x.length - 3), x.slice(0, 4)] : [x.slice(0, Math.max(4, x.length - 2))]); return st.length ? new RegExp(st.join('|')) : null; };
 function guessBranche(name, msg, SITES) {
   const nm = String(name || '').toLowerCase(), mg = String(msg || '').toLowerCase(); const score = {};
-  for (const [b, re] of BRANCH_KW) { let s = 0; if (re.test(mg)) s += 4; if (re.test(nm)) s += 3; if (s) score[b] = s; }
-  const best = Object.entries(score).sort((a, b) => b[1] - a[1])[0]; if (best) return { b: best[0], via: re_test(BRANCH_KW, best[0], mg) ? 'konteksten' : 'navnet' };
+  const have = [...new Set((SITES || []).map(s => s.b).filter(Boolean))]; const known = new Set(BRANCH_KW.map(x => x[0]));
+  const KW = have.length && !have.some(b => known.has(b)) ? have.map(b => [b, kwFor(b)]).filter(x => x[1]) : BRANCH_KW;
+  for (const [b, re] of KW) { let s = 0; if (re.test(mg)) s += 4; if (re.test(nm)) s += 3; if (s) score[b] = s; }
+  const best = Object.entries(score).sort((a, b) => b[1] - a[1])[0]; if (best) return { b: best[0], via: re_test(KW, best[0], mg) ? 'konteksten' : 'navnet' };
   const words = nm.split(/[^a-zæøå0-9]+/).filter(w => w.length >= 3); const pool = (SITES || []).filter(s => s.b && !/uklar/i.test(s.b));
   const hit = pool.filter(s => words.some(w => String(s.n).toLowerCase().includes(w))); if (hit.length) return { b: hit[Math.floor(Math.random() * hit.length)].b, via: 'navnet (ligner et kendt site)' };
   const all = pool.map(s => s.b); return all.length ? { b: all[Math.floor(Math.random() * all.length)], via: 'tilfældigt' } : { b: '', via: 'tilfældigt' };
 }
 const re_test = (kw, b, text) => { const x = kw.find(k => k[0] === b); return !!(x && x[1].test(text)); };
+/* ---------- inspiration: hvilke templates ligner sektionerne på en HOS-side? ----------
+   Hver sektion i sidens <main> sammenlignes med alle templates: først på templatens egne klasser (overlever ofte på siden, evt. med kundens præfiks),
+   ellers på opbygningen (hvor mange overskrifter, billeder, kort, formular, accordion osv.). Resultatet behøver ikke være 1:1 – det er det nærmeste bud. */
+const FP_STRONG = new Set(['form', 'accordion', 'accordion-nested', 'slider', 'slider-nested', 'carousel', 'counter', 'rating', 'map', 'video', 'tabs', 'tabs-nested', 'pricing-tables']);
+const FP_SKIP_CATS = new Set(['Menu', 'Footer', 'Underside', 'CTA']);
+function fpOf(root) {
+  const v = {}; let rep = 0;
+  for (const el of [root, ...root.querySelectorAll('*')]) {
+    const m = String(el.getAttribute('class') || '').match(/\bbrxe-([a-z-]+)/); if (m && el !== root) v[m[1]] = (v[m[1]] || 0) + 1;
+    if (el.children.length > 1) { const cnt = {}; for (const k of el.children) { const sg = k.tagName + (String(k.getAttribute('class') || '').match(/\bbrxe-[a-z-]+/) || [''])[0]; cnt[sg] = (cnt[sg] || 0) + 1; } rep = Math.max(rep, ...Object.values(cnt)); }
+  }
+  return { v, rep, cls: new Set([root, ...root.querySelectorAll('[class]')].flatMap(el => String(el.getAttribute('class') || '').split(/\s+/)).filter(c => c && !/^(brxe-|brx-|bricks-|fa-|ti-|ion-)/.test(c))) };
+}
+function fpDist(a, b) {
+  let d = 0; for (const t of new Set([...Object.keys(a.v), ...Object.keys(b.v)])) d += (FP_STRONG.has(t) ? 3 : 1) * Math.abs(Math.log1p(a.v[t] || 0) - Math.log1p(b.v[t] || 0));
+  return d + 0.8 * Math.abs(Math.log1p(a.rep) - Math.log1p(b.rep));
+}
+let TPL_FP = null;
+function templatePrints(LIB, CLASSES) {
+  if (TPL_FP && TPL_FP.lib === LIB) return TPL_FP;
+  const keys = Object.keys(LIB).filter(k => !FP_SKIP_CATS.has(categoryOf(k)) && !EXCLUDED_KEYS.has(k) && !(LIB[k] && LIB[k].group)); const prints = {}; const owners = {};
+  for (const k of keys) {
+    let html = ''; try { html = renderBricks([makeSection(LIB, k)], CLASSES).html; } catch (_) { continue; }
+    const doc = new DOMParser().parseFromString('<main>' + html + '</main>', 'text/html'); const secs = [...doc.querySelectorAll('main > section')]; if (!secs.length) continue;
+    prints[k] = secs.map(fpOf); for (const f of prints[k]) for (const c of f.cls) (owners[c] = owners[c] || new Set()).add(k);
+  }
+  const own = {}; for (const [c, ks] of Object.entries(owners)) if (ks.size === 1 && c.length >= 6) own[c] = [...ks][0];   // klasser, der kun findes i én template
+  return TPL_FP = { lib: LIB, prints, own };
+}
+function matchSection(fp, T, only) {
+  const hits = {};
+  for (const c of fp.cls) { let k = T.own[c]; if (!k) { const i = c.indexOf('-'); for (let j = i; j > 0 && !k; j = c.indexOf('-', j + 1)) k = T.own[c.slice(j + 1)]; } if (k) hits[k] = (hits[k] || 0) + 1; }   // også med kundens præfiks foran
+  const best = Object.entries(hits).sort((a, b) => b[1] - a[1])[0]; if (best && best[1] >= 2) return { k: best[0], how: 'klasser' };
+  let bk = null, bd = 1e9; for (const [k, fs] of Object.entries(T.prints)) { if (!only(categoryOf(k))) continue; const d = fpDist(fp, fs[0]); if (d < bd) { bd = d; bk = k; } }
+  return bk && bd <= FP_MAX ? { k: bk, how: 'opbygning', d: Math.round(bd * 10) / 10 } : null;   // for langt fra alle templates: hellere intet bud end et dårligt
+}
+const FP_MAX = 5;
+// html: sidens HTML (eller et skelet af den). Svar: [{ k: template, c: kategori, how }] i sidens rækkefølge
+function analyzeSite(html, LIB, CLASSES) {
+  const T = templatePrints(LIB, CLASSES); const doc = new DOMParser().parseFromString(String(html || ''), 'text/html');
+  const main = doc.querySelector('main') || doc.body; if (!main) return [];
+  const secs = [...main.querySelectorAll('section.brxe-section')].filter(s => !s.parentElement.closest('section.brxe-section'));
+  return secs.map((sec, i) => { const fp = fpOf(sec); if (!Object.keys(fp.v).length) return null;
+    const m = matchSection(fp, T, c => i === 0 ? c === 'Header' : c !== 'Header');   // kun den første sektion er en hero
+    return m && Object.assign(m, { c: categoryOf(m.k) }); }).filter(Boolean);
+}
 function localPlan(b, LIB, n, existing, SITES) {
   const keys = allowedKeys(LIB, true); const used = new Set([].concat(...(existing || []))); const msg = String((b && b.msg) || '').toLowerCase(); const type = (b && b.sidetype) || 'Forside'; const has = re => re.test(msg);
   const gb = b && b.branche ? { b: b.branche, via: 'dit valg' } : guessBranche(b && b.navn, b && b.msg, SITES); const team = has(/medarbejder|team|folk/);
@@ -593,10 +643,11 @@ function localPlan(b, LIB, n, existing, SITES) {
   const sameSites = type === 'Forside' ? (SITES || []).filter(s => s.b === gb.b && Array.isArray(s.c) && s.c.length >= 4) : [];
   const names = ['Klassisk', 'Rolig', 'Luftig', 'Kraftig', 'Enkel']; const base = (existing || []).length; const forslag = []; const usedSites = new Set();
   for (let i = 0; i < n; i++) {
-    let cats = DEF.slice(), basis = '';
+    let cats = DEF.slice(), basis = '', pref = {};
     if (sameSites.length) { const fresh = sameSites.filter(s => !usedSites.has(s.n)); const s = (fresh.length ? fresh : sameSites)[Math.floor(Math.random() * (fresh.length ? fresh : sameSites).length)]; usedSites.add(s.n);
       let c = s.c.filter(x => OK.has(x)); const out = []; for (const x of c) { if (out[out.length - 1] !== x) out.push(x); } while (out.length > 8) out.splice(1 + Math.floor(Math.random() * (out.length - 2)), 1);
-      if (out.length >= 4) { if (out[0] !== 'Header') out.unshift('Header'); if (out[out.length - 1] !== 'Kontakt sektion') out.push('Kontakt sektion'); cats = out; basis = s.n; } }
+      if (out.length >= 4) { if (out[0] !== 'Header') out.unshift('Header'); if (out[out.length - 1] !== 'Kontakt sektion') out.push('Kontakt sektion'); cats = out; basis = s.n; }
+      pref = {}; for (const k of (s.m || []).map(x => x.k).concat(s.k || [], s.s || [])) { const c2 = categoryOf(k); (pref[c2] = pref[c2] || []).push(k); } }   // templates sitet ligner (s.m: fundet nu, s.k/s.s: Mortens liste)
     if (type !== 'Hero' && type !== 'Menu') {
       const add = (cat, after) => { if (!cats.includes(cat)) { const k = cats.indexOf(after); cats.splice(k < 0 ? cats.length - 1 : k + 1, 0, cat); } };
       if (has(/pris|abonnement/)) add('Priser', 'Ydelser'); if (has(/\bcase|projekt|reference/)) add('Cases', 'Content'); if (has(/galleri|billeder|fotos/) || team) add('Galleri', 'Content');
@@ -610,10 +661,11 @@ function localPlan(b, LIB, n, existing, SITES) {
       if (!pool.length) continue; let fresh = pool.filter(k => !used.has(k) && !mine.has(k)); if (!fresh.length) fresh = pool.filter(k => !mine.has(k)); if (!fresh.length) fresh = pool;
       const wts = fresh.map(k => { const t = LIB[k] || {}; return t.group === 'Live sektioner' && t.site ? (t.branche && t.branche === gb.b ? 4 : 1.8) : 1; }); const tot = wts.reduce((a, x) => a + x, 0); let r = Math.random() * tot, pick = fresh[0];
       for (let q = 0; q < fresh.length; q++) { r -= wts[q]; if (r <= 0) { pick = fresh[q]; break; } }
-      mine.add(pick); sek.push({ tpl: pick, hvorfor: LIB[pick] && LIB[pick].site ? 'Rigtig sektion fra ' + LIB[pick].site : 'Standardopbygning' });
+      const like = (pref[c] || []).find(k => fresh.includes(k)); if (like) { pick = like; pref[c] = pref[c].filter(k => k !== like); }
+      mine.add(pick); sek.push({ tpl: pick, hvorfor: like ? 'Ligner sektionen på ' + basis : LIB[pick] && LIB[pick].site ? 'Rigtig sektion fra ' + LIB[pick].site : 'Standardopbygning' });
     }
     mine.forEach(k => used.add(k));
-    forslag.push({ navn: names[(base + i) % names.length], note: 'Lavet uden Claude · branche gættet: ' + (gb.b || 'ukendt') + ' (ud fra ' + gb.via + ')' + (basis ? ' · opbygning som ' + basis : ''), sektioner: sek, gaet: gb });
+    forslag.push({ navn: names[(base + i) % names.length], note: 'Branche: ' + (gb.b || 'ukendt') + ' (' + gb.via + ')' + (basis ? ' · opbygning og templates som ' + basis : ''), sektioner: sek, gaet: gb });
   }
   return { forslag, branche: gb };
 }
@@ -1292,5 +1344,5 @@ addEventListener('load',function(){post({udkast:'ready'})});})();<\/script>
 </body></html>`;
 }
 
-const API = { renderBricks, bricksDoc, setBricks, libFromExports, keyAlias, clone, esc, stripTags, mapOf, rootsOf, walk, makeSection, applyOps, applyPhone, buildExport, validate, renderSections, buildFri, nativize, natRegister, setStock, stockify, videoify, sortKeys, localPlan, guessBranche, onlineClean, BS_VIDEO, loremify, loremText, fixH1, newestKeys, groupKeys, STOCK_BASE, secTitle, makeFri, normFri, groupInfoSec, setFriClasses, FRI_TYPES, FRI_STIL, SECTION_ONLY, makeSections, splitParts, parsePhone, classPrefix, setEnv, removeSubtree, categoryOf, displayName, describeKey, setMeta, variantsOf, nextVariant, allowedKeys, catList, sanitizePlan, TYPE_ORDER, WHOLE_PAGE, cleanSettings, resizeGroup, groupInfo, getGroups, FORM_ID, PH_URL, unitFix };
+const API = { analyzeSite, guessBranche, renderBricks, bricksDoc, setBricks, libFromExports, keyAlias, clone, esc, stripTags, mapOf, rootsOf, walk, makeSection, applyOps, applyPhone, buildExport, validate, renderSections, buildFri, nativize, natRegister, setStock, stockify, videoify, sortKeys, localPlan, guessBranche, onlineClean, BS_VIDEO, loremify, loremText, fixH1, newestKeys, groupKeys, STOCK_BASE, secTitle, makeFri, normFri, groupInfoSec, setFriClasses, FRI_TYPES, FRI_STIL, SECTION_ONLY, makeSections, splitParts, parsePhone, classPrefix, setEnv, removeSubtree, categoryOf, displayName, describeKey, setMeta, variantsOf, nextVariant, allowedKeys, catList, sanitizePlan, TYPE_ORDER, WHOLE_PAGE, cleanSettings, resizeGroup, groupInfo, getGroups, FORM_ID, PH_URL, unitFix };
 if (typeof module !== 'undefined') module.exports = API;

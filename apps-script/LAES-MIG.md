@@ -32,6 +32,8 @@ Opret en ClickUp-gæst med **"Kan se"** på listerne *Opstarter* og *Kunder*, og
 
 Nøglen ligger kun i scriptet og kommer aldrig ud i browseren.
 
+Når nøglen er sat, kan værktøjet også kigge på forsiden af HOS-kundernes sider for at finde de templates, de ligner. Scriptet henter kun sider fra den liste, ikke andre adresser.
+
 ## Når filerne her ændres
 
 Kopiér de ændrede filer ind igen. Gå derefter til **Udrul → Administrer udrulninger → blyanten → Version: Ny version → Udrul**. Linket forbliver det samme.

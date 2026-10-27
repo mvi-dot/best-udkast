@@ -19,6 +19,9 @@ Preview viser udkastet, som Bricks selv tegner det: HTML'en laves med Bricks' eg
 
 GitHub kører det automatisk ved hver udgivelse og hver nat, så preview følger jeres opsætning.
 
+## Inspiration fra HOS-sider
+Med ClickUp sat op (se apps-script/LAES-MIG.md) henter værktøjet kunderne med HOS, HOS+, RE eller RE+ (åbne opgaver i Kunder-listen). Når der laves et udkast, kigger det på forsiden af nogle af dem i samme branche og finder, hvilke templates sektionerne ligner. Det sker på templatens egne klasser, eller ellers på opbygningen (overskrifter, billeder, kort, formular osv.). Udkastet bruger så sidens rækkefølge og de templates, der ligner bedst. Det behøver ikke være 1:1. Resultatet gemmes i browseren i 7 dage. Uden ClickUp bruges den indbyggede liste i `data.json`.
+
 ## Mapper
 - `src/` – selve værktøjet (`app.js`, `engine.js`, `index.tpl.html`, `data.json` med klasser/variabler/inspiration, `bricks.json`)
 - `apps-script/` – login og data (templates fra Drive, kunder fra ClickUp)
