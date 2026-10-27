@@ -47,9 +47,11 @@ async function loadTemplates(msg) {
   const bootMsg = (t, done) => { const b = $('boot'); if (!b) return; b.hidden = false; b.classList.toggle('done', !!done);
     const lg = b.querySelector('.bootlogo'), mk = document.querySelector('.bmark'); if (lg && mk && !lg.src) lg.src = mk.src;
     const [h, ...r] = String(t).split('\n'); b.querySelector('.boot-t').textContent = r.length ? h : ''; b.querySelector('.boot-s').textContent = r.length ? r.join(' ') : h; };
+  // typerne fra regnearket "Best Templates" hentes samtidig (lokalt: .claude/dev-sheet.json)
+  const sheetP = (IN_GAS ? gas('templateSheet') : fetch('.claude/dev-sheet.json', { cache: 'no-store' }).then(r => r.ok ? r.json() : null)).catch(() => null);
   let T; try { T = await loadTemplates(bootMsg); } catch (e) { bootMsg('Kunne ikke hente templates: ' + e.message, true); return; }
   if (!T.files.length) { bootMsg(IN_GAS ? 'Der er ingen templates i Drive-mappen.' : 'Åbn værktøjet via Apps Script-linket. Der hentes templates og kunder, når man er logget ind med best-one.dk.', true); return; }
-  { const conv = E.libFromExports(T.files, D.CLASSES); D.LIB = conv.LIB; D.CLASSES = conv.CLASSES; D.SHEET = conv.SHEET; D.TPL = T; D.TPL.bad = conv.bad;
+  { const conv = E.libFromExports(T.files, D.CLASSES); D.LIB = conv.LIB; D.CLASSES = conv.CLASSES; { const rows = await sheetP; D.SHEET = Array.isArray(rows) && rows.length ? rows : conv.SHEET; D.SHEET_SRC = Array.isArray(rows) && rows.length ? 'ark' : ''; } D.TPL = T; D.TPL.bad = conv.bad;
     // statistik og inspiration fra før bruger gamle template-navne (fx cta-1-double-text) – peg dem på de nye
     const al = E.keyAlias([...Object.keys(D.USE || {}), ...(D.SITES || []).flatMap(x => [...(x.k || []), ...(x.s || [])])], D.LIB); const U = {};
     for (const [k, v] of Object.entries(D.USE || {})) { const nk = al[k] || k; U[nk] = U[nk] ? [U[nk][0] + v[0], U[nk][1] + v[1]] : v; } D.USE = U;
@@ -394,7 +396,7 @@ async function loadTemplates(msg) {
     if (pendingAnim) { const pa = pendingAnim; pendingAnim = null; const li = $('list').querySelector(`li[data-i="${pa.i}"]`); if (li) { if (pa.a === 'up' || pa.a === 'down') li.classList.add('moved'); const bt = li.querySelector(`button[data-a="${pa.a}"]`); if (bt && (pa.a === 'variant' || pa.a === 'pick')) bt.classList.add('spin'); } }
     $('planNote').textContent = ''; $('planNote').hidden = true;
     const secWarns = p.sections.flatMap((s, i) => (s.warns || []).map(w => `Sektion ${i + 1} (${s.tpl}): ${w}`));
-    const notes = [...(exp.h1Fixed ? [`H1 rettet automatisk: ${exp.h1Fixed} ekstra H1 er lavet om til H2, så siden kun har én H1, og den ligger i heroen.`] : []), ...(h1bad ? [h1msg] : []), ...(exp.renamed ? [`Klasserne er omdøbt med præfikset «${exp.prefix}-» (${exp.renamed} klasser). CSS og kode følger med, så alt virker som før.`] : []), ...secWarns, ...exp.flags];
+    const notes = [...(exp.h1Fixed ? [`H1 rettet automatisk: ${exp.h1Fixed} ekstra H1 er lavet om til H2, så siden kun har én H1, og den ligger i heroen.`] : []), ...(h1bad ? [h1msg] : []), ...(exp.renamed ? [`Klasserne er omdøbt med præfikset «${exp.prefix}-» (${exp.renamed} klasser). CSS og kode følger med, så alt virker som før.`] : []), ...p.sections.filter(s => /^Erstatning/.test(s.why || '')).map(s => `${E.displayName(s.tpl)} er brugt som erstatning (${s.why.replace(/^Erstatning: /, '')}). Der mangler templates til tekstafsnit.`), ...secWarns, ...exp.flags];
     $('notes').innerHTML = notes.map(n => `<li class="flag">⚠ ${E.esc(n)}</li>`).join('') +
       `<li>🔗 <b>Links</b> – tjek at links er korrekte</li><li>📝 <b>Tekst</b> – pladsholdertekst skal udskiftes med rigtig tekst</li><li>🎨 <b>Design</b> – 1:1 med skabelonen (tjek alle skærmstørrelser)</li><li>🖼️ <b>Billeder</b> – samme som skabelonen, skift selv ud</li>` + (exp.formCount ? `<li>📨 <b>Formular</b> – tjek at form-ID er ${E.FORM_ID} efter paste</li>` : '');
     if (BRICKS_OK) showFrame(p); else { useFrame(false);

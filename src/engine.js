@@ -33,10 +33,10 @@ function removeSubtree(els, id) {
 }
 
 /* ---------- kategorier / varianter (navne som i skabelon-arket) + meta fra arket ---------- */
-const TYPE_ORDER = ['Header', 'Ydelser', 'Anmeldelser', 'Cases', 'Priser', 'FAQ', 'Content', 'Galleri', 'Medarbejdere', 'Kontakt sektion', 'Underside', 'Marketing', 'CTA'];
-const PREFIX_TYPE = { hero: 'Header', ydelse: 'Ydelser', anmeldelse: 'Anmeldelser', cases: 'Cases', priser: 'Priser', faq: 'FAQ', content: 'Content', kontaktsektion: 'Kontakt sektion', kontakformular: 'CTA', underside: 'Underside', geo: 'Marketing', viden: 'Marketing', seo: 'Marketing', blog: 'Marketing', galleri: 'Galleri', medarbejdere: 'Medarbejdere', cta: 'CTA' };
+const TYPE_ORDER = ['Header', 'Ydelser', 'Anmeldelser', 'Cases', 'Priser', 'FAQ', 'Content', 'Galleri', 'Medarbejdere', 'Kontakt sektion', 'Underside', 'Marketing', 'CTA sektion'];
+const PREFIX_TYPE = { hero: 'Header', ydelse: 'Ydelser', anmeldelse: 'Anmeldelser', cases: 'Cases', priser: 'Priser', faq: 'FAQ', content: 'Content', kontaktsektion: 'Kontakt sektion', kontakformular: 'Kontaktformular', kontaktformular: 'Kontaktformular', kontakt: 'Kontakt side', knapper: 'Knapper', underside: 'Underside', geo: 'Marketing', viden: 'Marketing', seo: 'Marketing', blog: 'Marketing', galleri: 'Galleri', medarbejdere: 'Medarbejdere', cta: 'CTA sektion' };
 const WHOLE_PAGE = new Set(['Underside', 'Marketing', 'Menu', 'Footer']);                   // hele sider: kun hvis der bedes om det
-const SHEET_ALIAS = { underside: 'underside-1', 'seo-underside': 'seo-blogindlg', 'seo-blogindlaeg': 'seo-blogindlg' };
+const SHEET_ALIAS = { underside: 'underside-1', 'seo-blogindlaeg': 'seo-blogindlg', 'menu-10': 'menu-10-mega-menu' };
 let META = {}; let MISSING = []; let CATS = {}, TITLES = {}; let SHEETDATE = {};
 function setMeta(LIB, rows) {
   META = {}; MISSING = []; CATS = {}; TITLES = {}; DESCS = {}; SHEETDATE = {}; for (const k of Object.keys(LIB)) { if (LIB[k].cat) CATS[k] = LIB[k].cat; if (LIB[k].title) TITLES[k] = LIB[k].title; if (LIB[k].desc && !LIB[k].group) DESCS[k] = LIB[k].desc; }
@@ -44,7 +44,7 @@ function setMeta(LIB, rows) {
   for (const o of rows || []) {
     if (!o || /^(Menu|Footer)$/i.test(o.t)) continue;
     let key = SHEET_ALIAS[o.s] || o.s; if (!LIB[key]) key = Object.keys(LIB).find(k => k.startsWith(o.s + '-')) || null;
-    if (key && LIB[key] && !META[key]) META[key] = { name: o.n, type: o.t, desc: o.b || '', date: o.d || '', link: o.u || '' }; else MISSING.push(o);
+    if (key && LIB[key] && !META[key]) META[key] = { name: o.n, type: /^cta$/i.test(String(o.t).trim()) ? 'CTA sektion' : String(o.t).trim(), desc: o.b || '', date: o.d || '', link: o.u || '' }; else MISSING.push(o);
   }
   return { matched: Object.keys(META).length, missing: MISSING };
 }
@@ -53,15 +53,15 @@ function categoryOf(key) { if (String(key).startsWith('ai-')) return 'AI sektion
 function displayName(key) { if (String(key).startsWith('ai-')) return 'AI sektion'; if (String(key).startsWith('fri-')) return 'Ny · ' + ((FRI_TYPES[key.slice(4)] || {}).name || key); if (META[key]) return META[key].name; if (TITLES[key] && !/^[a-z]+-\d+$/.test(key)) return TITLES[key]; const m = key.match(/^([a-zæøå]+)-(\d+)/i); return m ? m[1].charAt(0).toUpperCase() + m[1].slice(1) + ' #' + m[2] : key; }
 let DESCS = {};
 const describeKey = key => (META[key] && META[key].desc) || DESCS[key] || '';
-const EXCLUDED_CATS = new Set(['Menu', 'Footer', 'Marketing', 'Underside']);   // basisregel: bruges ALDRIG (hverken i udkast eller i "Tilføj sektion")
+const EXCLUDED_CATS = new Set(['Menu', 'Footer', 'Marketing', 'Underside', 'Knapper', 'Kontakt side', 'Kontaktformular']);   // basisregel: bruges ALDRIG (hverken i udkast eller i "Tilføj sektion")
 const EXCLUDED_KEYS = new Set(['seo-blogindlg', 'seo-blogindlaeg', 'blog-underside', 'geo-underside', 'viden-geo']);
 const EXCLUDED_RE = /^kontakt?formular/;                                          // basisregel: kontaktformularerne bruges ALDRIG (begge stavemåder)
 const isExcluded = k => EXCLUDED_KEYS.has(k) || EXCLUDED_RE.test(k);
-const allowedKeys = (LIB, auto) => Object.keys(LIB).filter(k => !EXCLUDED_CATS.has(categoryOf(k)) && !isExcluded(k) && (!auto || categoryOf(k) !== 'CTA')).sort((a, b) => a.localeCompare(b, 'da', { numeric: true }));
+const allowedKeys = (LIB, auto) => Object.keys(LIB).filter(k => !EXCLUDED_CATS.has(categoryOf(k)) && !isExcluded(k) && (!auto || categoryOf(k) !== 'CTA sektion')).sort((a, b) => a.localeCompare(b, 'da', { numeric: true }));
 const variantsOf = (LIB, cat) => allowedKeys(LIB).filter(k => categoryOf(k) === cat);
 function catList(LIB) { const have = new Set(allowedKeys(LIB).map(categoryOf)); return TYPE_ORDER.filter(c => have.has(c)).concat([...have].filter(c => !TYPE_ORDER.includes(c)).sort()); }
 function nextVariant(LIB, tpl, used) {
-  const list = variantsOf(LIB, categoryOf(tpl)).filter(k => categoryOf(k) !== 'CTA'); if (list.length < 2) return null;
+  const list = variantsOf(LIB, categoryOf(tpl)).filter(k => categoryOf(k) !== 'CTA sektion'); if (list.length < 2) return null;
   const i = list.indexOf(tpl); const order = i < 0 ? list : list.slice(i + 1).concat(list.slice(0, i));
   return order.find(k => !used.includes(k)) || order[0];
 }
@@ -595,7 +595,7 @@ const re_test = (kw, b, text) => { const x = kw.find(k => k[0] === b); return !!
    Hver sektion i sidens <main> sammenlignes med alle templates: først på templatens egne klasser (overlever ofte på siden, evt. med kundens præfiks),
    ellers på opbygningen (hvor mange overskrifter, billeder, kort, formular, accordion osv.). Resultatet behøver ikke være 1:1 – det er det nærmeste bud. */
 const FP_STRONG = new Set(['form', 'accordion', 'accordion-nested', 'slider', 'slider-nested', 'carousel', 'counter', 'rating', 'map', 'video', 'tabs', 'tabs-nested', 'pricing-tables']);
-const FP_SKIP_CATS = new Set(['Menu', 'Footer', 'Underside', 'Marketing', 'CTA']);
+const FP_SKIP_CATS = new Set(['Menu', 'Footer', 'Underside', 'Marketing', 'CTA sektion', 'Knapper', 'Kontakt side', 'Kontaktformular']);
 function fpOf(root) {
   const v = {}; let rep = 0;
   for (const el of [root, ...root.querySelectorAll('*')]) {
@@ -643,8 +643,8 @@ const hasForm = (LIB, k) => !!(LIB[k] && (LIB[k].els || []).some(e => e.name ===
 const CTA_TEXT = 'CTA-afsnit';
 const textStats = k => { let h2 = 0, words = 0, longest = 0; for (const e of (BX_LIB[k] || {}).els || []) { const st = e.settings || {}; if (e.name === 'heading' && (st.tag || 'h3') === 'h2') h2++; if (/^(text|text-basic|rich-text)$/.test(e.name)) { const w = String(st.text || '').replace(/<[^>]+>/g, ' ').split(/\s+/).filter(Boolean).length; words += w; longest = Math.max(longest, w); } } return { h2, words, longest }; };
 const isBodyH2 = k => { if (categoryOf(k) !== 'Content') return false; const t = textStats(k); return t.h2 >= 1 && t.longest >= 40; };   // ét rigtigt tekstfelt, ikke mange små
-const isCtaText = k => { if (isExcluded(k) || !['CTA', 'Kontakt sektion'].includes(categoryOf(k))) return false; const t = textStats(k); return t.h2 >= 1 && t.words >= 8 && t.words <= 60; };
-const WANT_ORDER = ['Ydelser', 'Anmeldelser', 'Cases', 'Priser', 'Galleri', 'Medarbejdere', 'FAQ', 'CTA', 'Kontakt sektion'];
+const isCtaText = k => { if (isExcluded(k) || !['CTA sektion', 'Kontakt sektion'].includes(categoryOf(k))) return false; const t = textStats(k); return t.h2 >= 1 && t.words >= 8 && t.words <= 60; };
+const WANT_ORDER = ['Ydelser', 'Anmeldelser', 'Cases', 'Priser', 'Galleri', 'Medarbejdere', 'FAQ', 'CTA sektion', 'Kontakt sektion'];
 function localPlan(b, LIB, n, existing, SITES) {
   const keys = allowedKeys(LIB, true), keysAll = allowedKeys(LIB); const want = Array.isArray(b && b.want) ? b.want.filter(c => c && c !== 'Header' && c !== 'Content' && !EXCLUDED_CATS.has(c)) : []; const used = new Set([].concat(...(existing || []))); const msg = String((b && b.msg) || '').toLowerCase(); const type = (b && b.sidetype) || 'Forside'; const has = re => re.test(msg);
   const gb = b && b.branche ? { b: b.branche, via: 'dit valg' } : guessBranche(b && b.navn, b && b.msg, SITES); const team = has(/medarbejder|team|folk/);
@@ -682,13 +682,20 @@ function localPlan(b, LIB, n, existing, SITES) {
     for (const c of cats) {
       let pool = c === CTA_TEXT ? keysAll.filter(isCtaText) : (want.includes(c) ? keysAll : keys).filter(k => categoryOf(k) === c);   // en valgt type må gerne være en, der ellers ikke bruges automatisk (fx CTA)
       if (c === 'Header' && b && typeof b.heroForm === 'boolean') { const f = pool.filter(k => hasForm(LIB, k) === b.heroForm); if (f.length) pool = f; }   // med eller uden kontaktformular
-      if (c === 'Content') { const f = pool.filter(isBodyH2); if (f.length) pool = f; }   // tekstafsnit: H2 med brødtekst
       if (c === 'Kontakt sektion' && cats.indexOf(CTA_TEXT) < 0 && cats.lastIndexOf('Kontakt sektion') === cats.length - 1) { const f = pool.filter(isCtaText); if (f.length) pool = f; }   // kontakt sidst er det afsluttende tekstafsnit
+      let sub = '';
+      if (c === 'Content' || c === CTA_TEXT) {   // tekstafsnit må aldrig mangle: bedste ledige template i prioriteret rækkefølge
+        const hasH2 = k => { const t = textStats(k); return t.h2 >= 1 && t.words >= 8; };
+        const tiers = c === 'Content'
+          ? [keysAll.filter(isBodyH2), keysAll.filter(k => categoryOf(k) === 'Content'), keysAll.filter(hasH2)]
+          : [keysAll.filter(isCtaText), keysAll.filter(k => ['CTA sektion', 'Kontakt sektion'].includes(categoryOf(k)) && hasH2(k)), keysAll.filter(isBodyH2), keysAll.filter(hasH2)];
+        const ti = tiers.findIndex(t => t.some(k => !mine.has(k))); pool = ti >= 0 ? tiers[ti] : pool; if (ti > 0) sub = c === 'Content' ? 'Erstatning: ingen ledig Content med H2 og brødtekst' : 'Erstatning: intet ledigt kort CTA-afsnit med H2';
+      }
       if (!pool.length) continue; let fresh = pool.filter(k => !used.has(k) && !mine.has(k)); if (!fresh.length) fresh = pool.filter(k => !mine.has(k)); if (!fresh.length) continue;   // aldrig samme template to gange i ét udkast
       const wts = fresh.map(k => { const t = LIB[k] || {}; return t.group === 'Live sektioner' && t.site ? (t.branche && t.branche === gb.b ? 4 : 1.8) : 1; }); const tot = wts.reduce((a, x) => a + x, 0); let r = Math.random() * tot, pick = fresh[0];
       for (let q = 0; q < fresh.length; q++) { r -= wts[q]; if (r <= 0) { pick = fresh[q]; break; } }
       const like = (pref[c] || []).find(k => fresh.includes(k)); if (like) { pick = like; pref[c] = pref[c].filter(k => k !== like); }
-      mine.add(pick); sek.push({ tpl: pick, hvorfor: like ? 'Ligner sektionen på ' + basis : LIB[pick] && LIB[pick].site ? 'Rigtig sektion fra ' + LIB[pick].site : 'Standardopbygning' });
+      mine.add(pick); sek.push({ tpl: pick, hvorfor: sub ? sub : like ? 'Ligner sektionen på ' + basis : LIB[pick] && LIB[pick].site ? 'Rigtig sektion fra ' + LIB[pick].site : 'Standardopbygning' });
     }
     mine.forEach(k => used.add(k));
     forslag.push({ navn: names[(base + i) % names.length], note: 'Branche: ' + (gb.b || 'ukendt') + ' (' + gb.via + ')' + (basis ? ' · opbygning og templates som ' + basis : ''), sektioner: sek, gaet: gb });
@@ -831,7 +838,7 @@ const SETTING_WHITELIST = new Set(['_background', '_typography', '_padding', '_m
 function applyOps(state, ops, LIB, tlf, CLASSES) {
   const log = [], added = [], warns = [];
   const secs = state.sections; const at = i => (Number.isInteger(i) && i >= 1 && i <= secs.length) ? secs[i - 1] : null;
-  const okFor = op => !!LIB[op.tpl] && (op.manual || categoryOf(op.tpl) !== 'CTA');
+  const okFor = op => !!LIB[op.tpl] && (op.manual || categoryOf(op.tpl) !== 'CTA sektion');
   for (const op of ops || []) {
     try {
       if (op.op === 'remove') { const s = at(op.index); if (!s) throw 0; secs.splice(secs.indexOf(s), 1); log.push(`Fjernede sektion ${op.index} (${s.tpl})`); }
@@ -1157,7 +1164,7 @@ function sanitizePlan(list, LIB) {
   const out = []; const count = {};
   for (const x of list || []) {
     if (x && x.fri && FRI_TYPES[x.fri]) { if (normFri(x)) out.push(x); continue; }
-    if (!x || !LIB[x.tpl] || categoryOf(x.tpl) === 'CTA') continue;
+    if (!x || !LIB[x.tpl] || categoryOf(x.tpl) === 'CTA sektion') continue;
     if (out.length && out[out.length - 1].tpl === x.tpl) continue;                        // ingen to ens lige efter hinanden
     if (categoryOf(x.tpl) === 'Header' && out.some(o => o.tpl && categoryOf(o.tpl) === 'Header')) continue;   // kun 1 hero pr. side
     if (categoryOf(x.tpl) === 'Anmeldelser' && out.some(o => o.tpl && categoryOf(o.tpl) === 'Anmeldelser')) continue;   // kun 1 anmeldelses-sektion pr. side

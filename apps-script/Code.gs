@@ -16,6 +16,7 @@ const CFG = {
   APP_ORIGIN: 'https://mvi-dot.github.io',
   DOMAIN: 'best-one.dk',
   TEMPLATE_FOLDER: '1sANGowevyCg9iJqpqipx_MdTFwI5VLJ9',
+  TEMPLATE_SHEET: '1k5mrxRSsp5OG5XlsZOvlN52R_sG3GUIf_zYKzD5Ec5g',   // regnearket "Best Templates": navn, type, dato, link og beskrivelse pr. template
   CLICKUP: {
     OPSTARTER: '900800029466',
     OPSTARTER_STATUS: ['to-do', 'afventer', 'i gang', 'på ugen'],   // kun kunder i disse statusser kan vælges ("på ugen 🔥" tæller med)
@@ -35,7 +36,7 @@ function doGet() {
 }
 
 /* ---------- API (kaldes fra Shell.html via google.script.run) ---------- */
-const API = { me, templateIndex, templateFiles, customers, inspiration, siteHtml };
+const API = { me, templateIndex, templateFiles, templateSheet, customers, inspiration, siteHtml };
 function api(name, args) {
   requireBestOne_();
   if (!Object.prototype.hasOwnProperty.call(API, name)) throw new Error('Ukendt kald: ' + name);
@@ -112,6 +113,17 @@ function templateFiles(ids) {
     miss.forEach((id, i) => { out.push({ id, name: byId[id].name, modified: byId[id].modified, text: texts[i] }); if (texts[i].length < 95000) put[key(id)] = texts[i]; });
     try { cache.putAll(put, FILE_TTL); } catch (e) { }
   }
+  return out;
+}
+
+// Regnearket "Best Templates" (første ark) – typen her bestemmer, hvilken gruppe en template hører til
+function templateSheet() {
+  const cache = CacheService.getScriptCache(); const hit = cache.get('tplSheet'); if (hit) return JSON.parse(hit);
+  const r = UrlFetchApp.fetch(DRIVE_API + '/' + CFG.TEMPLATE_SHEET + '/export?mimeType=text%2Fcsv', { headers: authHeader_(), muteHttpExceptions: true });
+  if (r.getResponseCode() !== 200) throw new Error('Regnearket svarede ' + r.getResponseCode());
+  const rows = Utilities.parseCsv(r.getContentText('UTF-8')); const h = rows.findIndex(x => String(x[1]).trim() === 'Navn'); if (h < 0) return [];
+  const out = rows.slice(h + 1).filter(x => x[1] && String(x[1]).trim()).map(x => { const u = String(x[4] || '').trim(); return { n: String(x[1]).trim(), t: String(x[2] || '').trim(), d: String(x[3] || '').trim(), u, s: u.replace(/\/+$/, '').split('/').pop(), b: String(x[5] || '').trim() }; });
+  try { cache.put('tplSheet', JSON.stringify(out), 120); } catch (e) { }
   return out;
 }
 
