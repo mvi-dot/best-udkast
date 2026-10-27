@@ -251,8 +251,12 @@ function dropDemo(els) {
   for (const r of rootsOf(els)) { const txt = []; const go = id => { const e = m[id]; if (!e) return; txt.push(JSON.stringify(e.settings || {})); (e.children || []).forEach(go); }; go(r.id); if (DEMO_RE.test(txt.join(' '))) out = removeSubtree(out, r.id); }
   return rootsOf(out).length ? out : els;
 }
+// har sektionen noget synligt? (tekst, billede, knap, formular, video, baggrundsbillede osv.)
+const CONTENT_EL = new Set(['heading', 'text', 'text-basic', 'rich-text', 'text-link', 'image', 'image-gallery', 'button', 'icon', 'icon-box', 'svg', 'video', 'form', 'accordion', 'accordion-nested', 'slider', 'slider-nested', 'carousel', 'counter', 'rating', 'list', 'map', 'tabs', 'tabs-nested', 'template', 'shortcode', 'social-icons', 'divider', 'pricing-tables', 'posts', 'testimonials', 'logo', 'nav-menu', 'nav-nested', 'progress-bar', 'pie-chart', 'countdown', 'alert', 'code']);
+const hasContent = els => els.some(e => CONTENT_EL.has(e.name) || Object.keys(e.settings || {}).some(k => /^_background/.test(k) && e.settings[k] && (e.settings[k].image || e.settings[k].videoUrl)));
 function makeSections(LIB, tpl, why, tlf) {
-  const src = dropDemo(LIB[tpl].els); const parts = WHOLE_PAGE.has(categoryOf(tpl)) ? [src] : splitParts(src);
+  const src = dropDemo(LIB[tpl].els); let parts = WHOLE_PAGE.has(categoryOf(tpl)) ? [src] : splitParts(src);
+  { const full = parts.filter(hasContent); if (full.length) parts = full; }   // tomme sektioner (bruges til interne noter i templates) kommer ikke med
   return parts.map((els, i) => { const s = { uid: 's' + (++UID) + Math.random().toString(36).slice(2, 5), tpl, why: i === 0 ? (why || '') : '', els: clone(els), part: i + 1, parts: parts.length }; if (tlf) applyPhone(s.els, tlf); if (isSiteOnline(LIB, tpl)) { onlineClean(s.els); loremify(s.els, true); stockify(s.els, true); } else { loremify(s.els); stockify(s.els); } return s; });
 }
 function makeSection(LIB, tpl, why, tlf) { const s = { uid: 's' + (++UID) + Math.random().toString(36).slice(2, 5), tpl, why: why || '', els: clone(dropDemo(LIB[tpl].els)) }; if (tlf) applyPhone(s.els, tlf); if (isSiteOnline(LIB, tpl)) { onlineClean(s.els); loremify(s.els, true); stockify(s.els, true); } else { loremify(s.els); stockify(s.els); } return s; }

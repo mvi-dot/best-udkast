@@ -30,7 +30,8 @@ Alle templates må gerne ligge i Drive-mappen. Reglerne ligger i værktøjet (`s
 - Er der ikke flere ledige templates til et tekstafsnit, bruges den bedste anden template med tekst som erstatning, og det står i "Tjek følgende igennem efter paste". Et tekstafsnit mangler aldrig.
 - **Bruges aldrig:** Menu, Footer, Marketing, Underside, Knapper (tidl. CTA), Kontakt side og Kontaktformular (`EXCLUDED_CATS`, `EXCLUDED_RE`).
 - Samme template bruges aldrig to gange i ét udkast.
-- Sektioner med formular får "⚠ Tjek formular-ID efter paste", og erstatninger får "⚠ Erstatning" i listen.
+- Ekstra sektioner med formular (ikke heroen) får "⚠ Tjek formular-ID efter paste", og erstatninger får "⚠ Erstatning" i listen.
+- Tomme sektioner i en template (bruges til interne noter) kommer aldrig med i udkastet.
 - Der er ét udkast ad gangen. "Generer nyt udkast på samme indstillinger" erstatter det, og Fortryd giver det forrige tilbage.
 
 ## Inspiration fra HOS-sider
