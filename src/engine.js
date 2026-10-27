@@ -672,7 +672,7 @@ function localPlan(b, LIB, n, existing, SITES) {
     const mine = new Set(); const sek = [];
     for (const c of cats) {
       let pool = (want.includes(c) ? keysAll : keys).filter(k => categoryOf(k) === c);   // en valgt type må gerne være en, der ellers ikke bruges automatisk (fx CTA)
-      if (c === 'Header' && b && b.heroForm) { const f = pool.filter(k => hasForm(LIB, k)); if (f.length) pool = f; }   // kun heroes med kontaktformular if (c === 'Galleri') pool = pool.filter(k => (team ? /^medarbejdere/ : /^galleri/).test(k) || (LIB[k] && LIB[k].group === 'Live sektioner'));
+      if (c === 'Header' && b && typeof b.heroForm === 'boolean') { const f = pool.filter(k => hasForm(LIB, k) === b.heroForm); if (f.length) pool = f; }   // med eller uden kontaktformular if (c === 'Galleri') pool = pool.filter(k => (team ? /^medarbejdere/ : /^galleri/).test(k) || (LIB[k] && LIB[k].group === 'Live sektioner'));
       if (!pool.length) continue; let fresh = pool.filter(k => !used.has(k) && !mine.has(k)); if (!fresh.length) fresh = pool.filter(k => !mine.has(k)); if (!fresh.length) fresh = pool;
       const wts = fresh.map(k => { const t = LIB[k] || {}; return t.group === 'Live sektioner' && t.site ? (t.branche && t.branche === gb.b ? 4 : 1.8) : 1; }); const tot = wts.reduce((a, x) => a + x, 0); let r = Math.random() * tot, pick = fresh[0];
       for (let q = 0; q < fresh.length; q++) { r -= wts[q]; if (r <= 0) { pick = fresh[q]; break; } }

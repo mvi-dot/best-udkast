@@ -523,6 +523,12 @@ html[data-theme=dark] .composer .prefixline{color:#b4c0cc}
 .wants legend{padding:0;margin:0 0 8px;font-size:13.5px;font-weight:600;color:var(--ink)}.wants legend small{font-weight:400;color:#b4c0cc;margin-left:6px}
 #wants{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px}
 #wants label:has(input[value=_heroForm]){grid-column:1/-1}
+.hopts{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.hopts label{margin:0!important;display:flex;align-items:center;gap:9px;padding:11px 12px;border:1px solid #4a5663;border-radius:8px;background:#181d23;cursor:pointer;font-size:12.5px;white-space:nowrap;color:var(--ink);user-select:none}
+.hopts label:hover{border-color:#5d6b7a}.hopts input{width:16px;height:16px;margin:0;accent-color:#3a7cc0;flex:none}
+.hopts label:has(input:checked){border-color:#3a7cc0;background:#1d2c3b}
+#heroBox.need .hopts label{border-color:#e8b866}
+body.home #briefCard .heros{margin-bottom:0}
 #wants label{margin:0!important;display:flex;align-items:center;gap:9px;line-height:1.25;padding:10px 12px;border:1px solid #4a5663;border-radius:8px;background:#181d23;cursor:pointer;font-size:13.5px;color:var(--ink);user-select:none}
 #wants label:hover{border-color:#5d6b7a}
 #wants input{width:16px;height:16px;margin:0;accent-color:#3a7cc0;flex:none}
@@ -559,7 +565,7 @@ body.home #briefCard .wants{margin:16px 0 18px}
     <details class="card composer" id="briefCard" open>
       <summary>Beskrivelse</summary>
       <div class="cpick"><input type="text" id="navn" class="bigin" autocomplete="off" placeholder="Vælg din kunde" aria-label="Vælg din kunde" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="custList"><ul id="custList" role="listbox" hidden></ul></div><div id="custInfo" hidden></div>
-      <fieldset class="wants" id="wantBox"><legend>Ønsker <small>valgfrit</small></legend><div id="wants"></div></fieldset>
+      <fieldset class="wants heros" id="heroBox"><legend>Header <small>vælg</small></legend><div class="hopts"><label><input type="radio" name="hero" value="form"> Med kontaktformular</label><label><input type="radio" name="hero" value="noform"> Uden kontaktformular</label></div></fieldset><fieldset class="wants" id="wantBox"><legend>Ønsker <small>valgfrit</small></legend><div id="wants"></div></fieldset>
       <div id="sidetype" hidden><input type="radio" name="sidetype" value="Forside" checked><input type="radio" name="sidetype" value="Underside"><input type="radio" name="sidetype" value="Hero"></div>
       <div class="composer-bar"><button class="btn primary send" id="genBtn" data-lock><span class="fx"></span><span class="lbl"><span class="wand" aria-hidden="true">🪄</span>Generer udkast</span></button></div>
       <div class="prefixline">Dine classes starter med: <code id="prefixShow">kundens-navn</code> <button class="linkbtn" id="prefixEdit" type="button">ret</button><input type="text" id="prefix" autocomplete="off" placeholder="Fx best-renovering" aria-label="Klasse-præfiks" hidden></div>

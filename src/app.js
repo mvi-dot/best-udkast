@@ -107,7 +107,7 @@ async function loadTemplates(msg) {
   const tlf = () => '';                                   // telefonnummer er droppet: templates beholder deres pladsholder
 
   /* ---------- brief ---------- */
-  function readBrief() { return { navn: $('navn').value.trim(), branche: (selCust && selCust.branche) || '', kunde: selCust ? { id: selCust.id, name: selCust.name, website: selCust.website } : null, msg: '', want: [...document.querySelectorAll('#wants input:checked')].map(x => x.value).filter(v => v !== '_heroForm'), heroForm: !!document.querySelector('#wants input[value=_heroForm]:checked'), sidetype: (document.querySelector('input[name=sidetype]:checked') || {}).value || 'Forside', prefix: $('prefix').value.trim().toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/^-+|-+$/g, '') }; }
+  function readBrief() { return { navn: $('navn').value.trim(), branche: (selCust && selCust.branche) || '', kunde: selCust ? { id: selCust.id, name: selCust.name, website: selCust.website } : null, msg: '', want: [...document.querySelectorAll('#wants input:checked')].map(x => x.value), heroForm: (v => v === 'form' ? true : v === 'noform' ? false : null)((document.querySelector('input[name=hero]:checked') || {}).value), sidetype: (document.querySelector('input[name=sidetype]:checked') || {}).value || 'Forside', prefix: $('prefix').value.trim().toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/^-+|-+$/g, '') }; }
 
   /* ---------- kunde fra ClickUp (Opstarter: to-do, afventer, i gang, på ugen – med HOS/HOS+/RE/RE+) ----------
      Uden ClickUp (lokalt, eller hvis det fejler) skriver man bare kundens navn. */
@@ -143,8 +143,8 @@ async function loadTemplates(msg) {
   if (IN_GAS) gas('me').then(m => { const first = String((m && m.name) || '').trim().split(/\s+/)[0]; if (first) $('hi').innerHTML = `Hej ${E.esc(first)},<br>lad os bygge dit udkast`; }).catch(() => { });
 
   /* ---------- tjekliste: hvilke typer skal med (alle typer fra templates, undtagen hero og Content, der altid er med) ---------- */
-  $('wants').innerHTML = (Object.keys(LIB).some(k => E.categoryOf(k) === 'Header' && E.hasForm(LIB, k)) ? '<label><input type="checkbox" value="_heroForm"> Hero med kontaktformular</label>' : '')
-    + E.catList(LIB).filter(c => c !== 'Header' && c !== 'Content').map(c => `<label><input type="checkbox" value="${E.esc(c)}"> ${E.esc(c)}</label>`).join('');
+  for (const r of document.querySelectorAll('input[name=hero]')) r.addEventListener('change', () => { $('heroBox').classList.remove('need'); if (/header/i.test($('status').textContent)) setStatus(''); });
+  $('wants').innerHTML = E.catList(LIB).filter(c => c !== 'Header' && c !== 'Content').map(c => `<label><input type="checkbox" value="${E.esc(c)}"> ${E.esc(c)}</label>`).join('');
 
   /* ---------- kundens navn → klasse-præfiks og telefon ---------- */
   let prefixTouched = false;
@@ -158,7 +158,7 @@ async function loadTemplates(msg) {
   const planToSections = f => E.sanitizePlan(f.sektioner, LIB).flatMap(x => { const secs = E.makeSections(LIB, x.tpl, x.hvorfor, tlf()); const n = parseInt(x.antal, 10); if (n > 0) { const r = E.resizeGroup(secs[0], n, CLASSES); if (r.ok) secs[0].warns = r.warn; } return secs; });
   async function generate(more) {
     const b = readBrief();
-    if (!more) { if (!b.navn) { setStatus('Skriv kundens navn først.', 'warn'); return; } state.brief = b; } else b.navn = state.brief.navn;
+    if (!more) { if (!b.navn) { setStatus('Vælg din kunde først.', 'warn'); return; } if (b.heroForm === null) { $('heroBox').classList.add('need'); setStatus('Vælg header: med eller uden kontaktformular.', 'warn'); return; } state.brief = b; } else b.navn = state.brief.navn;
     const brief = more ? state.brief : b; const n = more ? 1 : +$('count').value;
     setStatus(''); pushHist();
     try {
@@ -200,7 +200,7 @@ async function loadTemplates(msg) {
     const el = $('briefSum'); const b = state.brief || {}; const has = !!cur(); el.hidden = !has; if (!has) return;
     const g = state.guess; const side = b.sidetype && b.sidetype !== 'Forside' ? b.sidetype : 'Forside'; const antal = state.proposals.length;
     const bran = g && g.b ? `<span class="bchip">${E.esc(g.b)}</span><small>${E.esc(VIA[g.via] || g.via || '')}${g.via === 'tilfældigt' ? ' · vælg selv under "Ret beskrivelsen"' : ''}</small>` : b.branche ? `<span class="bchip">${E.esc(b.branche)}</span><small>dit valg</small>` : '<small>gættes ud fra navnet</small>';
-    el.innerHTML = `<div class="bsum-h"><b>Beskrivelse</b></div><dl class="bsum-l"><div><dt>Kunde</dt><dd>${E.esc(b.navn || '')}</dd></div><div><dt>Med</dt><dd>${b.want && b.want.length || b.heroForm ? E.esc([b.heroForm ? 'Hero med kontaktformular' : 'Hero', 'Content ×2', ...(b.want || [])].join(', ')) : '<em>Valgt automatisk</em>'}</dd></div><div><dt>Branche</dt><dd>${bran}</dd></div><div><dt>Opbygning</dt><dd>${E.esc(side)} · ${antal} udkast</dd></div><div><dt>Klasser</dt><dd><code>${E.esc($('prefixShow').textContent || '')}</code></dd></div></dl>`;
+    el.innerHTML = `<div class="bsum-h"><b>Beskrivelse</b></div><dl class="bsum-l"><div><dt>Kunde</dt><dd>${E.esc(b.navn || '')}</dd></div><div><dt>Med</dt><dd>${E.esc([b.heroForm === true ? 'Hero med kontaktformular' : b.heroForm === false ? 'Hero uden kontaktformular' : 'Hero', 'Content ×2', ...(b.want || [])].join(', '))}${b.want && b.want.length ? '' : ' <em>(resten automatisk)</em>'}</dd></div><div><dt>Branche</dt><dd>${bran}</dd></div><div><dt>Opbygning</dt><dd>${E.esc(side)} · ${antal} udkast</dd></div><div><dt>Klasser</dt><dd><code>${E.esc($('prefixShow').textContent || '')}</code></dd></div></dl>`;
   }
   document.addEventListener('keydown', e => { if (e.key === 'Escape' && selUid && $('picker').hidden) { selUid = null; render(); } });
   document.addEventListener('click', e => { if (!selUid || !$('picker').hidden) return; const path = e.composedPath ? e.composedPath() : []; if (path.some(n => n && n.nodeType === 1 && (n.id === 'list' || n.id === 'pvOuter' || n.id === 'picker' || /^(BUTTON|INPUT|TEXTAREA|SELECT|SUMMARY|LABEL|A|DIALOG)$/.test(n.tagName)))) return; selUid = null; render(); });
@@ -239,7 +239,7 @@ async function loadTemplates(msg) {
   let resetT = null;
   function doReset() {
     state = { brief: {}, proposals: [], active: 0, guess: null }; hist = []; selUid = null; exp = null; lastHas = false; prefixTouched = false;
-    selCust = null; renderCustInfo(); for (const id of ['navn', 'prefix']) $(id).value = ''; for (const x of document.querySelectorAll('#wants input')) x.checked = false; $('count').value = '1'; if ($('branche')) $('branche').value = ''; syncCount(); const f = document.querySelector('input[name=sidetype][value=Forside]'); if (f) f.checked = true;
+    selCust = null; renderCustInfo(); for (const id of ['navn', 'prefix']) $(id).value = ''; for (const x of document.querySelectorAll('#wants input, input[name=hero]')) x.checked = false; $('heroBox').classList.remove('need'); $('count').value = '1'; if ($('branche')) $('branche').value = ''; syncCount(); const f = document.querySelector('input[name=sidetype][value=Forside]'); if (f) f.checked = true;
     $('briefCard').open = true;
     syncPrefix(); $('prefix').hidden = true; setStatus('Startet forfra.', 'ok'); window.scrollTo({ top: 0 }); render();
   }
