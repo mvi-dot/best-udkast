@@ -518,6 +518,16 @@ html[data-theme=dark] .composer .prefixline{color:#b4c0cc}
 .btn.send .twk{position:absolute;z-index:3;pointer-events:none;color:#fff3cf;font-size:var(--s);line-height:1;opacity:0;animation:twk 1.1s ease-out forwards}
 @keyframes twk{0%{opacity:0;transform:translate(0,0) scale(.5)}30%{opacity:.75}100%{opacity:0;transform:translate(var(--dx),var(--dy)) scale(.9) rotate(60deg)}}
 @media (prefers-reduced-motion:reduce){.btn.send .twk{display:none}}
+/* tjekliste: hvad skal med */
+.wants{border:0;margin:0 0 10px;padding:0;text-align:left}
+.wants legend{padding:0;margin:0 0 8px;font-size:13.5px;font-weight:600;color:var(--ink)}.wants legend small{font-weight:400;color:#b4c0cc;margin-left:6px}
+#wants{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px}
+#wants label{margin:0!important;display:flex;align-items:center;gap:9px;line-height:1.25;padding:10px 12px;border:1px solid #4a5663;border-radius:8px;background:#181d23;cursor:pointer;font-size:13.5px;color:var(--ink);user-select:none}
+#wants label:hover{border-color:#5d6b7a}
+#wants input{width:16px;height:16px;margin:0;accent-color:#3a7cc0;flex:none}
+#wants label:has(input:checked){border-color:#3a7cc0;background:#1d2c3b}
+.composer .prefixline{margin:12px 0 0}
+.composer .prefixline .linkbtn,html[data-theme=dark] .composer .prefixline .linkbtn{color:inherit!important;text-decoration:underline;text-underline-offset:2px;background:none;border:0;padding:0 2px}
 </style>
 </head>
 <body>
@@ -533,10 +543,10 @@ html[data-theme=dark] .composer .prefixline{color:#b4c0cc}
     <details class="card composer" id="briefCard" open>
       <summary>Beskrivelse</summary>
       <div class="cpick"><input type="text" id="navn" class="bigin" autocomplete="off" placeholder="Vælg din kunde" aria-label="Vælg din kunde" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="custList"><ul id="custList" role="listbox" hidden></ul></div><div id="custInfo" hidden></div>
-      <textarea id="msg" class="ctx" rows="2" placeholder="Ønsker du noget bestemt til udkastet ud fra Best Templates? (valgfrit)"></textarea>
-      <div class="prefixline">Klasserne starter med <code id="prefixShow">kundens-navn</code> <button class="linkbtn" id="prefixEdit" type="button">ret</button><input type="text" id="prefix" autocomplete="off" placeholder="Fx best-renovering" aria-label="Klasse-præfiks" hidden></div>
+      <fieldset class="wants" id="wantBox"><legend>Hvad skal med? <small>Hero og 2× Content er altid med</small></legend><div id="wants"></div></fieldset>
       <div id="sidetype" hidden><input type="radio" name="sidetype" value="Forside" checked><input type="radio" name="sidetype" value="Underside"><input type="radio" name="sidetype" value="Hero"></div>
       <div class="composer-bar"><button class="btn primary send" id="genBtn" data-lock><span class="fx"></span><span class="lbl"><span class="wand" aria-hidden="true">🪄</span>Generer udkast</span></button></div>
+      <div class="prefixline">Dine classes starter med: <code id="prefixShow">kundens-navn</code> <button class="linkbtn" id="prefixEdit" type="button">ret</button><input type="text" id="prefix" autocomplete="off" placeholder="Fx best-renovering" aria-label="Klasse-præfiks" hidden></div>
       <select id="count" hidden><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option></select>
       <div class="status" id="status" role="status" aria-live="polite"></div>
     </details>

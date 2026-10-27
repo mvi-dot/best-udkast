@@ -107,7 +107,7 @@ async function loadTemplates(msg) {
   const tlf = () => '';                                   // telefonnummer er droppet: templates beholder deres pladsholder
 
   /* ---------- brief ---------- */
-  function readBrief() { return { navn: $('navn').value.trim(), branche: (selCust && selCust.branche) || '', kunde: selCust ? { id: selCust.id, name: selCust.name, website: selCust.website } : null, msg: $('msg').value.trim(), sidetype: (document.querySelector('input[name=sidetype]:checked') || {}).value || 'Forside', prefix: $('prefix').value.trim().toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/^-+|-+$/g, '') }; }
+  function readBrief() { return { navn: $('navn').value.trim(), branche: (selCust && selCust.branche) || '', kunde: selCust ? { id: selCust.id, name: selCust.name, website: selCust.website } : null, msg: '', want: [...document.querySelectorAll('#wants input:checked')].map(x => x.value), sidetype: (document.querySelector('input[name=sidetype]:checked') || {}).value || 'Forside', prefix: $('prefix').value.trim().toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/^-+|-+$/g, '') }; }
 
   /* ---------- kunde fra ClickUp (Opstarter: to-do, afventer, i gang, på ugen – med HOS/HOS+/RE/RE+) ----------
      Uden ClickUp (lokalt, eller hvis det fejler) skriver man bare kundens navn. */
@@ -138,6 +138,9 @@ async function loadTemplates(msg) {
     if (e.key === 'Escape' && open) { $('custList').hidden = true; return; }
     if (e.key === 'Enter' && !e.isComposing && !e.shiftKey) { e.preventDefault(); if (open && custHi >= 0 && hits[custHi]) { pickCust(hits[custHi]); return; } $('genBtn').click(); }
   });
+
+  /* ---------- tjekliste: hvilke typer skal med (alle typer fra templates, undtagen hero og Content, der altid er med) ---------- */
+  $('wants').innerHTML = E.catList(LIB).filter(c => c !== 'Header' && c !== 'Content').map(c => `<label><input type="checkbox" value="${E.esc(c)}"> ${E.esc(c)}</label>`).join('');
 
   /* ---------- kundens navn → klasse-præfiks og telefon ---------- */
   let prefixTouched = false;
@@ -193,7 +196,7 @@ async function loadTemplates(msg) {
     const el = $('briefSum'); const b = state.brief || {}; const has = !!cur(); el.hidden = !has; if (!has) return;
     const g = state.guess; const side = b.sidetype && b.sidetype !== 'Forside' ? b.sidetype : 'Forside'; const antal = state.proposals.length;
     const bran = g && g.b ? `<span class="bchip">${E.esc(g.b)}</span><small>${E.esc(VIA[g.via] || g.via || '')}${g.via === 'tilfældigt' ? ' · vælg selv under "Ret beskrivelsen"' : ''}</small>` : b.branche ? `<span class="bchip">${E.esc(b.branche)}</span><small>dit valg</small>` : '<small>gættes ud fra navnet</small>';
-    el.innerHTML = `<div class="bsum-h"><b>Beskrivelse</b></div><dl class="bsum-l"><div><dt>Kunde</dt><dd>${E.esc(b.navn || '')}</dd></div><div><dt>Ønsker</dt><dd>${b.msg ? E.esc(b.msg) : '<em>Intet angivet</em>'}</dd></div><div><dt>Branche</dt><dd>${bran}</dd></div><div><dt>Opbygning</dt><dd>${E.esc(side)} · ${antal} udkast</dd></div><div><dt>Klasser</dt><dd><code>${E.esc($('prefixShow').textContent || '')}</code></dd></div></dl>`;
+    el.innerHTML = `<div class="bsum-h"><b>Beskrivelse</b></div><dl class="bsum-l"><div><dt>Kunde</dt><dd>${E.esc(b.navn || '')}</dd></div><div><dt>Med</dt><dd>${b.want && b.want.length ? E.esc(['Hero', 'Content ×2', ...b.want].join(', ')) : '<em>Valgt automatisk</em>'}</dd></div><div><dt>Branche</dt><dd>${bran}</dd></div><div><dt>Opbygning</dt><dd>${E.esc(side)} · ${antal} udkast</dd></div><div><dt>Klasser</dt><dd><code>${E.esc($('prefixShow').textContent || '')}</code></dd></div></dl>`;
   }
   document.addEventListener('keydown', e => { if (e.key === 'Escape' && selUid && $('picker').hidden) { selUid = null; render(); } });
   document.addEventListener('click', e => { if (!selUid || !$('picker').hidden) return; const path = e.composedPath ? e.composedPath() : []; if (path.some(n => n && n.nodeType === 1 && (n.id === 'list' || n.id === 'pvOuter' || n.id === 'picker' || /^(BUTTON|INPUT|TEXTAREA|SELECT|SUMMARY|LABEL|A|DIALOG)$/.test(n.tagName)))) return; selUid = null; render(); });
@@ -232,12 +235,12 @@ async function loadTemplates(msg) {
   let resetT = null;
   function doReset() {
     state = { brief: {}, proposals: [], active: 0, guess: null }; hist = []; selUid = null; exp = null; lastHas = false; prefixTouched = false;
-    selCust = null; renderCustInfo(); for (const id of ['navn', 'prefix', 'msg']) $(id).value = ''; $('count').value = '1'; if ($('branche')) $('branche').value = ''; syncCount(); const f = document.querySelector('input[name=sidetype][value=Forside]'); if (f) f.checked = true;
+    selCust = null; renderCustInfo(); for (const id of ['navn', 'prefix']) $(id).value = ''; for (const x of document.querySelectorAll('#wants input')) x.checked = false; $('count').value = '1'; if ($('branche')) $('branche').value = ''; syncCount(); const f = document.querySelector('input[name=sidetype][value=Forside]'); if (f) f.checked = true;
     $('briefCard').open = true;
     syncPrefix(); $('prefix').hidden = true; setStatus('Startet forfra.', 'ok'); window.scrollTo({ top: 0 }); render();
   }
   $('resetBtn').onclick = () => {
-    const dirty = state.proposals.length || $('navn').value || $('msg').value;
+    const dirty = state.proposals.length || $('navn').value || document.querySelector('#wants input:checked');
     if (!dirty) { doReset(); return; }
     if (resetT) { clearTimeout(resetT); resetT = null; $('resetBtn').textContent = 'Start forfra'; $('resetBtn').classList.remove('warn'); doReset(); return; }
     $('resetBtn').textContent = 'Slet alt? Klik igen'; $('resetBtn').classList.add('warn');

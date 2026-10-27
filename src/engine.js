@@ -635,8 +635,9 @@ function analyzeSite(html, LIB, CLASSES) {
     const m = matchSection(fp, T, c => i === 0 ? c === 'Header' : c !== 'Header');   // kun den første sektion er en hero
     return m && Object.assign(m, { c: categoryOf(m.k) }); }).filter(Boolean);
 }
+const WANT_ORDER = ['Ydelser', 'Anmeldelser', 'Cases', 'Priser', 'Galleri', 'FAQ', 'CTA', 'Kontakt sektion'];
 function localPlan(b, LIB, n, existing, SITES) {
-  const keys = allowedKeys(LIB, true); const used = new Set([].concat(...(existing || []))); const msg = String((b && b.msg) || '').toLowerCase(); const type = (b && b.sidetype) || 'Forside'; const has = re => re.test(msg);
+  const keys = allowedKeys(LIB, true), keysAll = allowedKeys(LIB); const want = Array.isArray(b && b.want) ? b.want.filter(c => c && c !== 'Header' && c !== 'Content' && !EXCLUDED_CATS.has(c)) : []; const used = new Set([].concat(...(existing || []))); const msg = String((b && b.msg) || '').toLowerCase(); const type = (b && b.sidetype) || 'Forside'; const has = re => re.test(msg);
   const gb = b && b.branche ? { b: b.branche, via: 'dit valg' } : guessBranche(b && b.navn, b && b.msg, SITES); const team = has(/medarbejder|team|folk/);
   const DEF = type === 'Hero' ? ['Header'] : type === 'Menu' ? ['Menu'] : type === 'Underside' ? ['Header', 'Content', 'Ydelser', 'FAQ', 'Kontakt sektion'] : ['Header', 'Ydelser', 'Content', 'Anmeldelser', 'FAQ', 'Kontakt sektion'];
   const OK = new Set(['Header', 'Ydelser', 'Content', 'Anmeldelser', 'FAQ', 'Kontakt sektion', 'Galleri', 'Cases', 'Priser']);
@@ -654,6 +655,13 @@ function localPlan(b, LIB, n, existing, SITES) {
       if (has(/uden faq|ingen faq/)) cats = cats.filter(c => c !== 'FAQ'); if (has(/uden anmeld|ingen anmeld/)) cats = cats.filter(c => c !== 'Anmeldelser');
     }
     if (type !== 'Hero' && type !== 'Menu') { cats = cats.filter(c => c !== 'Header'); cats.unshift('Header'); }          // altid præcis 1 hero, og den er først
+    if (want.length && type !== 'Hero' && type !== 'Menu') {   // tjeklisten: præcis de valgte typer (i forbilledets rækkefølge, ellers standard), kontakt sidst
+      const W = new Set(want); const seq = [];
+      for (const c of cats) if (W.has(c) && !seq.includes(c)) seq.push(c);
+      for (const c of WANT_ORDER.concat(want)) if (W.has(c) && !seq.includes(c)) seq.push(c);
+      if (seq.includes('Kontakt sektion')) { seq.splice(seq.indexOf('Kontakt sektion'), 1); seq.push('Kontakt sektion'); }
+      cats = ['Header', ...seq];
+    }
     { let sawRev = false; cats = cats.filter(c => c !== 'Anmeldelser' || (!sawRev && (sawRev = true))); }          // kun 1 anmeldelses-sektion pr. udkast
     if (type !== 'Hero' && type !== 'Menu') {   // basisregel: altid præcis 2 Content-sektioner
       let nc = 0; cats = cats.filter(c => c !== 'Content' || ++nc <= 2);
@@ -661,7 +669,7 @@ function localPlan(b, LIB, n, existing, SITES) {
     }
     const mine = new Set(); const sek = [];
     for (const c of cats) {
-      let pool = keys.filter(k => categoryOf(k) === c); if (c === 'Galleri') pool = pool.filter(k => (team ? /^medarbejdere/ : /^galleri/).test(k) || (LIB[k] && LIB[k].group === 'Live sektioner'));
+      let pool = (want.includes(c) ? keysAll : keys).filter(k => categoryOf(k) === c);   // en valgt type må gerne være en, der ellers ikke bruges automatisk (fx CTA) if (c === 'Galleri') pool = pool.filter(k => (team ? /^medarbejdere/ : /^galleri/).test(k) || (LIB[k] && LIB[k].group === 'Live sektioner'));
       if (!pool.length) continue; let fresh = pool.filter(k => !used.has(k) && !mine.has(k)); if (!fresh.length) fresh = pool.filter(k => !mine.has(k)); if (!fresh.length) fresh = pool;
       const wts = fresh.map(k => { const t = LIB[k] || {}; return t.group === 'Live sektioner' && t.site ? (t.branche && t.branche === gb.b ? 4 : 1.8) : 1; }); const tot = wts.reduce((a, x) => a + x, 0); let r = Math.random() * tot, pick = fresh[0];
       for (let q = 0; q < fresh.length; q++) { r -= wts[q]; if (r <= 0) { pick = fresh[q]; break; } }
