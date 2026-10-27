@@ -474,7 +474,9 @@ function localPlan(b, LIB, n, existing, SITES) {
       let nc = 0; cats = cats.filter(c => c !== 'Content' || ++nc <= nC);
       while (cats.filter(c => c === 'Content').length < nC) { const k = cats.lastIndexOf('Content'); cats.splice(k < 0 ? Math.min(2, Math.max(1, cats.length - 1)) : Math.min(k + 2, Math.max(k + 1, cats.length - 1)), 0, 'Content'); }
       { const k = cats.lastIndexOf('Kontakt sektion'); if (k === cats.length - 1) cats.splice(k, 0, CTA_TEXT); else cats.push(CTA_TEXT); }   // CTA-afsnittet til sidst, men før en kontaktsektion med formular
-      { const m = cats.indexOf('CTA sektion'); if (m >= 0) { cats.splice(m, 1); cats.splice(Math.max(2, Math.floor(cats.length / 2)), 0, CTA_TEXT); } }   // valgt "CTA sektion": et ekstra CTA-afsnit midt på siden
+      { const m = cats.indexOf('CTA sektion'); if (m >= 0) { cats.splice(m, 1);   // valgt "CTA sektion": et ekstra CTA-afsnit midt på siden
+        const last = cats.lastIndexOf(CTA_TEXT), pos = Math.min(Math.max(2, Math.floor(cats.length / 2)), last - 1);   // mindst én sektion mellem de to CTA-afsnit
+        if (pos >= 2 && last - pos >= 1) cats.splice(pos, 0, CTA_TEXT); } }   // er siden for kort, springes det ekstra over
     }
     const mine = new Set(); const sek = [];
     for (const c of cats) {

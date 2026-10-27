@@ -601,6 +601,12 @@ svg.ic{width:16px;height:16px;flex:none;fill:none;stroke:currentColor;stroke-wid
 #list li .t{padding-right:40px}
 #moreBtn .gspin{display:none;width:14px;height:14px;border-radius:50%;border:2px solid rgba(255,255,255,.25);border-top-color:#fff;animation:bootspin .8s linear infinite}
 #moreBtn.loading .gspin{display:inline-block}#moreBtn.loading svg.ic{display:none}#moreBtn.loading,#moreBtn.loading:disabled{opacity:1;cursor:progress;color:var(--ink)}
+html[data-theme=dark] .composer #navn.need{border-color:#e8b866!important}
+/* fejlbar */
+#toast{position:fixed;left:50%;bottom:22px;z-index:9000;display:flex;align-items:center;gap:12px;max-width:min(560px,calc(100vw - 32px));padding:12px 14px 12px 16px;background:#2a2320;border:1px solid #6b4a2e;border-radius:10px;color:#f3e7d8;box-shadow:0 12px 34px rgba(0,0,0,.45);font-size:13.5px;transform:translate(-50%,16px);opacity:0;transition:opacity .25s,transform .25s}
+#toast.show{opacity:1;transform:translate(-50%,0)}#toast[hidden]{display:none}
+#toast .ticon{color:#e8b866;font-size:16px}#toast .tmsg{font-weight:600}#toast .tcode{display:block;margin-top:2px;color:#c9b7a4;font-family:ui-monospace,Menlo,monospace;font-size:11.5px;user-select:all}
+#toast .tx{background:none;border:0;color:#c9b7a4;font-size:20px;line-height:1;cursor:pointer;padding:0 2px;margin-left:4px}
 </style>
 </head>
 <body>
@@ -676,6 +682,7 @@ svg.ic{width:16px;height:16px;flex:none;fill:none;stroke:currentColor;stroke-wid
 <div id="picker" hidden role="dialog" aria-modal="true" aria-labelledby="pkTitle"><div class="pkbox"><div class="pkhead"><div class="r"><b id="pkTitle">Vælg sektion</b><span style="display:flex;gap:8px;align-items:center"><label for="pkSort" class="hint" style="font-size:12.5px">Sortér</label><select id="pkSort" aria-label="Sortér sektioner"><option value="nyeste">Nyeste først</option><option value="aeldste">Ældste først</option><option value="navn">Navn A–Å</option><option value="brugt">Mest brugt</option></select><button class="btn" id="pkClose">Luk</button></span></div><div id="pkCats"></div></div><div id="pkGrid"></div><div id="pkFoot"><span id="pkSheet" class="hint"></span></div></div></div>
 <div id="copyFallback" hidden role="dialog" aria-modal="true" aria-labelledby="cfTitle"><div class="pkbox" style="max-width:720px"><div class="pkhead"><div class="r"><b id="cfTitle">Browseren blokerer kopiering her</b><button class="btn" id="cfClose">Luk</button></div><p class="hint" style="margin:0">JSON'en er markeret. Tryk Ctrl/Cmd + C, og indsæt i Bricks.</p></div><div style="padding:14px 18px"><textarea id="cfText" readonly spellcheck="false" style="min-height:280px;font:12px/1.4 ui-monospace,Menlo,monospace"></textarea></div></div></div>
 
+<div id="toast" role="alert" hidden><span class="ticon" aria-hidden="true">⚠</span><div><div class="tmsg"></div><small class="tcode"></small></div><button class="tx" type="button" aria-label="Luk">×</button></div>
 <div id="boot" hidden><div class="bootbox"><img class="bootlogo" alt="Best One" width="64" height="64"><div class="boot-row"><b class="boot-t"></b><div class="boot-spin" role="progressbar" aria-label="Henter"></div></div><span class="boot-s" role="status">Henter templates…</span></div></div>
 <script type="application/json" id="data">/*DATA*/</script>
 <script>/*ENGINE*/

@@ -30,6 +30,8 @@ Alle templates må gerne ligge i Drive-mappen. Reglerne ligger i værktøjet (`s
 - Er der ikke flere ledige templates til et tekstafsnit, bruges den bedste anden template med tekst som erstatning, og det står i "Tjek følgende igennem efter paste". Et tekstafsnit mangler aldrig.
 - **Bruges aldrig:** Menu, Footer, Marketing, Underside, Knapper (tidl. CTA), Kontakt side og Kontaktformular (`EXCLUDED_CATS`, `EXCLUDED_RE`).
 - Samme template bruges aldrig to gange i ét udkast.
+- "CTA sektion": der står altid mindst én sektion mellem de to CTA-afsnit. Er siden for kort, springes det ekstra over.
+- Man skal vælge en kunde fra ClickUp-listen for at lave et udkast.
 - Ekstra sektioner med formular (ikke heroen) får "⚠ Tjek formular-ID efter paste", og erstatninger får "⚠ Erstatning" i listen.
 - Tomme sektioner i en template (bruges til interne noter) kommer aldrig med i udkastet.
 - Der er ét udkast ad gangen. "Generer nyt udkast på samme indstillinger" erstatter det, og Cmd/Ctrl + Z giver det forrige tilbage.
@@ -45,3 +47,11 @@ Med ClickUp sat op (se apps-script/LAES-MIG.md) henter værktøjet kunderne med 
 - `.github/workflows/static.yml` – bygger og udgiver ved hvert push (Settings → Pages → Source: GitHub Actions)
 
 Lokalt: `python3 build.py`, derefter `python3 -m http.server 8000` og åbn http://localhost:8000/index.html. Uden Apps Script bruger værktøjet `.claude/dev-templates.json`, hvis den findes (ligger ikke i repoet).
+
+## Fejlkoder
+Fejl vises i en bar nederst med en kode som `E30-1318-4f2a` (type, klokkeslæt, id). Detaljerne står i browserens konsol under samme kode.
+- `E10` udkastet kunne ikke laves
+- `E20` antallet kan ikke ændres i sektionen
+- `E30` en sektion kunne ikke skiftes eller tilføjes
+- `E40` kunderne kunne ikke hentes fra ClickUp
+- `E90` uventet fejl
