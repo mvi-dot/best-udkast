@@ -33,8 +33,8 @@ function removeSubtree(els, id) {
 }
 
 /* ---------- kategorier / varianter (navne som i skabelon-arket) + meta fra arket ---------- */
-const TYPE_ORDER = ['Header', 'Ydelser', 'Anmeldelser', 'Cases', 'Priser', 'FAQ', 'Content', 'Galleri', 'Medarbejdere', 'Kontakt sektion', 'Underside', 'Marketing', 'CTA sektion'];
-const PREFIX_TYPE = { hero: 'Header', ydelse: 'Ydelser', anmeldelse: 'Anmeldelser', cases: 'Cases', priser: 'Priser', faq: 'FAQ', content: 'Content', kontaktsektion: 'Kontakt sektion', kontakformular: 'Kontaktformular', kontaktformular: 'Kontaktformular', kontakt: 'Kontakt side', knapper: 'Knapper', underside: 'Underside', geo: 'Marketing', viden: 'Marketing', seo: 'Marketing', blog: 'Marketing', galleri: 'Galleri', medarbejdere: 'Medarbejdere', cta: 'CTA sektion' };
+const TYPE_ORDER = ['Header', 'Ydelser', 'Anmeldelser', 'Cases', 'Priser', 'FAQ', 'Content', 'Galleri', 'Medarbejdere', 'Kontakt sektion', 'Underside', 'Marketing'];
+const PREFIX_TYPE = { hero: 'Header', ydelse: 'Ydelser', anmeldelse: 'Anmeldelser', cases: 'Cases', priser: 'Priser', faq: 'FAQ', content: 'Content', kontaktsektion: 'Kontakt sektion', kontakformular: 'Kontaktformular', kontaktformular: 'Kontaktformular', kontakt: 'Kontakt side', knapper: 'Knapper', underside: 'Underside', geo: 'Marketing', viden: 'Marketing', seo: 'Marketing', blog: 'Marketing', galleri: 'Galleri', medarbejdere: 'Medarbejdere', cta: 'Knapper' };   // cta-… er knapper; CTA-sektionerne ligger under Kontakt sektion
 const WHOLE_PAGE = new Set(['Underside', 'Marketing', 'Menu', 'Footer']);                   // hele sider: kun hvis der bedes om det
 const SHEET_ALIAS = { underside: 'underside-1', 'seo-blogindlaeg': 'seo-blogindlg', 'menu-10': 'menu-10-mega-menu' };
 let META = {}; let MISSING = []; let CATS = {}, TITLES = {}; let SHEETDATE = {};
@@ -44,24 +44,24 @@ function setMeta(LIB, rows) {
   for (const o of rows || []) {
     if (!o || /^(Menu|Footer)$/i.test(o.t)) continue;
     let key = SHEET_ALIAS[o.s] || o.s; if (!LIB[key]) key = Object.keys(LIB).find(k => k.startsWith(o.s + '-')) || null;
-    if (key && LIB[key] && !META[key]) META[key] = { name: o.n, type: /^cta$/i.test(String(o.t).trim()) ? 'CTA sektion' : String(o.t).trim(), desc: o.b || '', date: o.d || '', link: o.u || '' }; else MISSING.push(o);
+    if (key && LIB[key] && !META[key]) META[key] = { name: o.n, type: /^cta$/i.test(String(o.t).trim()) ? 'Knapper' : String(o.t).trim(), desc: o.b || '', date: o.d || '', link: o.u || '' }; else MISSING.push(o);
   }
   return { matched: Object.keys(META).length, missing: MISSING };
 }
 const prefixOf = k => k.split('-')[0];
-function categoryOf(key) { if (String(key).startsWith('ai-')) return 'AI sektion'; if (String(key).startsWith('fri-')) return 'Ny sektion'; if (CATS[key]) return CATS[key]; if (META[key]) return META[key].type; const p = prefixOf(key); return PREFIX_TYPE[p] || (p.charAt(0).toUpperCase() + p.slice(1)); }
-function displayName(key) { if (String(key).startsWith('ai-')) return 'AI sektion'; if (String(key).startsWith('fri-')) return 'Ny · ' + ((FRI_TYPES[key.slice(4)] || {}).name || key); if (META[key]) return META[key].name; if (TITLES[key] && !/^[a-z]+-\d+$/.test(key)) return TITLES[key]; const m = key.match(/^([a-zæøå]+)-(\d+)/i); return m ? m[1].charAt(0).toUpperCase() + m[1].slice(1) + ' #' + m[2] : key; }
+function categoryOf(key) { if (CATS[key]) return CATS[key]; if (META[key]) return META[key].type; const p = prefixOf(key); return PREFIX_TYPE[p] || (p.charAt(0).toUpperCase() + p.slice(1)); }
+function displayName(key) { if (META[key]) return META[key].name; if (TITLES[key] && !/^[a-z]+-\d+$/.test(key)) return TITLES[key]; const m = key.match(/^([a-zæøå]+)-(\d+)/i); return m ? m[1].charAt(0).toUpperCase() + m[1].slice(1) + ' #' + m[2] : key; }
 let DESCS = {};
 const describeKey = key => (META[key] && META[key].desc) || DESCS[key] || '';
 const EXCLUDED_CATS = new Set(['Menu', 'Footer', 'Marketing', 'Underside', 'Knapper', 'Kontakt side', 'Kontaktformular']);   // basisregel: bruges ALDRIG (hverken i udkast eller i "Tilføj sektion")
 const EXCLUDED_KEYS = new Set(['seo-blogindlg', 'seo-blogindlaeg', 'blog-underside', 'geo-underside', 'viden-geo']);
 const EXCLUDED_RE = /^kontakt?formular/;                                          // basisregel: kontaktformularerne bruges ALDRIG (begge stavemåder)
 const isExcluded = k => EXCLUDED_KEYS.has(k) || EXCLUDED_RE.test(k);
-const allowedKeys = (LIB, auto) => Object.keys(LIB).filter(k => !EXCLUDED_CATS.has(categoryOf(k)) && !isExcluded(k) && (!auto || categoryOf(k) !== 'CTA sektion')).sort((a, b) => a.localeCompare(b, 'da', { numeric: true }));
+const allowedKeys = (LIB, auto) => Object.keys(LIB).filter(k => !EXCLUDED_CATS.has(categoryOf(k)) && !isExcluded(k)).sort((a, b) => a.localeCompare(b, 'da', { numeric: true }));
 const variantsOf = (LIB, cat) => allowedKeys(LIB).filter(k => categoryOf(k) === cat);
 function catList(LIB) { const have = new Set(allowedKeys(LIB).map(categoryOf)); return TYPE_ORDER.filter(c => have.has(c)).concat([...have].filter(c => !TYPE_ORDER.includes(c)).sort()); }
 function nextVariant(LIB, tpl, used) {
-  const list = variantsOf(LIB, categoryOf(tpl)).filter(k => categoryOf(k) !== 'CTA sektion'); if (list.length < 2) return null;
+  const list = variantsOf(LIB, categoryOf(tpl)); if (list.length < 2) return null;
   const i = list.indexOf(tpl); const order = i < 0 ? list : list.slice(i + 1).concat(list.slice(0, i));
   return order.find(k => !used.includes(k)) || order[0];
 }
@@ -87,217 +87,15 @@ function applyPhone(els, tlf) {
 
 /* ---------- billeder / import af kundens eksisterende site ---------- */
 const fileOf = u => decodeURIComponent(String(u).split('?')[0].split('/').pop() || 'billede');
-let ENV = { CLASSES: {} }; const setEnv = o => { ENV = Object.assign(ENV, o); if (o && o.CLASSES) setFriClasses(o.CLASSES); };
+let ENV = { CLASSES: {} }; const setEnv = o => { ENV = Object.assign(ENV, o); };
 
 
-/* ============================================================================
-   NYE SEKTIONER ("fri"): bygget af temaets variabler, med egen scopet CSS.
-   AI'en vælger type og skriver kort tekst; motoren bygger gyldige Bricks-elementer.
-   ============================================================================ */
-const FRI_TYPES = {
-  intro: { name: 'Intro', n: 0 }, split: { name: 'Tekst + billede', n: 0 },
-  cards: { name: 'Kort', n: 3, min: 2, max: 8, label: 'kort' }, features: { name: 'Fordele', n: 4, min: 2, max: 8, label: 'punkter' },
-  steps: { name: 'Trin', n: 4, min: 2, max: 6, label: 'trin' }, stats: { name: 'Tal', n: 3, min: 2, max: 4, label: 'tal' },
-  trust: { name: 'Tillidsbånd', n: 4, min: 2, max: 5, label: 'punkter' }, quote: { name: 'Citat', n: 0 },
-  gallery: { name: 'Galleri', n: 6, min: 3, max: 9, label: 'billeder' },
-};
-const FRI_STIL = ['lys', 'graa', 'primaer', 'moerk'];
-const FRI_ICONS = ['fas fa-check', 'fas fa-shield-halved', 'fas fa-star', 'fas fa-clock', 'fas fa-hammer', 'fas fa-house', 'fas fa-leaf', 'fas fa-bolt', 'fas fa-heart', 'fas fa-phone', 'fas fa-location-dot', 'fas fa-award', 'fas fa-users', 'fas fa-handshake', 'fas fa-wrench', 'fas fa-paint-roller', 'fas fa-truck', 'fas fa-sun', 'fas fa-lightbulb', 'fas fa-thumbs-up', 'fas fa-calendar-check', 'fas fa-ruler-combined', 'fas fa-tree', 'fas fa-droplet', 'fas fa-fire', 'fas fa-gear', 'fas fa-comments', 'fas fa-gem', 'fas fa-lock', 'fas fa-circle-check'];
-const FRI_IMG = ['0U2A7949.jpg', '0U2A2561.jpg', '0U2A4711.jpg', '0U2A9311.jpg'].map((f, i) => { const id = [1958, 1928, 1941, 1961][i]; const u = 'https://best-template.test-one.dk/wp-content/uploads/2025/05/' + f; return { id, filename: f, size: 'full', full: u, url: u }; });
-const FRI_BTN_CLASS = 'button-hover';                        // jeres eksisterende klasse til knap-hover
-const FRI_USED = new Set(); let FRI_CLASSES = {};
-const setFriClasses = C => { FRI_CLASSES = C || {}; };
-const friClassId = name => Object.keys(FRI_CLASSES).find(k => FRI_CLASSES[k].name === name);
-const friIcon = v => { const x = fstr(v, 40).replace(/^fas fa-/, '').replace(/^fa-/, ''); const full = 'fas fa-' + x; return FRI_ICONS.includes(full) ? full : ''; };
-const fstr = (v, n) => String(v == null ? '' : v).replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim().slice(0, n);
-const fnum = (v, d) => { const n = parseInt(v, 10); return Number.isFinite(n) ? n : d; };
-
-function normFri(s) {
-  const type = s && (s.fri || s.type); if (!FRI_TYPES[type]) return null; const T = FRI_TYPES[type];
-  const o = { fri: type, stil: FRI_STIL.includes(s.stil) ? s.stil : (type === 'stats' || type === 'trust' ? 'primaer' : type === 'quote' ? 'graa' : 'lys'), layout: s.layout === 'billede-venstre' ? 'billede-venstre' : 'billede-hoejre',
-    eyebrow: fstr(s.eyebrow, 40), overskrift: fstr(s.overskrift, 90), tekst: fstr(s.tekst, 420), tekst2: fstr(s.tekst2, 320), punkter: (Array.isArray(s.punkter) ? s.punkter : []).map(x => fstr(x, 70)).filter(Boolean).slice(0, 8),
-    knapper: (Array.isArray(s.knapper) ? s.knapper : []).map(k => typeof k === 'string' ? { tekst: fstr(k, 28), type: 'kontakt' } : { tekst: fstr(k && k.tekst, 28), type: ['telefon', 'kontakt', 'link'].includes(k && k.type) ? k.type : 'kontakt' }).filter(k => k.tekst || k.type === 'telefon').slice(0, 2),
-    kort: (Array.isArray(s.kort) ? s.kort : []).map(k => ({ ikon: friIcon(k && k.ikon), titel: fstr(k && k.titel, 60), tekst: fstr(k && k.tekst, 200) })).filter(k => k.titel || k.tekst),
-    trin: (Array.isArray(s.trin) ? s.trin : []).map(k => ({ titel: fstr(k && k.titel, 60), tekst: fstr(k && k.tekst, 200) })).filter(k => k.titel || k.tekst),
-    tal: (Array.isArray(s.tal) ? s.tal : []).map(k => ({ tal: fstr(k && k.tal, 8).replace(/[^0-9]/g, '') || '100', suffix: fstr(k && k.suffix, 4), label: fstr(k && k.label, 40) })),
-    citat: { tekst: fstr(s.citat && s.citat.tekst, 320), navn: fstr(s.citat && s.citat.navn, 40), titel: fstr(s.citat && s.citat.titel, 50) } };
-  if (T.n) o.antal = friSnap(type, Math.max(T.min, Math.min(T.max, fnum(s.antal, 0) || (o.kort.length || o.trin.length || o.tal.length || o.punkter.length || T.n))), 0);
-  if (type === 'cards' || type === 'trust') o.kort = friFill(o.kort, o.antal, i => ({ ikon: FRI_ICONS[(i * 3) % FRI_ICONS.length], titel: 'Overskrift', tekst: 'Kort tekst om punktet.' }));
-  if (type === 'features') o.kort = friFill(o.kort, o.antal, i => ({ ikon: FRI_ICONS[(i * 3) % FRI_ICONS.length], titel: 'Fordel', tekst: 'Kort forklaring.' }));
-  if (type === 'steps') o.trin = friFill(o.trin, o.antal, i => ({ titel: 'Trin ' + (i + 1), tekst: 'Kort forklaring af trinnet.' }));
-  if (type === 'stats') o.tal = friFill(o.tal, o.antal, () => ({ tal: '100', suffix: '+', label: 'Tekst' }));
-  if (type === 'quote' && !o.citat.tekst) o.citat.tekst = 'Her står kundens ord om samarbejdet.';
-  if (!o.overskrift && ['intro', 'split', 'cards', 'features', 'steps'].includes(type)) o.overskrift = 'Overskrift';
-  if (type === 'split' && !o.tekst) o.tekst = 'Kort tekst, der forklarer, hvad siden handler om.';
-  return o;
-}
-const GAL_OK = [3, 4, 5, 6, 8, 9];
-const friSnap = (type, n, from) => { if (type !== 'gallery') return n; if (GAL_OK.includes(n)) return n; return n > (from || 0) ? GAL_OK.find(x => x >= n) || 9 : [...GAL_OK].reverse().find(x => x <= n) || 3; };
-const friFill = (arr, n, mk) => { const out = arr.slice(0, n); while (out.length < n) out.push(mk(out.length)); return out; };
-
-const FRI_THEME = {
-  lys: { bg: 'var(--white)', fg: 'var(--font)', hd: 'var(--heading)', card: 'var(--dark-5)', line: 'var(--dark-10)', icbg: 'var(--cta)', icfg: 'var(--light)', eye: 'var(--cta)' },
-  graa: { bg: 'var(--dark-5)', fg: 'var(--font)', hd: 'var(--heading)', card: 'var(--white)', line: 'var(--dark-10)', icbg: 'var(--cta)', icfg: 'var(--light)', eye: 'var(--cta)' },
-  primaer: { bg: 'var(--cta)', fg: 'var(--light-90)', hd: 'var(--light)', card: 'var(--light-10)', line: 'var(--light-20)', icbg: 'var(--light)', icfg: 'var(--cta)', eye: 'var(--light-70)' },
-  moerk: { bg: 'var(--dark)', fg: 'var(--light-80)', hd: 'var(--light)', card: 'var(--light-10)', line: 'var(--light-20)', icbg: 'var(--cta)', icfg: 'var(--light)', eye: 'var(--light-60)' },
-};
-function friCss(s, extra) {
-  const t = FRI_THEME[s.stil]; const dark = s.stil === 'primaer' || s.stil === 'moerk';
-  const pad = s.fri === 'trust' ? 'var(--space-l)' : 'var(--space-2xl)';
-  return `%root%{background:${t.bg};color:${t.fg};padding:${pad} 0;overflow:hidden}
-%root% .fri-wrap{width:min(1200px,90%);max-width:none;margin:0 auto;padding:0;display:flex;flex-direction:column;gap:var(--space-l)}
-%root% .fri-stack{display:flex;flex-direction:column;gap:var(--space-s);align-items:flex-start}
-%root% .fri-center{align-items:center;text-align:center;margin:0 auto;max-width:780px}
-%root% .fri-eyebrow{margin:0;font-size:var(--text-xs);font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:${t.eye}}
-%root% .fri-h{margin:0;font-size:var(--text-2xl);line-height:1.08;color:${t.hd}}
-%root% .fri-p{margin:0;font-size:var(--text-m);line-height:1.65;color:${t.fg}}
-%root% .fri-btns{display:flex;flex-direction:row;flex-wrap:wrap;gap:var(--space-xs);margin-top:var(--space-xs);width:auto;max-width:100%}
-%root% .fri-stack>*{max-width:100%}
-%root% .fri-center .fri-btns{justify-content:center}
-%root% .fri-grid{display:grid;gap:var(--space-m);list-style:none;margin:0;padding:0}
-%root% .fri-card{display:flex;flex-direction:column;gap:var(--space-xs);padding:var(--space-m);background:${t.card};border:1px solid ${t.line};border-radius:var(--radius-m);${dark ? '' : 'box-shadow:0 2px 8px rgba(0,0,0,.08);'}transition:transform .25s,box-shadow .25s}
-%root% .fri-card:hover{transform:translateY(-4px)${dark ? '' : ';box-shadow:0 14px 34px rgba(0,0,0,.14)'}}
-%root% .fri-card h3,%root% .fri-item h3,%root% .fri-step h3{margin:0;font-size:var(--text-l);line-height:1.2;color:${t.hd}}
-%root% .fri-card p,%root% .fri-item p,%root% .fri-step p{margin:0;font-size:var(--text-s);line-height:1.6;color:${t.fg}}
-%root% .fri-ico{display:grid;place-items:center;flex:none;width:5.6rem;height:5.6rem;border-radius:var(--radius-full);background:${t.icbg};color:${t.icfg};font-size:2.2rem}
-%root% .fri-ico i,%root% .fri-ico svg{color:inherit;fill:currentColor}
-${extra || ''}
-@media (max-width:991px){%root%{padding:var(--space-xl) 0}}`;
-}
-const NODE = (name, settings, kids, label) => ({ name, settings: settings || {}, kids: kids || [], label });
-function friFlatten(root) {
-  const els = []; const go = (n, parent) => { const id = makeId(FRI_USED); const e = { id, name: n.name, parent, children: [], settings: n.settings }; if (n.label) e.label = n.label; els.push(e); for (const k of n.kids) e.children.push(go(k, id)); return id; };
-  go(root, 0); return els;
-}
-const fHead = (s, center) => { const k = []; if (s.eyebrow) k.push(NODE('text-basic', { text: s.eyebrow, tag: 'p', _cssClasses: 'fri-eyebrow' })); if (s.overskrift) k.push(NODE('heading', { text: s.overskrift, tag: 'h2', _cssClasses: 'fri-h' })); if (s.tekst) k.push(NODE('text-basic', { text: s.tekst, tag: 'p', _cssClasses: 'fri-p' })); return k; };
-function fBtns(s) {
-  if (!s.knapper.length) return [];
-  const dark = s.stil === 'primaer' || s.stil === 'moerk'; const gid = friClassId(FRI_BTN_CLASS);
-  return [NODE('div', { _cssClasses: 'fri-btns' }, s.knapper.map((k, i) => {
-    const tel = k.type === 'telefon'; const txt = tel ? '88 88 88 88' : k.tekst; const hov = tel ? 'Ring nu' : (k.type === 'kontakt' ? 'Klik her' : 'Læs mere');
-    const st = { text: `<span class="btn-text-default">${esc(txt)}</span> <span class="btn-text-hover">${esc(hov)}</span>`, style: i === 0 ? (dark ? 'light' : 'primary') : (dark ? 'secondary' : 'dark'), size: 'xl', icon: { library: 'fontawesomeSolid', icon: tel ? 'fas fa-mobile-screen' : 'fas fa-arrow-right-long' }, iconPosition: 'right', link: tel ? { type: 'external', url: 'tel:+4588888888' } : { type: 'internal', url: '#' } };
-    if (gid) st._cssGlobalClasses = [gid]; return NODE('button', st);
-  }))];
-}
-const fIcon = ic => NODE('div', { _cssClasses: 'fri-ico' }, [NODE('icon', { icon: { library: 'fontawesomeSolid', icon: ic } })]);
-const fImg = i => NODE('image', { tag: 'figure', _objectFit: 'cover', image: FRI_IMG[i % FRI_IMG.length], _cssClasses: 'fri-img' });
-const colsFor = (n, max) => n <= 4 ? n : (n % 3 === 0 || n === 5 || n === 7 ? 3 : 4);
-
-function buildFri(s) {
-  const t = s.fri; let css = '', body = [];
-  if (t === 'intro') {
-    body = [NODE('block', { _cssClasses: 'fri-stack fri-center' }, [...fHead(s), ...fBtns(s)])];
-    css = friCss(s);
-  } else if (t === 'split') {
-    const copy = [...fHead(s)]; if (s.tekst2) copy.push(NODE('text-basic', { text: s.tekst2, tag: 'p', _cssClasses: 'fri-p' }));
-    if (s.punkter.length) copy.push(NODE('block', { tag: 'ul', _cssClasses: 'fri-checks' }, s.punkter.map(p => NODE('block', { tag: 'li', _cssClasses: 'fri-check' }, [NODE('icon', { icon: { library: 'fontawesomeSolid', icon: 'fas fa-circle-check' } }), NODE('text-basic', { text: p, tag: 'span' })]))));
-    copy.push(...fBtns(s));
-    body = [NODE('div', { _cssClasses: 'fri-split' + (s.layout === 'billede-venstre' ? ' fri-rev' : '') }, [NODE('block', { _cssClasses: 'fri-stack fri-copy' }, copy), NODE('block', { _cssClasses: 'fri-media' }, [fImg(0)])])];
-    const t2 = FRI_THEME[s.stil];
-    css = friCss(s, `%root% .fri-split{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:var(--space-xl);align-items:center}
-%root% .fri-rev .fri-media{order:-1}
-%root% .fri-media{position:relative}
-%root% .fri-media::before{content:"";position:absolute;inset:var(--space-xs) calc(var(--space-xs) * -1) calc(var(--space-xs) * -1) var(--space-xs);border-radius:var(--radius-l);background:${t2.icbg};opacity:.14}
-%root% .fri-rev .fri-media::before{inset:var(--space-xs) var(--space-xs) calc(var(--space-xs) * -1) calc(var(--space-xs) * -1)}
-%root% .fri-media figure,%root% .fri-media img{position:relative;display:block;width:100%;max-width:100%;margin:0}
-%root% .fri-split>*,%root% .fri-feat>*{min-width:0}
-%root% .fri-media img{aspect-ratio:4/3;object-fit:cover;border-radius:var(--radius-l);box-shadow:0 14px 34px rgba(0,0,0,.14)}
-%root% .fri-checks{list-style:none;margin:0;padding:0;display:grid;gap:var(--space-2xs)}
-%root% .fri-check{display:flex;flex-direction:row;gap:var(--space-xs);align-items:flex-start;font-size:var(--text-m);color:${t2.fg}}
-%root% .fri-check i,%root% .fri-check svg{color:${t2.icbg === 'var(--light)' ? 'var(--light)' : 'var(--cta)'};margin-top:.35rem;flex:none}
-@media (max-width:991px){%root% .fri-split{grid-template-columns:minmax(0,1fr);gap:var(--space-l)}%root% .fri-rev .fri-media{order:0}}`);
-  } else if (t === 'cards') {
-    const head = (s.eyebrow || s.overskrift || s.tekst) ? [NODE('block', { _cssClasses: 'fri-stack fri-center' }, fHead(s))] : [];
-    const cols = colsFor(s.antal);
-    body = [...head, NODE('block', { tag: 'ul', _cssClasses: 'fri-grid fri-cardgrid' }, s.kort.map(k => NODE('block', { tag: 'li', _cssClasses: 'fri-card' }, [...(k.ikon ? [fIcon(k.ikon)] : []), NODE('heading', { text: k.titel, tag: 'h3' }), ...(k.tekst ? [NODE('text-basic', { text: k.tekst, tag: 'p' })] : [])]))), ...(s.knapper.length ? [NODE('block', { _cssClasses: 'fri-stack fri-center' }, fBtns(s))] : [])];
-    css = friCss(s, `%root% .fri-cardgrid{grid-template-columns:repeat(${cols},minmax(0,1fr))}
-@media (max-width:991px){%root% .fri-cardgrid{grid-template-columns:repeat(2,minmax(0,1fr))}}
-@media (max-width:767px){%root% .fri-cardgrid{grid-template-columns:minmax(0,1fr)}}`);
-  } else if (t === 'features') {
-    const cols = s.antal >= 4 ? 2 : 1; const left = [...fHead(s), ...fBtns(s)];
-    body = [NODE('div', { _cssClasses: 'fri-feat' }, [NODE('block', { _cssClasses: 'fri-stack' }, left), NODE('block', { tag: 'ul', _cssClasses: 'fri-grid fri-featgrid' }, s.kort.map(k => NODE('block', { tag: 'li', _cssClasses: 'fri-item' }, [fIcon(k.ikon || 'fas fa-check'), NODE('block', { _cssClasses: 'fri-itemtxt' }, [NODE('heading', { text: k.titel, tag: 'h3' }), ...(k.tekst ? [NODE('text-basic', { text: k.tekst, tag: 'p' })] : [])])])))])];
-    css = friCss(s, `%root% .fri-feat{display:grid;grid-template-columns:minmax(0,5fr) minmax(0,7fr);gap:var(--space-xl);align-items:start}
-%root% .fri-featgrid{grid-template-columns:repeat(${cols},minmax(0,1fr))}
-%root% .fri-item{display:flex;flex-direction:row;gap:var(--space-s);align-items:flex-start}
-%root% .fri-itemtxt{display:flex;flex-direction:column;gap:var(--space-3xs)}
-@media (max-width:991px){%root% .fri-feat{grid-template-columns:minmax(0,1fr);gap:var(--space-l)}%root% .fri-featgrid{grid-template-columns:minmax(0,1fr)}}`);
-  } else if (t === 'steps') {
-    const cols = Math.min(s.antal, 4); const head = (s.eyebrow || s.overskrift || s.tekst) ? [NODE('block', { _cssClasses: 'fri-stack fri-center' }, fHead(s))] : [];
-    body = [...head, NODE('block', { tag: 'ul', _cssClasses: 'fri-grid fri-steps' }, s.trin.map((k, i) => NODE('block', { tag: 'li', _cssClasses: 'fri-step' }, [NODE('text-basic', { text: String(i + 1), tag: 'span', _cssClasses: 'fri-no' }), NODE('heading', { text: k.titel, tag: 'h3' }), ...(k.tekst ? [NODE('text-basic', { text: k.tekst, tag: 'p' })] : [])]))), ...(s.knapper.length ? [NODE('block', { _cssClasses: 'fri-stack fri-center' }, fBtns(s))] : [])];
-    const t2 = FRI_THEME[s.stil];
-    css = friCss(s, `%root% .fri-steps{grid-template-columns:repeat(${cols},minmax(0,1fr))}
-%root% .fri-step{position:relative;display:flex;flex-direction:column;gap:var(--space-2xs);padding-top:var(--space-s)}
-%root% .fri-no{display:grid;place-items:center;width:5.2rem;height:5.2rem;border-radius:var(--radius-full);background:${t2.icbg};color:${t2.icfg};font-size:var(--text-m);font-weight:800;margin-bottom:var(--space-2xs)}
-%root% .fri-step::before{content:"";position:absolute;top:calc(var(--space-s) + 2.6rem);left:6.4rem;right:calc(var(--space-m) * -1);height:2px;background:${t2.line}}
-%root% .fri-step:last-child::before{display:none}
-@media (max-width:991px){%root% .fri-step::before{display:none}%root% .fri-steps{grid-template-columns:repeat(2,minmax(0,1fr))}}
-@media (max-width:767px){%root% .fri-steps{grid-template-columns:minmax(0,1fr)}}`);
-  } else if (t === 'stats') {
-    const head = (s.eyebrow || s.overskrift) ? [NODE('block', { _cssClasses: 'fri-stack fri-center' }, fHead(s))] : [];
-    body = [...head, NODE('block', { tag: 'ul', _cssClasses: 'fri-grid fri-stats' }, s.tal.map(k => NODE('block', { tag: 'li', _cssClasses: 'fri-stat' }, [NODE('counter', { countTo: k.tal, suffix: k.suffix, _cssClasses: 'fri-num' }), NODE('text-basic', { text: k.label, tag: 'p', _cssClasses: 'fri-label' })])))];
-    const t2 = FRI_THEME[s.stil];
-    css = friCss(s, `%root% .fri-stats{grid-template-columns:repeat(${s.antal},minmax(0,1fr))}
-%root% .fri-stat{display:flex;flex-direction:column;align-items:center;text-align:center;gap:var(--space-3xs);padding:var(--space-s) var(--space-xs);border-left:1px solid ${t2.line}}
-%root% .fri-stat:first-child{border-left:0}
-%root% .fri-num{display:flex;justify-content:center;font-size:var(--text-3xl);font-weight:800;line-height:1;color:${t2.hd}}
-%root% .fri-label{margin:0;font-size:var(--text-s);letter-spacing:.04em;text-transform:uppercase;color:${t2.fg}}
-@media (max-width:991px){%root% .fri-stats{grid-template-columns:repeat(2,minmax(0,1fr))}%root% .fri-stat:nth-child(odd){border-left:0}}
-@media (max-width:767px){%root% .fri-stats{grid-template-columns:minmax(0,1fr)}%root% .fri-stat{border-left:0;border-top:1px solid ${t2.line}}%root% .fri-stat:first-child{border-top:0}}`);
-  } else if (t === 'trust') {
-    body = [NODE('block', { tag: 'ul', _cssClasses: 'fri-trust' }, s.kort.map(k => NODE('block', { tag: 'li', _cssClasses: 'fri-trusti' }, [NODE('icon', { icon: { library: 'fontawesomeSolid', icon: k.ikon || 'fas fa-check' } }), NODE('text-basic', { text: k.titel, tag: 'span' })])))];
-    const t2 = FRI_THEME[s.stil];
-    css = friCss(s, `%root% .fri-trust{list-style:none;margin:0;padding:0;display:flex;flex-direction:row;flex-wrap:wrap;justify-content:center;gap:var(--space-xs) var(--space-l)}
-%root% .fri-trusti{display:flex;flex-direction:row;width:auto;flex:0 0 auto;align-items:center;gap:var(--space-2xs);font-size:var(--text-m);font-weight:700;color:${t2.hd}}
-%root% .fri-trusti i,%root% .fri-trusti svg{color:${t2.icbg === 'var(--light)' ? 'var(--light)' : 'var(--cta)'};font-size:1.15em}`);
-  } else if (t === 'quote') {
-    const stars = [0, 1, 2, 3, 4].map(() => NODE('icon', { icon: { library: 'fontawesomeSolid', icon: 'fas fa-star' } }));
-    body = [NODE('block', { _cssClasses: 'fri-quote' }, [...(s.eyebrow ? [NODE('text-basic', { text: s.eyebrow, tag: 'p', _cssClasses: 'fri-eyebrow' })] : []), NODE('div', { _cssClasses: 'fri-stars' }, stars), NODE('text-basic', { text: s.citat.tekst, tag: 'p', _cssClasses: 'fri-q' }), NODE('block', { _cssClasses: 'fri-who' }, [NODE('text-basic', { text: s.citat.navn || 'Navn Navnesen', tag: 'span', _cssClasses: 'fri-name' }), ...(s.citat.titel ? [NODE('text-basic', { text: s.citat.titel, tag: 'span', _cssClasses: 'fri-role' })] : [])])])];
-    const t2 = FRI_THEME[s.stil];
-    css = friCss(s, `%root% .fri-quote{max-width:860px;margin:0 auto;text-align:center;display:flex;flex-direction:column;align-items:center;gap:var(--space-s)}
-%root% .fri-stars{display:flex;gap:.4rem;color:#f5b301;font-size:var(--text-m)}
-%root% .fri-q{margin:0;font-size:var(--text-xl);line-height:1.3;font-weight:600;color:${t2.hd}}
-%root% .fri-who{display:flex;flex-direction:column;gap:.2rem}
-%root% .fri-name{font-weight:700;color:${t2.hd}}%root% .fri-role{font-size:var(--text-s);color:${t2.fg}}`);
-  } else if (t === 'gallery') {
-    const head = (s.eyebrow || s.overskrift || s.tekst) ? [NODE('block', { _cssClasses: 'fri-stack fri-center' }, fHead(s))] : [];
-    const big = s.antal === 5; const cols = big ? 4 : (s.antal === 4 || s.antal === 8) ? 4 : 3;
-    body = [...head, NODE('block', { _cssClasses: 'fri-gal' + (big ? ' fri-gal-big' : '') }, Array.from({ length: s.antal }, (_, i) => NODE('block', { _cssClasses: 'fri-gi' }, [fImg(i)])))];
-    css = friCss(s, `%root% .fri-gal{display:grid;gap:var(--space-xs);grid-template-columns:repeat(${cols},minmax(0,1fr));grid-auto-rows:clamp(15rem,17vw,26rem)}
-%root% .fri-gal-big .fri-gi:first-child{grid-column:span 2;grid-row:span 2}
-%root% .fri-gi{overflow:hidden;border-radius:var(--radius-m)}
-%root% .fri-gi figure,%root% .fri-gi img{display:block;width:100%;height:100%;margin:0;object-fit:cover}
-%root% .fri-gi img{transition:transform .5s}%root% .fri-gi:hover img{transform:scale(1.06)}
-@media (max-width:991px){%root% .fri-gal{grid-template-columns:repeat(2,minmax(0,1fr))}}
-@media (max-width:767px){%root% .fri-gal-big .fri-gi:first-child{grid-column:span 2;grid-row:span 1}}`);
-  }
-  const root = NODE('section', { _cssClasses: 'fri fri-t-' + t, _cssCustom: css }, [NODE('container', { _cssClasses: 'fri-wrap' }, body)], FRI_TYPES[t].name);
-  return friFlatten(root);
-}
-function buildFriN(s) { return natRegister(nativize(buildFri(s), s.fri, 'sek')); }
-function makeFri(raw, tlf) {
-  const s = normFri(raw); if (!s) return null;
-  const sec = { uid: 's' + (++UID) + Math.random().toString(36).slice(2, 5), tpl: 'fri-' + s.fri, fri: s, why: (raw && raw.hvorfor) || '', part: 1, parts: 1, els: buildFriN(s) };
-  if (tlf) applyPhone(sec.els, tlf); return sec;
-}
-function rebuildFri(sec) { sec.els = buildFriN(sec.fri); }
-function resizeFri(sec, n) {
-  const T = FRI_TYPES[sec.fri.fri]; if (!T.n) return { ok: false, msg: 'Antallet kan ikke ændres her.' }; const from = sec.fri.antal; const m = Math.max(T.min, Math.min(T.max, n));
-  sec.fri.antal = friSnap(sec.fri.fri, m, from); const fixed = normFri(sec.fri); Object.assign(sec.fri, fixed); rebuildFri(sec); return { ok: true, changed: m !== from, from, to: m, warn: [] };
-}
-const friGroupInfo = sec => { const T = FRI_TYPES[sec.fri.fri]; return T.n ? { n: sec.fri.antal, label: T.label, adjustable: true } : null; };
-
-
-/* ============================================================================
-   AI FORSLAG: Claude designer sektionerne selv (struktur + scopet CSS).
-   Motoren renser alt, hvad AI'en skriver, og bygger gyldige Bricks-elementer.
-   ============================================================================ */
+/* ---------- CSS-hjælpere (bruges ved eksport af klasser med egen CSS) ---------- */
 function splitTop(s, sep) { const out = []; let d = 0, q = '', cur = ''; for (const ch of s) { if (q) { cur += ch; if (ch === q) q = ''; continue; } if (ch === '"' || ch === "'") { q = ch; cur += ch; continue; } if (ch === '(') d++; if (ch === ')') d = Math.max(0, d - 1); if (ch === sep && d === 0) { out.push(cur); cur = ''; } else cur += ch; } if (cur.trim()) out.push(cur); return out; }
 function cssBlocks(css) { const out = []; let i = 0; while (i < css.length) { const open = css.indexOf('{', i); if (open < 0) break; let d = 1, j = open + 1; while (j < css.length && d > 0) { if (css[j] === '{') d++; else if (css[j] === '}') d--; j++; } out.push({ head: css.slice(i, open).trim(), body: css.slice(open + 1, d === 0 ? j - 1 : j) }); i = j; } return out; }
-const secTitle = sec => sec.ai ? 'AI · ' + sec.ai.spec.navn : displayName(sec.tpl);
+const secTitle = sec => displayName(sec.tpl);
 
-
-
-/* ---------- AI FORSLAG: layoutgreb pr. sektionstype, valgt tilfældigt af motoren, så siderne ikke ligner hinanden ---------- */
+/* ---------- farver og enheder i klassernes CSS ---------- */
 const TOKEN_MAP = { '--primary': 'var(--cta)', '--secondary': 'var(--links)', '--tertiary': 'var(--links)', '--text-title': 'var(--heading)', '--text-body': 'var(--font)', '--bg-surface': 'var(--white)', '--bg-body': 'var(--dark-5)', '--border-primary': 'var(--dark-20)', '--success': 'var(--cta)', '--error': 'var(--cta)' };
 const palCss = s => String(s).replace(/var\(\s*(--[\w-]+)\s*\)/g, (m, n) => TOKEN_MAP[n] || m);
 const colObj = v => ({ raw: palCss(String(v).trim()) });
@@ -438,9 +236,6 @@ function nativize(els, baseName, kind, opt) {
   }
   return { els, classes, stats: { classes: classes.length, custom, resolved } };
 }
-const natRegister = res => { for (const c of res.classes) if (ENV.CLASSES) ENV.CLASSES[c.id] = c; return stockify(res.els); };
-
-/* ---------- tilstand ---------- */
 let UID = 0;
 function splitParts(els) {
   const roots = rootsOf(els); if (roots.length < 2) return [els];
@@ -461,8 +256,6 @@ function makeSections(LIB, tpl, why, tlf) {
   return parts.map((els, i) => { const s = { uid: 's' + (++UID) + Math.random().toString(36).slice(2, 5), tpl, why: i === 0 ? (why || '') : '', els: clone(els), part: i + 1, parts: parts.length }; if (tlf) applyPhone(s.els, tlf); if (isSiteOnline(LIB, tpl)) { onlineClean(s.els); loremify(s.els, true); stockify(s.els, true); } else { loremify(s.els); stockify(s.els); } return s; });
 }
 function makeSection(LIB, tpl, why, tlf) { const s = { uid: 's' + (++UID) + Math.random().toString(36).slice(2, 5), tpl, why: why || '', els: clone(dropDemo(LIB[tpl].els)) }; if (tlf) applyPhone(s.els, tlf); if (isSiteOnline(LIB, tpl)) { onlineClean(s.els); loremify(s.els, true); stockify(s.els, true); } else { loremify(s.els); stockify(s.els); } return s; }
-
-
 
 
 /* ---------- Lorem ipsum: al tekst i udkast er pladsholder, undtagen kontakt-ting, formularfelter og knaptekster ---------- */
@@ -595,7 +388,7 @@ const re_test = (kw, b, text) => { const x = kw.find(k => k[0] === b); return !!
    Hver sektion i sidens <main> sammenlignes med alle templates: først på templatens egne klasser (overlever ofte på siden, evt. med kundens præfiks),
    ellers på opbygningen (hvor mange overskrifter, billeder, kort, formular, accordion osv.). Resultatet behøver ikke være 1:1 – det er det nærmeste bud. */
 const FP_STRONG = new Set(['form', 'accordion', 'accordion-nested', 'slider', 'slider-nested', 'carousel', 'counter', 'rating', 'map', 'video', 'tabs', 'tabs-nested', 'pricing-tables']);
-const FP_SKIP_CATS = new Set(['Menu', 'Footer', 'Underside', 'Marketing', 'CTA sektion', 'Knapper', 'Kontakt side', 'Kontaktformular']);
+const FP_SKIP_CATS = new Set(['Menu', 'Footer', 'Underside', 'Marketing', 'Knapper', 'Kontakt side', 'Kontaktformular']);
 function fpOf(root) {
   const v = {}; let rep = 0;
   for (const el of [root, ...root.querySelectorAll('*')]) {
@@ -639,12 +432,12 @@ function analyzeSite(html, LIB, CLASSES) {
 }
 // hero med kontaktformular: formularen ligger direkte i templaten eller i en indlejret Bricks-template (kendes fra templatesitet)
 const hasForm = (LIB, k) => !!(LIB[k] && (LIB[k].els || []).some(e => e.name === 'form')) || Object.keys(BX.html || {}).some(x => x.startsWith('form:' + k + ':'));
-// tekstafsnit: Content med H2 og et tekstfelt med brødtekst (min. 40 ord) · afsluttende CTA-afsnit: CTA/kontakt med H2 og kort tekst (8–60 ord)
+// tekstafsnit: Content med H2 og et tekstfelt med brødtekst (min. 40 ord) · afsluttende CTA-afsnit: kontaktsektion uden formular med H2, kort tekst (8–60 ord) og knap
 const CTA_TEXT = 'CTA-afsnit';
-const textStats = k => { let h2 = 0, words = 0, longest = 0; for (const e of (BX_LIB[k] || {}).els || []) { const st = e.settings || {}; if (e.name === 'heading' && (st.tag || 'h3') === 'h2') h2++; if (/^(text|text-basic|rich-text)$/.test(e.name)) { const w = String(st.text || '').replace(/<[^>]+>/g, ' ').split(/\s+/).filter(Boolean).length; words += w; longest = Math.max(longest, w); } } return { h2, words, longest }; };
+const textStats = k => { let h2 = 0, words = 0, longest = 0, buttons = 0; for (const e of (BX_LIB[k] || {}).els || []) { const st = e.settings || {}; if (e.name === 'button') buttons++; if (e.name === 'heading' && (st.tag || 'h3') === 'h2') h2++; if (/^(text|text-basic|rich-text)$/.test(e.name)) { const w = String(st.text || '').replace(/<[^>]+>/g, ' ').split(/\s+/).filter(Boolean).length; words += w; longest = Math.max(longest, w); } } return { h2, words, longest, buttons }; };
 const isBodyH2 = k => { if (categoryOf(k) !== 'Content') return false; const t = textStats(k); return t.h2 >= 1 && t.longest >= 40; };   // ét rigtigt tekstfelt, ikke mange små
-const isCtaText = k => { if (isExcluded(k) || !['CTA sektion', 'Kontakt sektion'].includes(categoryOf(k))) return false; const t = textStats(k); return t.h2 >= 1 && t.words >= 8 && t.words <= 60; };
-const WANT_ORDER = ['Ydelser', 'Anmeldelser', 'Cases', 'Priser', 'Galleri', 'Medarbejdere', 'FAQ', 'CTA sektion', 'Kontakt sektion'];
+const isCtaText = k => { if (isExcluded(k) || categoryOf(k) !== 'Kontakt sektion' || hasForm(BX_LIB, k)) return false; const t = textStats(k); return t.h2 >= 1 && t.buttons >= 1 && t.words >= 8 && t.words <= 60; };   // CTA-sektion: kontaktsektion uden formular, med H2, kort tekst og knap
+const WANT_ORDER = ['Ydelser', 'Anmeldelser', 'Cases', 'Priser', 'Galleri', 'Medarbejdere', 'FAQ', 'Kontakt sektion'];
 function localPlan(b, LIB, n, existing, SITES) {
   const keys = allowedKeys(LIB, true), keysAll = allowedKeys(LIB); const want = Array.isArray(b && b.want) ? b.want.filter(c => c && c !== 'Header' && c !== 'Content' && !EXCLUDED_CATS.has(c)) : []; const used = new Set([].concat(...(existing || []))); const msg = String((b && b.msg) || '').toLowerCase(); const type = (b && b.sidetype) || 'Forside'; const has = re => re.test(msg);
   const gb = b && b.branche ? { b: b.branche, via: 'dit valg' } : guessBranche(b && b.navn, b && b.msg, SITES); const team = has(/medarbejder|team|folk/);
@@ -676,19 +469,19 @@ function localPlan(b, LIB, n, existing, SITES) {
       const nH2 = Math.max(2, Math.min(5, parseInt(b && b.h2, 10) || 3)), nC = nH2 - 1;
       let nc = 0; cats = cats.filter(c => c !== 'Content' || ++nc <= nC);
       while (cats.filter(c => c === 'Content').length < nC) { const k = cats.lastIndexOf('Content'); cats.splice(k < 0 ? Math.min(2, Math.max(1, cats.length - 1)) : Math.min(k + 2, Math.max(k + 1, cats.length - 1)), 0, 'Content'); }
-      if (cats[cats.length - 1] !== 'Kontakt sektion') cats.push(CTA_TEXT);   // står kontakt sidst, er den det afsluttende afsnit
+      { const k = cats.lastIndexOf('Kontakt sektion'); if (k === cats.length - 1) cats.splice(k, 0, CTA_TEXT); else cats.push(CTA_TEXT); }   // CTA-afsnittet til sidst, men før en kontaktsektion med formular
     }
     const mine = new Set(); const sek = [];
     for (const c of cats) {
       let pool = c === CTA_TEXT ? keysAll.filter(isCtaText) : (want.includes(c) ? keysAll : keys).filter(k => categoryOf(k) === c);   // en valgt type må gerne være en, der ellers ikke bruges automatisk (fx CTA)
       if (c === 'Header' && b && typeof b.heroForm === 'boolean') { const f = pool.filter(k => hasForm(LIB, k) === b.heroForm); if (f.length) pool = f; }   // med eller uden kontaktformular
-      if (c === 'Kontakt sektion' && cats.indexOf(CTA_TEXT) < 0 && cats.lastIndexOf('Kontakt sektion') === cats.length - 1) { const f = pool.filter(isCtaText); if (f.length) pool = f; }   // kontakt sidst er det afsluttende tekstafsnit
+      if (c === 'Kontakt sektion') { const f = pool.filter(k => !isCtaText(k)); if (f.length) pool = f; }   // "Kontakt sektion" = den med formular; CTA-sektionerne bruges til CTA-afsnittet
       let sub = '';
       if (c === 'Content' || c === CTA_TEXT) {   // tekstafsnit må aldrig mangle: bedste ledige template i prioriteret rækkefølge
         const hasH2 = k => { const t = textStats(k); return t.h2 >= 1 && t.words >= 8; };
         const tiers = c === 'Content'
           ? [keysAll.filter(isBodyH2), keysAll.filter(k => categoryOf(k) === 'Content'), keysAll.filter(hasH2)]
-          : [keysAll.filter(isCtaText), keysAll.filter(k => ['CTA sektion', 'Kontakt sektion'].includes(categoryOf(k)) && hasH2(k)), keysAll.filter(isBodyH2), keysAll.filter(hasH2)];
+          : [keysAll.filter(isCtaText), keysAll.filter(k => categoryOf(k) === 'Kontakt sektion' && hasH2(k)), keysAll.filter(isBodyH2), keysAll.filter(hasH2)];
         const ti = tiers.findIndex(t => t.some(k => !mine.has(k))); pool = ti >= 0 ? tiers[ti] : pool; if (ti > 0) sub = c === 'Content' ? 'Erstatning: ingen ledig Content med H2 og brødtekst' : 'Erstatning: intet ledigt kort CTA-afsnit med H2';
       }
       if (!pool.length) continue; let fresh = pool.filter(k => !used.has(k) && !mine.has(k)); if (!fresh.length) fresh = pool.filter(k => !mine.has(k)); if (!fresh.length) continue;   // aldrig samme template to gange i ét udkast
@@ -803,8 +596,6 @@ function fitGrid(parent, items, oldN, newN, CLASSES) {
   return warn;
 }
 function resizeGroup(sec, n, CLASSES) {
-  if (sec.ai) return { ok: false, msg: 'Antallet kan ikke ændres i en AI-sektion. Brug "Ny version" eller Ret med AI.' };
-  if (sec.fri) return resizeFri(sec, n);
   n = Math.max(1, Math.min(24, parseInt(n, 10) || 0)); if (rowUnits(sec.els)) return resizeUnits(sec, n); const g = primaryGroup(sec.els);
   if (!g) return { ok: false, msg: 'Der er ingen gentagne elementer i denne sektion.' };
   const gi = groupInfo(sec.els, sec.tpl); if (gi && !gi.adjustable) return { ok: false, msg: 'Antallet kan ikke ændres i denne sektion.' };
@@ -819,7 +610,7 @@ function resizeGroup(sec, n, CLASSES) {
   const warn = fitGrid(mapOf(sec.els)[g.id], fin, cur, n, CLASSES);
   return { ok: true, changed: true, from: cur, to: n, warn };
 }
-function groupInfoSec(sec) { return sec && sec.ai ? null : sec && sec.fri ? friGroupInfo(sec) : groupInfo(sec.els, sec.tpl); }
+function groupInfoSec(sec) { return sec ? groupInfo(sec.els, sec.tpl) : null; }
 function groupInfo(els, tpl) {
   const ru = rowUnits(els); if (ru) return { n: ru.units.length, label: 'trin', adjustable: true, rows: true };
   const g = primaryGroup(els); if (!g) return null; const m = mapOf(els); const kinds = new Set();
@@ -838,13 +629,11 @@ const SETTING_WHITELIST = new Set(['_background', '_typography', '_padding', '_m
 function applyOps(state, ops, LIB, tlf, CLASSES) {
   const log = [], added = [], warns = [];
   const secs = state.sections; const at = i => (Number.isInteger(i) && i >= 1 && i <= secs.length) ? secs[i - 1] : null;
-  const okFor = op => !!LIB[op.tpl] && (op.manual || categoryOf(op.tpl) !== 'CTA sektion');
+  const okFor = op => !!LIB[op.tpl];
   for (const op of ops || []) {
     try {
       if (op.op === 'remove') { const s = at(op.index); if (!s) throw 0; secs.splice(secs.indexOf(s), 1); log.push(`Fjernede sektion ${op.index} (${s.tpl})`); }
       else if (op.op === 'move') { const s = at(op.index); const to = Math.max(1, Math.min(secs.length, op.to | 0)); if (!s) throw 0; secs.splice(secs.indexOf(s), 1); secs.splice(to - 1, 0, s); log.push(`Flyttede ${s.tpl} til plads ${to}`); }
-      else if (op.op === 'add' && op.fri) { const fs = makeFri(op.fri, tlf); if (!fs) throw 0; const pos = Math.max(1, Math.min(secs.length + 1, (op.at | 0) || secs.length + 1)); secs.splice(pos - 1, 0, fs); added.push(fs.uid); log.push(`Tilføjede ny sektion (${fs.fri.fri}) på plads ${pos}`); }
-      else if (op.op === 'swap' && op.fri) { const s = at(op.index); const fs = makeFri(op.fri, tlf); if (!s || !fs) throw 0; secs.splice(secs.indexOf(s), 1, fs); added.push(fs.uid); log.push(`Skiftede ${s.tpl} til ny sektion (${fs.fri.fri})`); }
       else if (op.op === 'add') { if (!okFor(op)) throw 0; const ps = makeSections(LIB, op.tpl, op.hvorfor, tlf); const pos = Math.max(1, Math.min(secs.length + 1, (op.at | 0) || secs.length + 1)); secs.splice(pos - 1, 0, ...ps); added.push(...ps.map(x => x.uid)); log.push(`Tilføjede ${op.tpl} på plads ${pos}`); }
       else if (op.op === 'swap') { const s = at(op.index); if (!s || !okFor(op)) throw 0; const ps = makeSections(LIB, op.tpl, op.hvorfor, tlf); secs.splice(secs.indexOf(s), 1, ...ps); added.push(...ps.map(x => x.uid)); log.push(`Skiftede ${s.tpl} til ${op.tpl}`); }
       else if (op.op === 'count') { const s = at(op.index); if (!s) throw 0; const r = resizeGroup(s, op.antal, CLASSES || {}); if (!r.ok) { log.push('⚠ ' + r.msg); continue; } log.push(r.changed ? `Sektion ${op.index}: ${r.from} → ${r.to} elementer` : `Sektion ${op.index} har allerede ${r.to}`); s.warns = r.warn; warns.push(...r.warn); }
@@ -908,7 +697,7 @@ function buildExport(state, CLASSES, opts) {
   const used = new Set(); const content = []; const flags = []; const classIds = new Set(); let formSeen = 0; const imageUse = [];
   state.sections.forEach((sec, si) => {
     let els = clone(sec.els); const idMap = {};
-    if (els.some(e => e.settings && (e.settings._cssClasses || String(e.settings._cssCustom || '').includes('%root%')))) { const nr = nativize(els, sec.tpl || 'sektion', 'sek', { hooks: !(sec.ai || sec.fri) }); for (const c of nr.classes) CLASSES[c.id] = c; els = nr.els; }       // sikkerhedsnet: aldrig rå CSS i eksporten
+    if (els.some(e => e.settings && (e.settings._cssClasses || String(e.settings._cssCustom || '').includes('%root%')))) { const nr = nativize(els, sec.tpl || 'sektion', 'sek', { hooks: true }); for (const c of nr.classes) CLASSES[c.id] = c; els = nr.els; }       // sikkerhedsnet: aldrig rå CSS i eksporten
     for (const e of els) {
       if (e.name === 'form') { formSeen++; if (formSeen === 1) { idMap[e.id] = FORM_ID; used.add(FORM_ID); if (e.id !== FORM_ID) flags.push(`Formularen havde ID ${e.id} i biblioteket og er rettet til ${FORM_ID}.`); } else { idMap[e.id] = makeId(used); flags.push('Siden har mere end én formular – kun den første kan have ID ' + FORM_ID + '.'); } }
       else idMap[e.id] = makeId(used);
@@ -918,7 +707,7 @@ function buildExport(state, CLASSES, opts) {
       const old = e.id; e.id = idMap[old]; delete e._src;
       e.parent = (e.parent === 0 || e.parent === '0') ? 0 : (idMap[e.parent] || 0);
       e.children = (e.children || []).map(c => idMap[c]).filter(Boolean);
-      e.settings = exp_clean ? cleanSettings(e.settings, !(sec.ai || sec.fri)) : (e.settings || {});
+      e.settings = exp_clean ? cleanSettings(e.settings, true) : (e.settings || {});
       if ('themeStyles' in e) { const ts = cleanVal(e.themeStyles); if (ts === undefined) delete e.themeStyles; else e.themeStyles = ts; }
       let str = JSON.stringify(e.settings);
       if (str.indexOf('brxe-') !== -1) { for (const o of oldIds) str = str.replace(new RegExp('brxe-' + o + '(?![a-z0-9])', 'g'), 'brxe-' + idMap[o]); e.settings = JSON.parse(str); }
@@ -1163,8 +952,7 @@ function renderSections(sections, CLASSES, VARS, ropts) {
 function sanitizePlan(list, LIB) {
   const out = []; const count = {};
   for (const x of list || []) {
-    if (x && x.fri && FRI_TYPES[x.fri]) { if (normFri(x)) out.push(x); continue; }
-    if (!x || !LIB[x.tpl] || categoryOf(x.tpl) === 'CTA sektion') continue;
+    if (!x || !LIB[x.tpl]) continue;
     if (out.length && out[out.length - 1].tpl === x.tpl) continue;                        // ingen to ens lige efter hinanden
     if (categoryOf(x.tpl) === 'Header' && out.some(o => o.tpl && categoryOf(o.tpl) === 'Header')) continue;   // kun 1 hero pr. side
     if (categoryOf(x.tpl) === 'Anmeldelser' && out.some(o => o.tpl && categoryOf(o.tpl) === 'Anmeldelser')) continue;   // kun 1 anmeldelses-sektion pr. side
@@ -1377,5 +1165,5 @@ addEventListener('load',function(){post({udkast:'ready'})});})();<\/script>
 </body></html>`;
 }
 
-const API = { isBodyH2, isCtaText, hasForm, analyzeSite, guessBranche, renderBricks, bricksDoc, setBricks, libFromExports, keyAlias, clone, esc, stripTags, mapOf, rootsOf, walk, makeSection, applyOps, applyPhone, buildExport, validate, renderSections, buildFri, nativize, natRegister, setStock, stockify, videoify, sortKeys, localPlan, guessBranche, onlineClean, BS_VIDEO, loremify, loremText, fixH1, newestKeys, groupKeys, STOCK_BASE, secTitle, makeFri, normFri, groupInfoSec, setFriClasses, FRI_TYPES, FRI_STIL, SECTION_ONLY, makeSections, splitParts, parsePhone, classPrefix, setEnv, removeSubtree, categoryOf, displayName, describeKey, setMeta, variantsOf, nextVariant, allowedKeys, catList, sanitizePlan, TYPE_ORDER, WHOLE_PAGE, cleanSettings, resizeGroup, groupInfo, getGroups, FORM_ID, PH_URL, unitFix };
+const API = { isBodyH2, isCtaText, hasForm, analyzeSite, guessBranche, renderBricks, bricksDoc, setBricks, libFromExports, keyAlias, clone, esc, stripTags, mapOf, rootsOf, walk, makeSection, applyOps, applyPhone, buildExport, validate, renderSections, nativize, setStock, stockify, videoify, sortKeys, localPlan, guessBranche, onlineClean, BS_VIDEO, loremify, loremText, fixH1, newestKeys, groupKeys, STOCK_BASE, secTitle, groupInfoSec, SECTION_ONLY, makeSections, splitParts, parsePhone, classPrefix, setEnv, removeSubtree, categoryOf, displayName, describeKey, setMeta, variantsOf, nextVariant, allowedKeys, catList, sanitizePlan, TYPE_ORDER, WHOLE_PAGE, cleanSettings, resizeGroup, groupInfo, getGroups, FORM_ID, PH_URL, unitFix };
 if (typeof module !== 'undefined') module.exports = API;

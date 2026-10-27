@@ -21,18 +21,19 @@ GitHub kører det automatisk ved hver udgivelse og hver nat, så preview følger
 
 ## Regler for udkast
 Alle templates må gerne ligge i Drive-mappen. Reglerne ligger i værktøjet (`src/engine.js`) og gælder altid, også i "+ Tilføj sektion":
-- **Typen** kommer fra kolonnen *Type* i regnearket **Best Templates**. Står en template ikke i arket, bruges starten af navnet (`hero-` = Header, `ydelse-` = Ydelser, `content-` = Content, `medarbejdere-` = Medarbejdere, `cta-` = CTA sektion, `knapper-` = Knapper, `kontakt-side-` = Kontakt side osv. – `PREFIX_TYPE`).
+- **Typen** kommer fra kolonnen *Type* i regnearket **Best Templates**. Står en template ikke i arket, bruges starten af navnet (`hero-` = Header, `ydelse-` = Ydelser, `content-` = Content, `medarbejdere-` = Medarbejdere, `kontaktsektion-` = Kontakt sektion, `cta-`/`knapper-` = Knapper, `kontakt-side-` = Kontakt side osv. – `PREFIX_TYPE`).
 - Altid præcis **1 Header (hero)** øverst. Man vælger "med" eller "uden kontaktformular".
-- **Tekstafsnit** (standard 3, kan vælges 2–5): antal − 1 Content med H2 og brødtekst (min. 40 ord i ét tekstfelt) og til sidst et kort CTA-afsnit (CTA sektion eller Kontakt sektion med H2 og 8–60 ord). Er der ikke flere ledige, bruges den bedste anden template med tekst som erstatning – et tekstafsnit mangler aldrig. Erstatninger står i "Tjek følgende igennem efter paste".
-- **Bruges aldrig:** Menu, Footer, Marketing, Underside, Knapper, Kontakt side og Kontaktformular (`EXCLUDED_CATS`, `EXCLUDED_RE`).
-- Under "Ønsker" vælger man de øvrige typer (bl.a. Medarbejdere og CTA sektion). Så får udkastet præcis dem, og Kontakt sektion står sidst. Uden flueben vælger værktøjet selv.
+- **Tekstafsnit** (standard 3, kan vælges 2–5): antal − 1 Content med H2 og brødtekst (min. 40 ord i ét tekstfelt) og til sidst et kort **CTA-afsnit**.
+- **CTA-afsnit** = en kontaktsektion *uden* formular med H2, kort tekst (8–60 ord) og en knap. Værktøjet finder dem selv. "Kontakt sektion" under Ønsker giver en kontaktsektion *med* formular, og den står sidst efter CTA-afsnittet.
+- Er der ikke flere ledige templates til et tekstafsnit, bruges den bedste anden template med tekst som erstatning, og det står i "Tjek følgende igennem efter paste". Et tekstafsnit mangler aldrig.
+- **Bruges aldrig:** Menu, Footer, Marketing, Underside, Knapper (tidl. CTA), Kontakt side og Kontaktformular (`EXCLUDED_CATS`, `EXCLUDED_RE`).
 - Samme template bruges aldrig to gange i ét udkast.
 
 ## Inspiration fra HOS-sider
-Med ClickUp sat op (se apps-script/LAES-MIG.md) henter værktøjet kunderne med HOS, HOS+, RE eller RE+ (åbne opgaver i Kunder-listen). Når der laves et udkast, kigger det på forsiden af nogle af dem i samme branche og finder, hvilke templates sektionerne ligner. Det sker på templatens egne klasser, eller ellers på opbygningen (overskrifter, billeder, kort, formular osv.). Udkastet bruger så sidens rækkefølge og de templates, der ligner bedst. Det behøver ikke være 1:1. Resultatet gemmes i browseren i 7 dage. Uden ClickUp bruges den indbyggede liste i `data.json`.
+Med ClickUp sat op (se apps-script/LAES-MIG.md) henter værktøjet kunderne med HOS, HOS+, RE eller RE+ (åbne opgaver i Kunder-listen). Når der laves et udkast, kigger det på forsiden af nogle af dem i samme branche og finder, hvilke templates sektionerne ligner. Det sker på templatens egne klasser, eller ellers på opbygningen (overskrifter, billeder, kort, formular osv.). Udkastet bruger så sidens rækkefølge og de templates, der ligner bedst. Det behøver ikke være 1:1. Resultatet gemmes i browseren i 7 dage. Uden ClickUp bruges standardopbygningen.
 
 ## Mapper
-- `src/` – selve værktøjet (`app.js`, `engine.js`, `index.tpl.html`, `data.json` med klasser/variabler/inspiration, `bricks.json`)
+- `src/` – selve værktøjet (`app.js`, `engine.js`, `index.tpl.html`, `data.json` med klasser/variabler/statistik, `bricks.json`)
 - `apps-script/` – login og data (templates fra Drive, kunder fra ClickUp)
 - `build.py` – bygger `index.html` (den fil GitHub udgiver; ligger ikke i repoet)
 - `hent-bricks.py` – henter Bricks-opsætningen til preview (`src/bricks.json`)

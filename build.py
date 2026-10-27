@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Bygger værktøjet til én HTML-fil: python3 build.py  -> index.html  (eller --ud FIL)
 Templates ligger ikke i koden: værktøjet henter dem fra Drive via Apps Script, når det åbnes (se apps-script/).
-src/data.json har klasser, variabler, inspiration, statistik og Best Stock-billeder. src/bricks.json har Bricks-opsætningen til preview."""
+src/data.json har klasser, variabler, statistik og Best Stock-billeder. src/bricks.json har Bricks-opsætningen til preview."""
 import sys, json, pathlib
 root = pathlib.Path(__file__).resolve().parent; src = root / 'src'
 args = sys.argv[1:]

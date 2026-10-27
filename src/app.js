@@ -55,12 +55,11 @@ async function loadTemplates(msg) {
   let T; try { T = await loadTemplates(bootMsg); } catch (e) { bootMsg('Kunne ikke hente templates: ' + e.message, true); return; }
   if (!T.files.length) { bootMsg(IN_GAS ? 'Der er ingen templates i Drive-mappen.' : 'Åbn værktøjet via Apps Script-linket. Der hentes templates og kunder, når man er logget ind med best-one.dk.', true); return; }
   { const conv = E.libFromExports(T.files, D.CLASSES); D.LIB = conv.LIB; D.CLASSES = conv.CLASSES; { const rows = await sheetP; D.SHEET = Array.isArray(rows) && rows.length ? rows : conv.SHEET; D.SHEET_SRC = Array.isArray(rows) && rows.length ? 'ark' : ''; } D.TPL = T; D.TPL.bad = conv.bad;
-    // statistik og inspiration fra før bruger gamle template-navne (fx cta-1-double-text) – peg dem på de nye
-    const al = E.keyAlias([...Object.keys(D.USE || {}), ...(D.SITES || []).flatMap(x => [...(x.k || []), ...(x.s || [])])], D.LIB); const U = {};
-    for (const [k, v] of Object.entries(D.USE || {})) { const nk = al[k] || k; U[nk] = U[nk] ? [U[nk][0] + v[0], U[nk][1] + v[1]] : v; } D.USE = U;
-    for (const x of D.SITES || []) { if (x.k) x.k = x.k.map(k => al[k] || k); if (x.s) x.s = x.s.map(k => al[k] || k); } }
+    // statistikken fra før bruger gamle template-navne (fx cta-1-double-text) – peg dem på de nye
+    const al = E.keyAlias(Object.keys(D.USE || {}), D.LIB); const U = {};
+    for (const [k, v] of Object.entries(D.USE || {})) { const nk = al[k] || k; U[nk] = U[nk] ? [U[nk][0] + v[0], U[nk][1] + v[1]] : v; } D.USE = U; }
   $('boot').hidden = true;
-  const { LIB, CLASSES, VARS, SITES, USE, SHEET, STOCK } = D;
+  const { LIB, CLASSES, VARS, USE, SHEET, STOCK } = D;
   E.setMeta(LIB, SHEET); E.setEnv({ CLASSES }); E.setStock(STOCK); E.setBricks(D.BRICKS, LIB);
   const BRICKS_OK = !!(D.BRICKS && D.BRICKS.links && D.BRICKS.links.css.length);   // preview med jeres rigtige Bricks-CSS (src/bricks.json)
   let sheetNote = `Templates: ${Object.keys(LIB).length} fra ${D.TPL.source === 'drive' ? 'Drive' : D.TPL.source === 'cache' ? 'Drive (gemt udgave – Drive svarede ikke)' : 'lokal testfil'}${D.TPL.bad.length ? ' · ' + D.TPL.bad.length + ' filer kunne ikke læses' : ''}`;
@@ -164,7 +163,10 @@ async function loadTemplates(msg) {
   $('prefixEdit').onclick = () => { $('prefix').hidden = !$('prefix').hidden; if (!$('prefix').hidden) $('prefix').focus(); };
   $('prefix').addEventListener('input', () => { prefixTouched = $('prefix').value.trim() !== ''; syncPrefix(); });
   $('prefix').addEventListener('change', () => { if (cur()) render(); });                       // ændres præfikset bagefter, opdateres JSON'en
-  $('navn').addEventListener('input', () => { if (!prefixTouched) { $('prefix').value = E.classPrefix($('navn').value); syncPrefix(); if (cur()) render(); } });
+  // classes-præfikset følger kunden: med kundeliste først når en kunde vælges (eller feltet forlades med et frit navn), ellers mens man skriver
+  const prefixFromName = () => { if (prefixTouched) return; $('prefix').value = E.classPrefix($('navn').value); syncPrefix(); if (cur()) render(); };
+  $('navn').addEventListener('input', () => { if (!CUST || selCust) prefixFromName(); });
+  $('navn').addEventListener('change', prefixFromName);
 
   /* ---------- udkast ud fra templates ---------- */
   const planToSections = f => E.sanitizePlan(f.sektioner, LIB).flatMap(x => { const secs = E.makeSections(LIB, x.tpl, x.hvorfor, tlf()); const n = parseInt(x.antal, 10); if (n > 0) { const r = E.resizeGroup(secs[0], n, CLASSES); if (r.ok) secs[0].warns = r.warn; } return secs; });
@@ -176,7 +178,7 @@ async function loadTemplates(msg) {
     try {
       const existing = (more ? state.proposals : []).map(p => p.sections.map(s => s.tpl)); $('genBtn').disabled = true;
       const insp = await inspirationFor(brief, n, more);
-      const res = insp ? E.localPlan(Object.assign({}, brief, { branche: insp.gb.b }), LIB, n, existing, insp.sites) : E.localPlan(more && state.guess && !brief.branche ? Object.assign({}, brief, { branche: state.guess.b }) : brief, LIB, n, existing, SITES);
+      const res = insp ? E.localPlan(Object.assign({}, brief, { branche: insp.gb.b }), LIB, n, existing, insp.sites) : E.localPlan(more && state.guess && !brief.branche ? Object.assign({}, brief, { branche: state.guess.b }) : brief, LIB, n, existing, []);
       if (insp) res.branche = insp.gb; else if (more && state.guess && !brief.branche) res.branche = state.guess; if (res.branche && res.branche.via === 'dit valg' && brief.kunde) res.branche = Object.assign({}, res.branche, { via: 'fra ClickUp' }); if (!more) state.guess = res.branche || null;
       const guessNote = res.branche && res.branche.b ? (res.branche.via === 'dit valg' || res.branche.via === 'fra ClickUp' ? ` Branche: ${res.branche.b} (${res.branche.via}).` : ` Branche gættet: ${res.branche.b}${res.branche.via === 'tilfældigt' ? ' (tilfældigt – vælg Branche ved Designforslag, hvis du vil styre det)' : ''}.`) : '';
       const made = (res.forslag || []).slice(0, n).map((f, i) => ({ id: 'p' + Date.now() + i + 'x', name: f.navn || ('Udkast ' + (state.proposals.length + i + 1)), note: f.note || '', sections: planToSections(f) })).filter(p => p.sections.length);
@@ -222,11 +224,9 @@ async function loadTemplates(msg) {
   const hovCount = n => { for (const r of document.querySelectorAll('input[name=cnt]')) r.parentElement.classList.toggle('hov', n > 0 && +r.value <= n && !r.disabled); };
   for (const r of document.querySelectorAll('input[name=cnt]')) { r.parentElement.addEventListener('mouseenter', () => { if (!r.disabled) hovCount(+r.value); }); r.parentElement.addEventListener('mouseleave', () => hovCount(0)); r.addEventListener('focus', () => { if (!r.disabled) hovCount(+r.value); }); r.addEventListener('blur', () => hovCount(0)); }
 
-  const fillBranche = list => { const sel = $('branche'); if (!sel) return; const v = sel.value; sel.innerHTML = '<option value="">Gæt selv</option>' + [...new Set(list)].filter(b => b && !/uklar|^andet$/i.test(b)).sort((x, y) => x.localeCompare(y, 'da')).map(b => `<option>${E.esc(b)}</option>`).join(''); sel.value = v; };
-  fillBranche(SITES.map(s => s.b));
   /* ---------- inspiration: HOS-kunder fra ClickUp. Værktøjet ser selv på deres forsider og finder de templates, sektionerne ligner ----------
-     Uden ClickUp (lokalt, eller før CLICKUP_TOKEN er sat) bruges den indbyggede liste i data.json. */
-  const inspP = IN_GAS ? gas('inspiration').then(l => { const x = (l || []).map(i => ({ n: i.name, u: i.website, b: i.branche })).filter(i => i.u && i.b); if (x.length) fillBranche(x.map(i => i.b)); return x.length ? x : null; }).catch(() => null) : Promise.resolve(null);
+     Uden ClickUp (lokalt, eller hvis det fejler) vælges sektionerne ud fra standardopbygningen. */
+  const inspP = IN_GAS ? gas('inspiration').then(l => { const x = (l || []).map(i => ({ n: i.name, u: i.website, b: i.branche })).filter(i => i.u && i.b); return x.length ? x : null; }).catch(() => null) : Promise.resolve(null);
   const SITE_CACHE = 'udkast-sites-v1', SITE_DAYS = 7;
   const siteCache = () => { try { return JSON.parse(localStorage.getItem(SITE_CACHE) || '{}'); } catch (_) { return {}; } };
   async function siteMatch(x) {
