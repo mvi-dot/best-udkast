@@ -113,12 +113,12 @@ async function loadTemplates(msg) {
 
   /* ---------- kunde fra ClickUp (Opstarter: to-do, afventer, i gang, på ugen – med HOS/HOS+/RE/RE+) ----------
      Uden ClickUp (lokalt, eller hvis det fejler) skriver man bare kundens navn. */
-  let CUST = null, selCust = null, custHi = -1;
+  let CUST = null, selCust = null, custHi = -1, custClosed = false;
   const custP = (IN_GAS ? gas('customers') : fetch('.claude/dev-customers.json', { cache: 'no-store' }).then(r => r.ok ? r.json() : null)).then(l => (CUST = Array.isArray(l) && l.length ? l.slice().sort((x, y) => String(x.name).localeCompare(String(y.name), 'da')) : null)).catch(() => null);   // lokal test: .claude/dev-customers.json (ligger ikke i repoet)
   custP.then(l => { if (!l) { $('navn').placeholder = 'Kundens navn, fx Best Renovering ApS'; $('navn').setAttribute('aria-label', 'Kundens navn'); } else if (document.activeElement === $('navn')) renderCust(); });
   const custHits = () => { const q = $('navn').value.trim().toLowerCase(); if (!CUST) return []; return (q && !(selCust && selCust.name.toLowerCase() === q) ? CUST.filter(c => (c.name + ' ' + (c.branche || '') + ' ' + (c.website || '')).toLowerCase().includes(q)) : CUST).slice(0, 80); };
   function renderCust() {
-    const ul = $('custList'); const open = !!CUST && document.activeElement === $('navn'); ul.hidden = !open; $('navn').setAttribute('aria-expanded', String(open)); if (!open) return;
+    const ul = $('custList'); const open = !!CUST && document.activeElement === $('navn') && !custClosed; ul.hidden = !open; $('navn').setAttribute('aria-expanded', String(open)); if (!open) return;
     const hits = custHits(); if (custHi >= hits.length) custHi = hits.length - 1;
     ul.innerHTML = hits.length ? hits.map((c, i) => `<li role="option" data-id="${E.esc(c.id)}" aria-selected="${i === custHi}"><b>${E.esc(c.name)}</b><small>${E.esc(c.branche || 'Branche ikke angivet')}</small></li>`).join('') : '<li class="cempty">Ingen kunder i Opstarter matcher. Skriv bare navnet.</li>';
     const a = ul.querySelector('[aria-selected=true]'); if (a) a.scrollIntoView({ block: 'nearest' });
@@ -130,11 +130,14 @@ async function loadTemplates(msg) {
     el.innerHTML = `<div class="crow"><span>Domæne: ${href ? `<a href="${E.esc(href)}" target="_blank" rel="noopener">${E.esc(hostOfUrl(c.website))}</a>` : '<b>ikke angivet</b>'}</span>${c.url ? `<span>ClickUp: <a href="${E.esc(c.url)}" target="_blank" rel="noopener">Link</a></span>` : ''}</div>`;
   }
   function pickCust(c) { selCust = c; custHi = -1; $('navn').value = c.name; $('navn').dispatchEvent(new Event('input')); $('custList').hidden = true; $('navn').setAttribute('aria-expanded', 'false'); renderCustInfo(); }
-  $('navn').addEventListener('input', () => { if (selCust && $('navn').value.trim() !== selCust.name) { selCust = null; renderCustInfo(); } custHi = -1; renderCust(); });
+  $('navn').addEventListener('input', () => { if (selCust && $('navn').value.trim() !== selCust.name) { selCust = null; renderCustInfo(); } custHi = -1; custClosed = false; renderCust(); });
   $('navn').addEventListener('focus', renderCust);
+  // klik i feltet: fold listen ud eller sammen. Man kan stadig skrive for at søge (så foldes den ud igen)
+  $('navn').addEventListener('mousedown', () => { if (document.activeElement !== $('navn')) { custClosed = false; return; } custClosed = !$('custList').hidden; if (custClosed) { $('custList').hidden = true; $('navn').setAttribute('aria-expanded', 'false'); } else renderCust(); });
   $('navn').addEventListener('blur', () => setTimeout(() => { $('custList').hidden = true; $('navn').setAttribute('aria-expanded', 'false'); }, 120));
   $('custList').addEventListener('mousedown', e => { const li = e.target.closest('li[data-id]'); if (!li) return; e.preventDefault(); const c = (CUST || []).find(x => x.id === li.dataset.id); if (c) pickCust(c); });
   $('navn').addEventListener('keydown', e => {
+    if ((e.key === 'ArrowDown' || e.key === 'ArrowUp') && $('custList').hidden && CUST) { custClosed = false; renderCust(); }
     const open = !$('custList').hidden, hits = open ? custHits() : [];
     if (open && (e.key === 'ArrowDown' || e.key === 'ArrowUp') && hits.length) { e.preventDefault(); custHi = (custHi + (e.key === 'ArrowDown' ? 1 : hits.length - 1)) % hits.length; renderCust(); return; }
     if (e.key === 'Escape' && open) { $('custList').hidden = true; return; }
@@ -142,7 +145,7 @@ async function loadTemplates(msg) {
   });
 
   // hilsen med fornavn, når man er logget ind (navnet kommer fra ClickUp)
-  if (IN_GAS) gas('me').then(m => { const first = String((m && m.name) || '').trim().split(/\s+/)[0]; if (first) $('hi').innerHTML = `Hej ${E.esc(first)} 👋<br>Lad os bygge dit udkast`; }).catch(() => { });
+  if (IN_GAS) gas('me').then(m => { const first = String((m && m.name) || '').trim().split(/\s+/)[0]; if (first) $('hi').innerHTML = `Hej <b>${E.esc(first)}</b> 👋<br>Lad os bygge dit udkast`; }).catch(() => { });
 
   /* ---------- tjekliste: hvilke typer skal med (alle typer fra templates, undtagen hero og Content, der altid er med) ---------- */
   for (const r of document.querySelectorAll('input[name=hero]')) r.addEventListener('change', () => { $('heroBox').classList.remove('need'); if (/header/i.test($('status').textContent)) setStatus(''); });
@@ -235,7 +238,7 @@ async function loadTemplates(msg) {
     const ms = await Promise.all(same.map(siteMatch));
     return { gb, sites: same.map((x, i) => ms[i] && ms[i].length >= 3 ? Object.assign({}, x, { m: ms[i], c: ms[i].map(y => y.c) }) : null).filter(Boolean) };
   }
-  syncCount(); if (!matchMedia('(pointer: coarse)').matches) setTimeout(() => { try { $('navn').focus({ preventScroll: true }); } catch (_) { } }, 700);
+  syncCount(); if (!matchMedia('(pointer: coarse)').matches) setTimeout(() => { try { custClosed = true; $('navn').focus({ preventScroll: true }); } catch (_) { } }, 700);   // markøren står klar, men listen åbner først ved klik eller skrivning
 
   /* ---------- start forfra ---------- */
   let resetT = null;

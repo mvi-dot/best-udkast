@@ -555,6 +555,7 @@ html[data-theme=dark] .composer #navn::placeholder{color:#e3e8ee;font-weight:500
 .h2opts{grid-template-columns:repeat(4,1fr)}
 .h2opts label{justify-content:center}
 body.home #briefCard #h2Box{margin-bottom:0}
+.hi b{font-weight:700}
 </style>
 </head>
 <body>
@@ -570,7 +571,7 @@ body.home #briefCard #h2Box{margin-bottom:0}
     <details class="card composer" id="briefCard" open>
       <summary>Beskrivelse</summary>
       <div class="cpick"><input type="text" id="navn" class="bigin" autocomplete="off" placeholder="Vælg din kunde" aria-label="Vælg din kunde" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="custList"><ul id="custList" role="listbox" hidden></ul></div><div id="custInfo" hidden></div>
-      <fieldset class="wants heros" id="heroBox"><legend>Header <small>vælg</small></legend><div class="hopts"><label><input type="radio" name="hero" value="form"> Med kontaktformular</label><label><input type="radio" name="hero" value="noform"> Uden kontaktformular</label></div></fieldset><fieldset class="wants" id="h2Box"><legend>Tekstafsnit</legend><div class="hopts h2opts"><label><input type="radio" name="h2" value="2"> 2</label><label><input type="radio" name="h2" value="3" checked> 3</label><label><input type="radio" name="h2" value="4"> 4</label><label><input type="radio" name="h2" value="5"> 5</label></div></fieldset><fieldset class="wants" id="wantBox"><legend>Ønsker <small>valgfrit</small></legend><div id="wants"></div></fieldset>
+      <fieldset class="wants heros" id="heroBox"><legend>Header <small>vælg</small></legend><div class="hopts"><label><input type="radio" name="hero" value="form"> Med kontaktformular</label><label><input type="radio" name="hero" value="noform"> Uden kontaktformular</label></div></fieldset><fieldset class="wants" id="h2Box"><legend>Tekstafsnit <small>vælg</small></legend><div class="hopts h2opts"><label><input type="radio" name="h2" value="2"> 2</label><label><input type="radio" name="h2" value="3" checked> 3</label><label><input type="radio" name="h2" value="4"> 4</label><label><input type="radio" name="h2" value="5"> 5</label></div></fieldset><fieldset class="wants" id="wantBox"><legend>Ønsker <small>valgfrit</small></legend><div id="wants"></div></fieldset>
       <div id="sidetype" hidden><input type="radio" name="sidetype" value="Forside" checked><input type="radio" name="sidetype" value="Underside"><input type="radio" name="sidetype" value="Hero"></div>
       <div class="composer-bar"><button class="btn primary send" id="genBtn" data-lock><span class="fx"></span><span class="lbl"><span class="wand" aria-hidden="true">🪄</span>Generer udkast</span></button></div>
       <div class="prefixline">Dine classes starter med: <code id="prefixShow">kundens-navn</code> <button class="linkbtn" id="prefixEdit" type="button">ret</button><input type="text" id="prefix" autocomplete="off" placeholder="Fx best-renovering" aria-label="Klasse-præfiks" hidden></div>
