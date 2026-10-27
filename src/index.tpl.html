@@ -92,7 +92,7 @@ textarea{resize:vertical;min-height:110px}
 #busy{position:fixed;inset:0;z-index:50;background:rgba(10,15,20,.45);display:grid;place-items:center;padding:20px}
 #busy[hidden]{display:none}
 .busybox{background:var(--panel);border-radius:12px;padding:20px 22px;box-shadow:var(--shadow);min-width:min(340px,90vw);text-align:center}
-.spin{width:26px;height:26px;border-radius:50%;border:3px solid var(--line);border-top-color:var(--green);margin:0 auto 12px;animation:sp .9s linear infinite}
+
 @keyframes sp{to{transform:rotate(360deg)}}
 @media (prefers-reduced-motion:reduce){.spin{animation:none;border-top-color:var(--line);border-left-color:var(--accent)}}
 .busybox p{margin:0 0 14px}
