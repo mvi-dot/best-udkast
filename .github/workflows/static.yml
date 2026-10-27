@@ -24,6 +24,7 @@ jobs:
       - run: |
           mkdir _site
           cp index.html _site/
+          echo "{\"v\":\"${GITHUB_SHA::12}\"}" > _site/version.json   # Apps Script beder om netop denne udgave, så ingen ser en gammel
           touch _site/.nojekyll
       - uses: actions/upload-pages-artifact@v3
         with:

@@ -7,7 +7,7 @@
 </head>
 <body>
 <!-- Værktøjet (GitHub Pages) vises her. Det får kun data gennem broen nedenfor, og kun når man er logget ind med best-one.dk -->
-<iframe id="app" src="<?= appUrl ?>?host=gas" allow="clipboard-write" title="Udkast – Best One"></iframe>
+<iframe id="app" src="<?= appUrl ?>?host=gas&v=<?= v ?>" allow="clipboard-write" title="Udkast – Best One"></iframe>
 <script>
 (function () {
   var APP_ORIGIN = <?!= JSON.stringify(appOrigin) ?>;

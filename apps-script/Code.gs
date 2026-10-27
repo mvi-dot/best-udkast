@@ -31,8 +31,17 @@ const CFG = {
 /* ---------- siden ---------- */
 function doGet() {
   const t = HtmlService.createTemplateFromFile('Shell');
-  t.appUrl = CFG.APP_URL; t.appOrigin = CFG.APP_ORIGIN;
+  t.appUrl = CFG.APP_URL; t.appOrigin = CFG.APP_ORIGIN; t.v = appVersion_();
   return t.evaluate().setTitle('Udkast – Best One').addMetaTag('viewport', 'width=device-width, initial-scale=1');
+}
+
+// Nyeste udgave af værktøjet på GitHub (version.json skrives ved hver udgivelse). Bruges i iframens adresse,
+// så browseren henter den nye udgave med det samme, men genbruger den, så længe intet er ændret
+function appVersion_() {
+  const cache = CacheService.getScriptCache(); const hit = cache.get('appv'); if (hit) return hit;
+  let v = ''; try { const r = UrlFetchApp.fetch(CFG.APP_URL + 'version.json?t=' + Date.now(), { muteHttpExceptions: true }); if (r.getResponseCode() === 200) v = String(JSON.parse(r.getContentText()).v || ''); } catch (e) { }
+  if (v) cache.put('appv', v, 60);
+  return v || String(Math.floor(Date.now() / 600000));   // findes filen ikke: ny adresse hvert 10. minut
 }
 
 /* ---------- API (kaldes fra Shell.html via google.script.run) ---------- */
