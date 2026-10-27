@@ -24,8 +24,9 @@ async function loadTemplates(msg) {
   }
   try {
     msg('Henter listen over templates fra Drive…'); const idx = await gas('templateIndex');
-    const need = idx.filter(f => !cache[f.id] || cache[f.id].modified !== f.modified).map(f => f.id);
-    for (let i = 0; i < need.length; i += 20) { msg(`Henter templates fra Drive… ${Math.min(i + 20, need.length)}/${need.length}`); for (const g of await gas('templateFiles', need.slice(i, i + 20))) cache[g.id] = g; }
+    const need = idx.filter(f => !cache[f.id] || cache[f.id].modified !== f.modified).map(f => f.id); const first = !Object.keys(cache).length;
+    for (let i = 0; i < need.length; i += 20) { msg((first ? 'Førstegangsopsætning, vent venligst\n' : '') + `Henter templates: ${i}/${need.length}`); for (const g of await gas('templateFiles', need.slice(i, i + 20))) cache[g.id] = g; }
+    if (need.length) msg((first ? 'Førstegangsopsætning, vent venligst\n' : '') + `Henter templates: ${need.length}/${need.length}`);
     const ids = new Set(idx.map(f => f.id)); for (const id of Object.keys(cache)) if (!ids.has(id)) delete cache[id];
     try { localStorage.setItem(TPL_CACHE, JSON.stringify({ files: cache })); } catch (_) { }
     return { files: Object.values(cache), source: 'drive', changed: need.length };
