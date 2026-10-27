@@ -46,7 +46,18 @@ function requireBestOne_() {
   if (!mail.endsWith('@' + CFG.DOMAIN)) throw new Error('Kun for Best One-medarbejdere.');
   return mail;
 }
-function me() { return { email: requireBestOne_() }; }
+// Hvem er logget ind: e-mail fra Google, fornavn fra ClickUp (Google-login giver kun e-mailen)
+function me() {
+  const email = requireBestOne_(); let name = '';
+  try { name = memberNames_()[email] || ''; } catch (e) { }
+  return { email, name };
+}
+function memberNames_() {
+  const cache = CacheService.getScriptCache(); const hit = cache.get('members'); if (hit) return JSON.parse(hit);
+  const out = {}; for (const t of clickupGet_('/team').teams || []) for (const m of t.members || []) { const u = m.user || {}; if (u.email && u.username) out[String(u.email).toLowerCase()] = String(u.username); }
+  try { cache.put('members', JSON.stringify(out), 21600); } catch (e) { }
+  return out;
+}
 
 /* ---------- templates fra Drive ----------
    Hurtigt: listen og filerne hentes med Drive-API'et, filerne parallelt (UrlFetchApp.fetchAll), og hver fil gemmes i scriptets cache i 6 timer,
