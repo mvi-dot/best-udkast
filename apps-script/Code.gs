@@ -117,6 +117,7 @@ function inspiration() {
   const cache = CacheService.getScriptCache(); const hit = cache.get('inspiration'); if (hit) return JSON.parse(hit);
   const C = CFG.CLICKUP; const filter = JSON.stringify([{ field_id: C.F_PRODUKTER, operator: 'ANY', value: C.HOS }]);
   const out = listTasks_(C.KUNDER, { custom_fields: filter })   // kun åbne opgaver: "nedlukket" og "afsluttet" er ikke online
+    .filter(t => !(t.status && /^(done|closed)$/.test(t.status.type)))   // "nedlukket" (done) og "afsluttet" (closed) er ikke online
     .filter(t => { const p = field_(t, C.F_PRODUKTER); return p && Array.isArray(p.value) && p.value.some(v => C.HOS.indexOf(v) >= 0); })
     .map(t => ({ name: t.name, website: textOf_(field_(t, C.F_HJEMMESIDE)), branche: dropdownName_(field_(t, C.F_BRANCHE)) })).filter(x => x.website);
   try { cache.put('inspiration', JSON.stringify(out), 3600); } catch (e) { }
