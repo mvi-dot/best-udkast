@@ -55,7 +55,9 @@ let DESCS = {};
 const describeKey = key => (META[key] && META[key].desc) || DESCS[key] || '';
 const EXCLUDED_CATS = new Set(['Menu', 'Footer', 'Marketing', 'Underside']);   // basisregel: bruges ALDRIG (hverken i udkast eller i "Tilføj sektion")
 const EXCLUDED_KEYS = new Set(['seo-blogindlg', 'seo-blogindlaeg', 'blog-underside', 'geo-underside', 'viden-geo']);
-const allowedKeys = (LIB, auto) => Object.keys(LIB).filter(k => !EXCLUDED_CATS.has(categoryOf(k)) && !EXCLUDED_KEYS.has(k) && (!auto || categoryOf(k) !== 'CTA')).sort((a, b) => a.localeCompare(b, 'da', { numeric: true }));
+const EXCLUDED_RE = /^kontakt?formular/;                                          // basisregel: kontaktformularerne bruges ALDRIG (begge stavemåder)
+const isExcluded = k => EXCLUDED_KEYS.has(k) || EXCLUDED_RE.test(k);
+const allowedKeys = (LIB, auto) => Object.keys(LIB).filter(k => !EXCLUDED_CATS.has(categoryOf(k)) && !isExcluded(k) && (!auto || categoryOf(k) !== 'CTA')).sort((a, b) => a.localeCompare(b, 'da', { numeric: true }));
 const variantsOf = (LIB, cat) => allowedKeys(LIB).filter(k => categoryOf(k) === cat);
 function catList(LIB) { const have = new Set(allowedKeys(LIB).map(categoryOf)); return TYPE_ORDER.filter(c => have.has(c)).concat([...have].filter(c => !TYPE_ORDER.includes(c)).sort()); }
 function nextVariant(LIB, tpl, used) {
@@ -609,7 +611,7 @@ function fpDist(a, b) {
 let TPL_FP = null;
 function templatePrints(LIB, CLASSES) {
   if (TPL_FP && TPL_FP.lib === LIB) return TPL_FP;
-  const keys = Object.keys(LIB).filter(k => !FP_SKIP_CATS.has(categoryOf(k)) && !EXCLUDED_KEYS.has(k) && !(LIB[k] && LIB[k].group)); const prints = {}; const owners = {};
+  const keys = Object.keys(LIB).filter(k => !FP_SKIP_CATS.has(categoryOf(k)) && !isExcluded(k) && !(LIB[k] && LIB[k].group)); const prints = {}; const owners = {};
   for (const k of keys) {
     let html = ''; try { html = renderBricks([makeSection(LIB, k)], CLASSES).html; } catch (_) { continue; }
     const doc = new DOMParser().parseFromString('<main>' + html + '</main>', 'text/html'); const secs = [...doc.querySelectorAll('main > section')]; if (!secs.length) continue;
