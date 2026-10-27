@@ -123,8 +123,8 @@ async function loadTemplates(msg) {
   const hostOfUrl = u => { try { return new URL(/^https?:/i.test(u) ? u : 'https://' + u).hostname.replace(/^www\./, ''); } catch (_) { return u; } };
   function renderCustInfo() {
     const el = $('custInfo'), c = selCust; el.hidden = !c; if (!c) { el.innerHTML = ''; return; }
-    const notes = [c.note, c.description].filter(Boolean).join('\n\n').trim();
-    el.innerHTML = `<div class="crow"><span>Branche: <b>${E.esc(c.branche || 'ikke angivet')}</b></span>${c.website ? `<span><a href="${E.esc(/^https?:/i.test(c.website) ? c.website : 'https://' + c.website)}" target="_blank" rel="noopener">${E.esc(hostOfUrl(c.website))}</a></span>` : ''}${c.seller ? `<span>Sælger: ${E.esc(c.seller)}</span>` : ''}${c.url ? `<span><a href="${E.esc(c.url)}" target="_blank" rel="noopener">Åbn i ClickUp</a></span>` : ''}</div>${notes ? `<details><summary>Noter fra ClickUp</summary><pre>${E.esc(notes)}</pre></details>` : ''}`;
+    const href = c.website ? (/^https?:/i.test(c.website) ? c.website : 'https://' + c.website) : '';
+    el.innerHTML = `<div class="crow"><span>Domæne: ${href ? `<a href="${E.esc(href)}" target="_blank" rel="noopener">${E.esc(hostOfUrl(c.website))}</a>` : '<b>ikke angivet</b>'}</span>${c.url ? `<span>ClickUp: <a href="${E.esc(c.url)}" target="_blank" rel="noopener">Link</a></span>` : ''}</div>`;
   }
   function pickCust(c) { selCust = c; custHi = -1; $('navn').value = c.name; $('navn').dispatchEvent(new Event('input')); $('custList').hidden = true; $('navn').setAttribute('aria-expanded', 'false'); renderCustInfo(); }
   $('navn').addEventListener('input', () => { if (selCust && $('navn').value.trim() !== selCust.name) { selCust = null; renderCustInfo(); } custHi = -1; renderCust(); });
@@ -176,6 +176,13 @@ async function loadTemplates(msg) {
     btn.classList.remove('go'); void btn.offsetWidth; btn.classList.add('go'); setTimeout(() => btn.classList.remove('go'), 1600);
   }
   $('genBtn').onclick = e => { burst($('genBtn'), e); generate(false); };
+  // små stjerner fra tryllestaven, mens man holder musen over knappen
+  { const btn = $('genBtn'); let tw = null;
+    const sparkle = () => { const w = btn.querySelector('.wand'); if (!w || btn.disabled) return; const b = btn.getBoundingClientRect(), r = w.getBoundingClientRect();
+      for (let i = 0; i < 3; i++) { const s = document.createElement('span'); s.className = 'twk'; s.textContent = Math.random() < 0.5 ? '✦' : '✧'; const an = -Math.PI / 2 + (Math.random() - 0.3) * 1.6, d = 18 + Math.random() * 26;
+        s.style.cssText = `left:${r.left - b.left + r.width * 0.75}px;top:${r.top - b.top + r.height * 0.1}px;--dx:${Math.cos(an) * d}px;--dy:${Math.sin(an) * d}px;--s:${8 + Math.random() * 7}px;animation-delay:${i * 90}ms`; btn.appendChild(s); setTimeout(() => s.remove(), 1200); } };
+    btn.addEventListener('mouseenter', () => { sparkle(); clearInterval(tw); tw = setInterval(sparkle, 420); });
+    btn.addEventListener('mouseleave', () => { clearInterval(tw); tw = null; }); }
 
 
 

@@ -24,9 +24,6 @@ const CFG = {
     HOS: ['f2f35750-7945-47e9-9586-03360e061572', 'dc76a526-a1e3-4915-b3a1-81d22ca8e1bc', 'c71b80c5-7558-45af-bd9b-43d6eb27996f', '505b8c0a-a3ed-4a11-a88f-eb8b488612d5'],   // HOS, HOS+, RE, RE+ (ikke H0S)
     F_BRANCHE: '75762c06-2936-49a6-8915-f1780ddc20e0',
     F_HJEMMESIDE: 'd8f36f07-cf17-48dd-aab6-bb6974a7cbcc',
-    F_DESCRIPTION: '705f6e43-1597-4947-9eed-0ba2a07b2fb7',
-    F_SAELGER: '6d1d0348-5ce2-44b3-81ff-58755fe3a01e',
-    F_POSTNUMMER: '3a9f4f94-4659-4505-8b87-7ca1a1def514',
   },
 };
 
@@ -102,11 +99,9 @@ function dropdownName_(f) {
 const hasHos_ = t => { const p = field_(t, CFG.CLICKUP.F_PRODUKTER); return !!(p && Array.isArray(p.value) && p.value.some(v => CFG.CLICKUP.HOS.indexOf(v && v.id ? v.id : v) >= 0)); };
 const statusName_ = t => String((t.status && t.status.status) || '').toLowerCase().replace(/[^a-zæøå -]/g, '').trim();   // "på ugen 🔥" -> "på ugen"
 const textOf_ = f => (f && f.value !== undefined && f.value !== null) ? String(f.value) : '';
-function customer_(t) {
-  const C = CFG.CLICKUP; const s = field_(t, C.F_SAELGER);
-  return { id: t.id, name: t.name, url: t.url, status: t.status && t.status.status, website: textOf_(field_(t, C.F_HJEMMESIDE)), branche: dropdownName_(field_(t, C.F_BRANCHE)),
-    postnummer: textOf_(field_(t, C.F_POSTNUMMER)), seller: s && Array.isArray(s.value) && s.value[0] ? (s.value[0].username || s.value[0].email || '') : '',
-    note: textOf_(field_(t, C.F_DESCRIPTION)), description: String(t.text_content || t.description || '').slice(0, 1500), updated: +t.date_updated || 0 };
+function customer_(t) {   // kun det, værktøjet viser og bruger
+  const C = CFG.CLICKUP;
+  return { id: t.id, name: t.name, url: t.url, website: textOf_(field_(t, C.F_HJEMMESIDE)), branche: dropdownName_(field_(t, C.F_BRANCHE)) };
 }
 // Kunder der skal laves udkast til
 function customers() {
