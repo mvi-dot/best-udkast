@@ -579,6 +579,26 @@ svg.ic{width:16px;height:16px;flex:none;fill:none;stroke:currentColor;stroke-wid
 /* sidebaren tilpasser sig indholdet (så smal som muligt uden ombrydning) */
 @media (min-width:981px){body:not(.home) .app{grid-template-columns:fit-content(480px) minmax(0,1fr);gap:16px}body:not(.home) .app>.side{width:max-content;min-width:300px;max-width:480px}}
 #canvas{min-width:0;overflow:hidden}#pvOuter{max-width:100%}
+/* værktøjslinjen sidder i fanerækken (mere plads til preview) */
+.tabrow .tabs{flex:0 1 auto}
+.tabrow .bar,html[data-theme=dark] .tabrow .bar{position:static!important;margin:0!important;width:auto;padding:0;border:0;box-shadow:none;background:transparent;flex:0 1 auto;justify-content:flex-start}
+.tabrow .tabact{margin-left:auto}
+/* sektionsknapper: tekst ved ikonerne, papirkurv ved siden af, ingen streg og ingen boks om antal */
+#list .ac{border-top:0!important;padding-top:6px!important;gap:6px!important;flex-wrap:nowrap}
+#list .ac .gap{display:none}
+#list .ac button.lbl{width:auto!important;padding:0 10px 0 8px!important;display:inline-flex!important;align-items:center;gap:6px;font-size:12px;font-weight:600;white-space:nowrap}
+#list .ac button.lbl svg{width:17px!important;height:17px!important}
+#list .cnt,html[data-theme=dark] #list .cnt{background:transparent!important;border:0!important;padding-left:0!important}
+/* kompakt: knaptekster og ikon-skærmstørrelser i fanerækken */
+#list .ac button.lbl{height:34px!important;padding:0 8px 0 7px!important;gap:5px;font-size:11.5px}
+#list .ac button.lbl svg{width:15px!important;height:15px!important}
+#list .ac button[data-a=del]{height:34px!important;width:34px!important}
+#list .ac{gap:5px!important}
+.tabrow #devices button{font-size:0;gap:0;padding:7px 10px}
+.tabrow #devices button svg.ic{width:17px;height:17px}
+.tabrow{gap:10px}
+#list li{padding-right:12px!important}
+#list li .t{padding-right:40px}
 </style>
 </head>
 <body>
@@ -616,9 +636,7 @@ svg.ic{width:16px;height:16px;flex:none;fill:none;stroke:currentColor;stroke-wid
   <section class="stage">
     <div class="tabrow" id="tabrow" hidden>
       <div class="tabs" id="tabs" hidden></div>
-      <div class="tabact"><button class="btn ghost" id="resetBtn" type="button" title="Ryd alt og begynd forfra"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 12a8.5 8.5 0 1 0 2.6-6.1"/><path d="M3.5 4v4.5H8"/></svg><span class="blbl">Start forfra</span></button></div>
-    </div>
-    <div class="bar">
+      <div class="bar">
       <div class="seg" id="devices" role="group" aria-label="Skærmstørrelse">
         <button data-d="desktop" aria-pressed="true" title="Desktop · 1600 px (base)"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="2.5" y="4" width="19" height="12.5" rx="1.8"/><path d="M8.5 20.5h7M12 16.5v4"/></svg>Desktop</button><button data-d="laptop" aria-pressed="false" title="Laptop · 1440 px (max 1470)"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="4.5" y="5" width="15" height="10.5" rx="1.5"/><path d="M2 19h20"/></svg>Laptop</button><button data-d="ipadl" aria-pressed="false" title="Liggende iPad · 1024 px (max 1024)" aria-label="iPad liggende"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="2.5" y="5.5" width="19" height="13" rx="2"/><path d="M18.5 12h.01"/></svg>iPad</button><button data-d="ipadp" aria-pressed="false" title="Stående iPad · 768 px (max 768)" aria-label="iPad stående"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="5.5" y="2.5" width="13" height="19" rx="2"/><path d="M12 18.5h.01"/></svg>iPad</button><button data-d="mobil" aria-pressed="false" title="Mobil · 390 px (max 478)"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="7" y="2.5" width="10" height="19" rx="2.2"/><path d="M11 18.5h2"/></svg>Mobil</button>
       </div>
@@ -627,6 +645,8 @@ svg.ic{width:16px;height:16px;flex:none;fill:none;stroke:currentColor;stroke-wid
       <span class="sp"></span>
       <details id="valWrap" hidden><summary id="valBadge" title="Automatisk kontrol af JSON'en før du indsætter i Bricks. Klik for listen."></summary><div id="valPanel"><p class="hint" style="margin:0 0 6px">Automatisk kontrol af JSON'en, før du indsætter i Bricks:</p><ul id="valList"></ul></div></details>
       <button class="btn primary" id="copyBtn" disabled><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="8.5" y="8.5" width="11" height="11" rx="2.2"/><path d="M15.5 8.5V6.7a2.2 2.2 0 0 0-2.2-2.2H6.7a2.2 2.2 0 0 0-2.2 2.2v6.6a2.2 2.2 0 0 0 2.2 2.2h1.8"/></svg><span class="blbl">Kopiér JSON</span></button>
+      </div>
+      <div class="tabact"><button class="btn ghost" id="resetBtn" type="button" title="Ryd alt og begynd forfra"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 12a8.5 8.5 0 1 0 2.6-6.1"/><path d="M3.5 4v4.5H8"/></svg><span class="blbl">Start forfra</span></button></div>
     </div>
     <div id="canvas">
       <div class="empty" id="empty">
