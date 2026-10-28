@@ -32,7 +32,7 @@ Alle templates må gerne ligge i Drive-mappen. Reglerne ligger i værktøjet (`s
 - Samme template bruges aldrig to gange i ét udkast.
 - "CTA sektion": der står altid mindst én sektion mellem de to CTA-afsnit. Er siden for kort, springes det ekstra over.
 - Man skal vælge en kunde fra ClickUp-listen for at lave et udkast.
-- Ekstra sektioner med formular (ikke heroen) får "⚠ Tjek formular-ID efter paste", og erstatninger får "⚠ Erstatning" i listen.
+- Erstatninger får "⚠ Erstatning" i listen.
 - Tomme sektioner i en template (bruges til interne noter) kommer aldrig med i udkastet.
 - Der er ét udkast ad gangen. "Generer nyt udkast på samme indstillinger" erstatter det, og Cmd/Ctrl + Z giver det forrige tilbage.
 
