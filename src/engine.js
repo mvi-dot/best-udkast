@@ -483,7 +483,7 @@ function localPlan(b, LIB, n, existing, SITES) {
     for (const c of cats) {
       let pool = c === CTA_TEXT ? keysAll.filter(isCtaText) : (want.includes(c) ? keysAll : keys).filter(k => categoryOf(k) === c);   // en valgt type må gerne være en, der ellers ikke bruges automatisk (fx CTA)
       if (c === 'Header' && b && typeof b.heroForm === 'boolean') { const f = pool.filter(k => hasForm(LIB, k) === b.heroForm); if (f.length) pool = f; }   // med eller uden kontaktformular
-      if (c === 'Kontakt sektion') { const f = pool.filter(k => hasForm(LIB, k)), g = pool.filter(k => !isCtaText(k)); if (f.length) pool = f; else if (g.length) pool = g; }   // "Kontakt sektion" = den med formular; CTA-sektionerne bruges til CTA-afsnittet
+      if (c === 'Kontakt sektion') pool = pool.filter(k => hasForm(LIB, k));   // "Kontakt sektion" SKAL have en formular – findes ingen, springes den over. Tekst med knapper er CTA-afsnit
       let sub = '';
       if (c === 'Content' || c === CTA_TEXT) {   // tekstafsnit må aldrig mangle: bedste ledige template i prioriteret rækkefølge
         const hasH2 = k => { const t = textStats(k); return t.h2 >= 1 && t.words >= 8; };
