@@ -49,6 +49,11 @@ Med ClickUp sat op (se apps-script/LAES-MIG.md) henter værktøjet kunderne med 
 
 Lokalt: `python3 build.py`, derefter `python3 -m http.server 8000` og åbn http://localhost:8000/index.html. Uden Apps Script bruger værktøjet `.claude/dev-templates.json`, hvis den findes (ligger ikke i repoet).
 
+## Statistik
+Under formularen på forsiden står et lille link **Statistik**. Det ses kun af rmu@ og mvi@best-one.dk, og Apps Scriptet tjekker også selv e-mailen (`CFG.STATS_ADMINS`).
+Værktøjet tæller pr. template: hvor tit den kommer med i et udkast, skiftes ud (Ny variant / Vælg selv), slettes, vælges selv, tilføjes, og om den er med, når JSON'en kopieres. Der gemmes kun tal pr. template – ingen kunder eller navne. Tallene ligger i Apps Scriptets Script-egenskaber (`S:<template>`).
+Templates med mindst 5 udkast og over 50 % udskiftet står med gult.
+
 ## Fejlkoder
 Fejl vises i en bar nederst med en kode som `E30-1318-4f2a` (type, klokkeslæt, id). Detaljerne står i browserens konsol under samme kode.
 - `E10` udkastet kunne ikke laves

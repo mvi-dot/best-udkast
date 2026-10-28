@@ -196,6 +196,7 @@ async function loadTemplates(msg) {
       const made = (res.forslag || []).slice(0, n).map((f, i) => ({ id: 'p' + Date.now() + i + 'x', name: f.navn || ('Udkast ' + (state.proposals.length + i + 1)), note: f.note || '', sections: planToSections(f) })).filter(p => p.sections.length);
       if (!made.length) throw new Error('Kunne ikke sætte et udkast sammen af templates.');
       state.proposals = made; state.active = 0;   // ét udkast ad gangen; Fortryd giver det forrige tilbage
+      statSeen = new Set(); stat('vist', ['_udkast'].concat(made[0].sections.map(s => s.tpl)));
       setStatus((more ? 'Nyt udkast klar.' : 'Udkast klar.') + guessNote, 'ok');
     } catch (e) { hist.pop(); setStatus(''); showError('Udkastet kunne ikke laves. Prøv igen.', 'E10', (e && e.message) || e); }
     await new Promise(r => setTimeout(r, Math.max(0, 450 - (Date.now() - t0))));   // vis cirklen et øjeblik, så man ser, at der sker noget
@@ -282,9 +283,29 @@ async function loadTemplates(msg) {
   const undo = () => { if (!hist.length) return; state = JSON.parse(hist.pop()); setStatus('Fortrudt.', 'ok'); render(); };
   document.addEventListener('keydown', e => { if ((e.metaKey || e.ctrlKey) && !e.shiftKey && e.key.toLowerCase() === 'z' && !/^(INPUT|TEXTAREA|SELECT)$/.test((document.activeElement || {}).tagName || '') && hist.length) { e.preventDefault(); undo(); } });   // Cmd/Ctrl + Z fortryder
 
+  /* ---------- statistik: kun tal pr. template, samles og sendes til Apps Script. Kun rmu og mvi kan se dem ---------- */
+  const statQ = []; let statT = null, statSeen = new Set();
+  function stat(ev, tpls) { if (!IN_GAS) return; for (const t of new Set([].concat(tpls).filter(Boolean))) statQ.push({ e: ev, t }); clearTimeout(statT); statT = setTimeout(flushStat, 4000); }
+  function flushStat() { clearTimeout(statT); if (statQ.length) gas('logStats', [statQ.splice(0, 300)]).catch(() => { }); }
+  addEventListener('pagehide', flushStat); document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') flushStat(); });
+  if (IN_GAS) EARLY.me.then(m => { if (m && m.admin) $('statLink').hidden = false; }).catch(() => { });
+  $('statBtn').onclick = async () => {
+    $('statBox').hidden = false; $('statBody').innerHTML = '<p class="hint">Henter…</p>';
+    try {
+      const d = await gas('stats'); const rows = d.rows || {}; const nU = (rows._udkast || {}).vist || 0; const n = x => x || 0;
+      const keys = [...new Set(E.allowedKeys(LIB).concat(Object.keys(rows)))].filter(k => k !== '_udkast');
+      const list = keys.map(k => { const r = rows[k] || {}; const ud = n(r.skiftet) + n(r.slettet); return { k, r, ud, rate: n(r.vist) ? ud / n(r.vist) : -1 }; }).sort((a, b) => b.rate - a.rate || n(b.r.vist) - n(a.r.vist) || a.k.localeCompare(b.k, 'da'));
+      $('statBody').innerHTML = `<p class="hint" style="margin:0 0 10px">${nU} udkast${d.since ? ' siden ' + E.esc(d.since) : ''}. <b>Udskiftet</b> = skiftet ud eller slettet, i procent af gange den kom med i et udkast. Templates der aldrig er brugt, står nederst.</p>
+        <table class="stattbl"><thead><tr><th>Template</th><th>Type</th><th title="Kom med i et udkast (automatisk eller som ny variant)">I udkast</th><th title="Skiftet ud med en anden variant">Skiftet ud</th><th>Slettet</th><th title="Valgt med Vælg selv">Valgt selv</th><th title="Tilføjet med + Tilføj sektion">Tilføjet</th><th title="Med i den kopierede JSON">Brugt</th><th>Udskiftet</th></tr></thead><tbody>${list.map(x => `<tr${x.rate >= 0.5 && n(x.r.vist) >= 5 ? ' class="warnrow"' : ''}><td>${E.esc(LIB[x.k] ? E.displayName(x.k) : x.k)}</td><td>${E.esc(E.categoryOf(x.k))}</td><td>${n(x.r.vist)}</td><td>${n(x.r.skiftet)}</td><td>${n(x.r.slettet)}</td><td>${n(x.r.valgt)}</td><td>${n(x.r.tilfoejet)}</td><td>${n(x.r.eksporteret)}</td><td>${x.rate < 0 ? '–' : Math.round(x.rate * 100) + ' %'}</td></tr>`).join('')}</tbody></table>`;
+    } catch (e) { $('statBody').innerHTML = `<p class="hint">Statistikken kunne ikke hentes: ${E.esc((e && e.message) || e)}</p>`; }
+  };
+  $('statClose').onclick = () => { $('statBox').hidden = true; };
+  document.addEventListener('keydown', e => { if (e.key === 'Escape' && !$('statBox').hidden) $('statBox').hidden = true; });
+
   /* ---------- sektionsliste: rækkefølge, variant, vælg, fjern ---------- */
-  function swapTo(index, tpl) {
-    pushHist(); const out = E.applyOps(cur(), [{ op: 'swap', index, tpl, manual: true }], LIB, tlf(), CLASSES); if (!out.added.length) { hist.pop(); showError('Sektionen kunne ikke skiftes.', 'E30', tpl); } render();
+  function swapTo(index, tpl, how) {
+    const old = (cur().sections[index - 1] || {}).tpl;
+    pushHist(); const out = E.applyOps(cur(), [{ op: 'swap', index, tpl, manual: true }], LIB, tlf(), CLASSES); if (!out.added.length) { hist.pop(); showError('Sektionen kunne ikke skiftes.', 'E30', tpl); } else { stat('skiftet', old); stat(how || 'vist', tpl); } render();
   }
   let delArm = null, delT = null;
   $('list').addEventListener('click', ev => {
@@ -300,7 +321,7 @@ async function loadTemplates(msg) {
     if (a === 'pick') { openPicker({ mode: 'swap', index: i, cat: E.categoryOf(s.tpl) }); return; }
     if (a === 'del') {   // første klik: "Er du sikker?", andet klik fjerner
       if (delArm !== s.uid) { delArm = s.uid; clearTimeout(delT); delT = setTimeout(() => { delArm = null; render(); }, 3500); render(); return; }
-      delArm = null; clearTimeout(delT); pushHist(); E.applyOps(p, [{ op: 'remove', index: i }], LIB, tlf(), CLASSES); render(); return; }
+      delArm = null; clearTimeout(delT); pushHist(); E.applyOps(p, [{ op: 'remove', index: i }], LIB, tlf(), CLASSES); stat('slettet', s.tpl); render(); return; }
   });
   let dragFrom = null;
   $('list').addEventListener('dragstart', ev => { const li = ev.target.closest('li[data-i]'); if (!li) return; dragFrom = +li.dataset.i; li.classList.add('drag'); ev.dataTransfer.effectAllowed = 'move'; try { ev.dataTransfer.setData('text/plain', String(dragFrom)); } catch (_) { } });
@@ -358,8 +379,8 @@ async function loadTemplates(msg) {
     const lk = e.target.closest('.pklink'); if (lk) { e.stopPropagation(); window.open(lk.dataset.url, '_blank', 'noopener'); return; }
     const c = e.target.closest('.pkcard'); if (!c || !pk) return;
     const k = c.dataset.k, o = pk; closePicker();
-    if (o.mode === 'swap') { swapTo(o.index, k); return; }
-    const p = cur(); pushHist(); const cat = E.categoryOf(k); const addOp = { op: 'add', tpl: k, manual: true }; if (cat === 'Menu') addOp.at = 1; else if (p.sections.length && E.categoryOf(p.sections[p.sections.length - 1].tpl) === 'Footer' && cat !== 'Footer') addOp.at = p.sections.length; const out = E.applyOps(p, [addOp], LIB, tlf(), CLASSES); if (!out.added.length) { hist.pop(); showError('Sektionen kunne ikke tilføjes.', 'E30', k); } render();
+    if (o.mode === 'swap') { swapTo(o.index, k, 'valgt'); return; }
+    const p = cur(); pushHist(); const cat = E.categoryOf(k); const addOp = { op: 'add', tpl: k, manual: true }; if (cat === 'Menu') addOp.at = 1; else if (p.sections.length && E.categoryOf(p.sections[p.sections.length - 1].tpl) === 'Footer' && cat !== 'Footer') addOp.at = p.sections.length; const out = E.applyOps(p, [addOp], LIB, tlf(), CLASSES); if (!out.added.length) { hist.pop(); showError('Sektionen kunne ikke tilføjes.', 'E30', k); } else stat('tilfoejet', k); render();
   });
 
 
@@ -382,7 +403,7 @@ async function loadTemplates(msg) {
     try { const ta = document.createElement('textarea'); ta.value = text; ta.style.cssText = 'position:fixed;opacity:0'; document.body.appendChild(ta); ta.select(); const ok = document.execCommand('copy'); ta.remove(); if (ok) { flashCopied(); setStatus('JSON kopieret. Indsæt i Bricks med Ctrl/Cmd + V.', 'ok'); return; } } catch (_) { }
     $('cfText').value = text; $('copyFallback').hidden = false; $('cfText').focus(); $('cfText').select(); setStatus('Browseren blokerer kopiering her. JSON er markeret, tryk Ctrl/Cmd + C.', 'warn');
   }
-  $('copyBtn').onclick = () => { if (exp) copyJson(); };
+  $('copyBtn').onclick = () => { if (!exp) return; copyJson(); const nye = [...new Set(cur().sections.map(s => s.tpl))].filter(x => !statSeen.has(x)); nye.forEach(x => statSeen.add(x)); stat('eksporteret', nye); };   // tælles én gang pr. udkast
   // heroens H1 er kundens navn (H1 i heroen, ellers heroens første overskrift)
   function nameH1(p) {
     const navn = String((state.brief || {}).navn || '').trim(); const hero = p && p.sections.find(s => E.categoryOf(s.tpl) === 'Header'); if (!navn || !hero) return;

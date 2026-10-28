@@ -108,7 +108,7 @@ textarea{resize:vertical;min-height:110px}
 #list li{grid-template-columns:16px 26px 1fr auto}
 .chip{border:1px solid var(--line);background:var(--soft);border-radius:999px;padding:5px 12px;cursor:pointer}
 .chip[aria-pressed=true]{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
-#picker,#copyFallback{position:fixed;inset:0;z-index:40;background:rgba(10,15,20,.55);display:flex;align-items:center;justify-content:center;padding:16px}
+#picker,#copyFallback,#statBox{position:fixed;inset:0;z-index:40;background:rgba(10,15,20,.55);display:flex;align-items:center;justify-content:center;padding:16px}
 #picker[hidden],#copyFallback[hidden]{display:none}
 .pkbox{background:var(--panel);border-radius:14px;max-width:1100px;width:100%;max-height:92vh;display:flex;flex-direction:column;box-shadow:var(--shadow)}
 .pkhead{padding:14px 18px;border-bottom:1px solid var(--line);display:flex;flex-direction:column;gap:10px}
@@ -609,6 +609,11 @@ svg.ic{width:16px;height:16px;flex:none;fill:none;stroke:currentColor;stroke-wid
 #moreBtn .gspin{display:none;width:14px;height:14px;border-radius:50%;border:2px solid rgba(255,255,255,.25);border-top-color:#fff;animation:bootspin .8s linear infinite}
 #moreBtn.loading .gspin{display:inline-block}#moreBtn.loading svg.ic{display:none}#moreBtn.loading,#moreBtn.loading:disabled{opacity:1;cursor:progress;color:var(--ink)}
 html[data-theme=dark] .composer #navn.need{border-color:#e8b866!important}
+/* statistik */
+#statLink{margin-top:6px;text-align:center}#statLink .linkbtn{font-size:12px;opacity:.7}#statLink .linkbtn:hover{opacity:1}
+.stattbl{width:100%;border-collapse:collapse;font-size:12.5px}.stattbl th,.stattbl td{padding:6px 8px;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap}
+.stattbl th:nth-child(-n+2),.stattbl td:nth-child(-n+2){text-align:left}.stattbl th{position:sticky;top:0;background:var(--panel);color:var(--muted);font-weight:600;cursor:help}
+.stattbl tr.warnrow td{color:#e8b866}.stattbl tbody tr:nth-child(even){background:rgba(255,255,255,.025)}
 /* fejlbar */
 #toast{position:fixed;left:50%;bottom:22px;z-index:9000;display:flex;align-items:center;gap:12px;max-width:min(560px,calc(100vw - 32px));padding:12px 14px 12px 16px;background:#2a2320;border:1px solid #6b4a2e;border-radius:10px;color:#f3e7d8;box-shadow:0 12px 34px rgba(0,0,0,.45);font-size:13.5px;transform:translate(-50%,16px);opacity:0;transition:opacity .25s,transform .25s}
 #toast.show{opacity:1;transform:translate(-50%,0)}#toast[hidden]{display:none}
@@ -632,7 +637,7 @@ html[data-theme=dark] .composer #navn.need{border-color:#e8b866!important}
       <fieldset class="wants heros" id="heroBox"><legend>Header <small>vælg</small></legend><div class="hopts"><label><input type="radio" name="hero" value="form" checked> Med kontaktformular</label><label><input type="radio" name="hero" value="noform"> Uden kontaktformular</label></div></fieldset><fieldset class="wants" id="h2Box"><legend>Tekstafsnit <small>vælg</small></legend><div class="hopts h2opts"><label><input type="radio" name="h2" value="2"> 2</label><label><input type="radio" name="h2" value="3" checked> 3</label><label><input type="radio" name="h2" value="4"> 4</label><label><input type="radio" name="h2" value="5"> 5</label></div></fieldset><fieldset class="wants" id="wantBox"><legend>Ønsker <small>valgfrit</small></legend><div id="wants"></div></fieldset>
       <div id="sidetype" hidden><input type="radio" name="sidetype" value="Forside" checked><input type="radio" name="sidetype" value="Underside"><input type="radio" name="sidetype" value="Hero"></div>
       <div class="composer-bar"><button class="btn primary send" id="genBtn" data-lock><span class="fx"></span><span class="lbl"><span class="wand" aria-hidden="true">🪄</span><span class="gspin" aria-hidden="true"></span><span class="gtxt">Generer udkast</span></span></button></div>
-      <div class="prefixline">Dine classes starter med: <code id="prefixShow">kundens-navn</code> <button class="linkbtn" id="prefixEdit" type="button">ret</button><input type="text" id="prefix" autocomplete="off" placeholder="Fx best-renovering" aria-label="Klasse-præfiks" hidden></div>
+      <div class="prefixline">Dine classes starter med: <code id="prefixShow">kundens-navn</code> <button class="linkbtn" id="prefixEdit" type="button">ret</button><input type="text" id="prefix" autocomplete="off" placeholder="Fx best-renovering" aria-label="Klasse-præfiks" hidden></div><div id="statLink" hidden><button class="linkbtn" id="statBtn" type="button">Statistik</button></div>
       <select id="count" hidden><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option></select>
       <div class="status" id="status" role="status" aria-live="polite"></div>
     </details>
@@ -687,6 +692,7 @@ html[data-theme=dark] .composer #navn.need{border-color:#e8b866!important}
 </main>
 
 <div id="picker" hidden role="dialog" aria-modal="true" aria-labelledby="pkTitle"><div class="pkbox"><div class="pkhead"><div class="r"><b id="pkTitle">Vælg sektion</b><span style="display:flex;gap:8px;align-items:center"><label for="pkSort" class="hint" style="font-size:12.5px">Sortér</label><select id="pkSort" aria-label="Sortér sektioner"><option value="nyeste">Nyeste først</option><option value="aeldste">Ældste først</option><option value="navn">Navn A–Å</option><option value="brugt">Mest brugt</option></select><button class="btn" id="pkClose">Luk</button></span></div><div id="pkCats"></div></div><div id="pkGrid"></div><div id="pkFoot"><span id="pkSheet" class="hint"></span></div></div></div>
+<div id="statBox" hidden role="dialog" aria-modal="true" aria-labelledby="statTitle"><div class="pkbox" style="max-width:980px"><div class="pkhead"><div class="r"><b id="statTitle">Statistik over templates</b><button class="btn" id="statClose">Luk</button></div></div><div id="statBody" style="padding:14px 18px;overflow:auto;max-height:75vh"></div></div></div>
 <div id="copyFallback" hidden role="dialog" aria-modal="true" aria-labelledby="cfTitle"><div class="pkbox" style="max-width:720px"><div class="pkhead"><div class="r"><b id="cfTitle">Browseren blokerer kopiering her</b><button class="btn" id="cfClose">Luk</button></div><p class="hint" style="margin:0">JSON'en er markeret. Tryk Ctrl/Cmd + C, og indsæt i Bricks.</p></div><div style="padding:14px 18px"><textarea id="cfText" readonly spellcheck="false" style="min-height:280px;font:12px/1.4 ui-monospace,Menlo,monospace"></textarea></div></div></div>
 
 <div id="toast" role="alert" hidden><span class="ticon" aria-hidden="true">⚠</span><div><div class="tmsg"></div><small class="tcode"></small></div><button class="tx" type="button" aria-label="Luk">×</button></div>
