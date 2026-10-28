@@ -23,6 +23,7 @@ GitHub kører det automatisk ved hver udgivelse og hver nat, så preview følger
 Alle templates må gerne ligge i Drive-mappen. Reglerne ligger i værktøjet (`src/engine.js`) og gælder altid, også i "+ Tilføj sektion":
 - **Typen** kommer fra kolonnen *Type* i regnearket **Best Templates**. Står en template ikke i arket, bruges starten af navnet (`hero-` = Header, `ydelse-` = Ydelser, `content-` = Content, `medarbejdere-` = Medarbejdere, `kontaktsektion-` = Kontakt sektion, `cta-`/`knapper-` = Knapper, `kontakt-side-` = Kontakt side osv. – `PREFIX_TYPE`).
 - Altid præcis **1 Header (hero)** øverst. Man vælger "med" eller "uden kontaktformular".
+- Lige efter heroen kommer altid et **tekstafsnit (Content)**, aldrig fx Ydelser. Vil man have Ydelser højere op, trækker man den selv.
 - **Tekstafsnit** (standard 3, kan vælges 2–5): antal − 1 Content med H2 og brødtekst (min. 40 ord i ét tekstfelt) og til sidst et kort **CTA-afsnit**.
 - **CTA-afsnit** = en kontaktsektion *uden* formular med H2, kort tekst (8–60 ord) og en knap. Værktøjet finder dem selv. "Kontakt sektion" under Ønsker giver en kontaktsektion *med* formular, og den står sidst efter CTA-afsnittet.
 - "CTA sektion" under Ønsker giver et ekstra CTA-afsnit midt på siden (ud over det afsluttende).
