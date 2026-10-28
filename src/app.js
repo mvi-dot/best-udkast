@@ -290,26 +290,43 @@ async function loadTemplates(msg) {
   function statSend() { if (statQ.length) gas('logStats', [statQ.splice(0, 300)]).catch(() => { }); }
   if (IN_GAS) EARLY.me.then(m => { if (m && m.admin) $('statLink').hidden = false; }).catch(() => { });
   const ST_COLS = [['navn', 'Template'], ['type', 'Type'], ['vist', 'I udkast', 'Kom med i et udkast, der blev kopieret'], ['skiftet', 'Skiftet ud', 'Skiftet ud med Ny variant eller Vælg selv'], ['slettet', 'Slettet'], ['valgt', 'Valgt selv', 'Valgt med Vælg selv'], ['tilfoejet', 'Tilføjet', 'Tilføjet med + Tilføj sektion'], ['eksporteret', 'Brugt', 'Med i den kopierede JSON'], ['rate', 'Udskiftet', 'Skiftet ud eller slettet, i procent af I udkast']];
-  let stData = null, stSort = { k: 'rate', dir: -1 }, stArm = false, stArmT = null;
-  function renderStats() {
-    const d = stData, rows = d.rows || {}, n = x => x || 0, nU = n((rows._udkast || {}).vist);
+  let stData = null, stSort = { k: 'rate', dir: -1 };
+  function statList() {   // rækkerne i den sortering, der vises
+    const rows = stData.rows || {}, n = x => x || 0;
     const keys = [...new Set(E.allowedKeys(LIB).concat(Object.keys(rows)))].filter(k => k !== '_udkast');
     const list = keys.map(k => { const r = rows[k] || {}; const v = { navn: LIB[k] ? E.displayName(k) : k, type: E.categoryOf(k), rate: n(r.vist) ? (n(r.skiftet) + n(r.slettet)) / n(r.vist) : -1 }; for (const [c] of ST_COLS.slice(2, 8)) v[c] = n(r[c]); return v; });
     const { k: sk, dir } = stSort;
-    list.sort((a, b) => (typeof a[sk] === 'string' ? a[sk].localeCompare(b[sk], 'da', { numeric: true }) : a[sk] - b[sk]) * dir || b.vist - a.vist || a.navn.localeCompare(b.navn, 'da', { numeric: true }));
+    return list.sort((a, b) => (typeof a[sk] === 'string' ? a[sk].localeCompare(b[sk], 'da', { numeric: true }) : a[sk] - b[sk]) * dir || b.vist - a.vist || a.navn.localeCompare(b.navn, 'da', { numeric: true }));
+  }
+  function renderStats() {
+    const d = stData, nU = ((d.rows || {})._udkast || {}).vist || 0, list = statList(), { k: sk, dir } = stSort;
     $('statBody').innerHTML = `<p class="hint" style="margin:0 0 10px">${nU} brugte udkast${d.since ? ' siden ' + E.esc(d.since) : ''}. Der tælles kun, når der trykkes <b>Kopiér JSON</b>. Klik på en kolonne for at sortere.</p>
       <table class="stattbl"><thead><tr>${ST_COLS.map(([c, l, tip]) => `<th data-sort="${c}"${tip ? ` title="${E.esc(tip)}"` : ''} class="${c === sk ? 'on' : ''}">${l}${c === sk ? (dir > 0 ? ' ▲' : ' ▼') : ''}</th>`).join('')}</tr></thead><tbody>${list.map(x => `<tr${x.rate >= 0.5 && x.vist >= 5 ? ' class="warnrow"' : ''}>${ST_COLS.map(([c]) => `<td>${c === 'rate' ? (x.rate < 0 ? '–' : Math.round(x.rate * 100) + ' %') : E.esc(String(x[c]))}</td>`).join('')}</tr>`).join('')}</tbody></table>`;
   }
+  // CSV med semikolon og BOM, så dansk Excel åbner den rigtigt
+  function statCsv() {
+    if (!stData) return;
+    const q = v => /[";\n]/.test(v = String(v)) ? '"' + v.replace(/"/g, '""') + '"' : v;
+    const lines = [ST_COLS.map(c => c[1])].concat(statList().map(x => ST_COLS.map(([c]) => c === 'rate' ? (x.rate < 0 ? '' : Math.round(x.rate * 100) + ' %') : x[c])));
+    lines.push([], ['Brugte udkast', ((stData.rows || {})._udkast || {}).vist || 0], ['Talt siden', stData.since || '']);
+    const url = URL.createObjectURL(new Blob(['\ufeff' + lines.map(r => r.map(q).join(';')).join('\r\n')], { type: 'text/csv;charset=utf-8' }));
+    const a = document.createElement('a'); a.href = url; a.download = 'udkast-statistik-' + new Date().toISOString().slice(0, 10) + '.csv'; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 2000);
+  }
   $('statBody').addEventListener('click', e => { const th = e.target.closest('th[data-sort]'); if (!th || !stData) return; const c = th.dataset.sort; stSort = stSort.k === c ? { k: c, dir: -stSort.dir } : { k: c, dir: c === 'navn' || c === 'type' ? 1 : -1 }; renderStats(); });
-  async function loadStats() { $('statBody').innerHTML = '<p class="hint">Henter…</p>'; try { stData = await gas('stats'); renderStats(); } catch (e) { $('statBody').innerHTML = `<p class="hint">Statistikken kunne ikke hentes: ${E.esc((e && e.message) || e)}</p>`; } }
+  async function loadStats() { stData = null; $('statBody').innerHTML = '<p class="hint">Henter…</p>'; try { stData = await gas('stats'); renderStats(); } catch (e) { $('statBody').innerHTML = `<p class="hint">Statistikken kunne ikke hentes: ${E.esc((e && e.message) || e)}</p>`; } }
+  const statClose = () => { $('statConfirm').hidden = true; $('statBox').hidden = true; };
   $('statBtn').onclick = () => { $('statBox').hidden = false; loadStats(); };
-  $('statReset').onclick = async () => {   // første klik: "Er du sikker?", andet klik nulstiller
-    const b = $('statReset'); if (!stArm) { stArm = true; b.textContent = 'Er du sikker?'; b.classList.add('arm'); clearTimeout(stArmT); stArmT = setTimeout(() => { stArm = false; b.textContent = 'Nulstil'; b.classList.remove('arm'); }, 3500); return; }
-    stArm = false; clearTimeout(stArmT); b.textContent = 'Nulstil'; b.classList.remove('arm');
+  $('statCsv').onclick = $('scCsv').onclick = statCsv;   // i pop-uppen bliver man stående efter download
+  $('statReset').onclick = () => { $('statConfirm').hidden = false; $('scCancel').focus(); };
+  $('scCancel').onclick = () => { $('statConfirm').hidden = true; };
+  $('scAll').onclick = async () => {
+    $('statConfirm').hidden = true;
     try { await gas('resetStats'); await loadStats(); } catch (e) { showError('Statistikken kunne ikke nulstilles.', 'E40', (e && e.message) || e); }
   };
-  $('statClose').onclick = () => { $('statBox').hidden = true; };
-  document.addEventListener('keydown', e => { if (e.key === 'Escape' && !$('statBox').hidden) $('statBox').hidden = true; });
+  $('statClose').onclick = statClose;
+  $('statBox').addEventListener('click', e => { if (e.target === $('statBox')) statClose(); });   // klik uden for boksen lukker
+  $('statConfirm').addEventListener('click', e => { if (e.target === $('statConfirm')) $('statConfirm').hidden = true; });
+  document.addEventListener('keydown', e => { if (e.key !== 'Escape') return; if (!$('statConfirm').hidden) $('statConfirm').hidden = true; else if (!$('statBox').hidden) statClose(); });
 
   /* ---------- sektionsliste: rækkefølge, variant, vælg, fjern ---------- */
   function swapTo(index, tpl, how) {

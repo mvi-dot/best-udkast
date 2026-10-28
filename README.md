@@ -52,7 +52,7 @@ Lokalt: `python3 build.py`, derefter `python3 -m http.server 8000` og åbn http:
 ## Statistik
 Under formularen på forsiden står et lille link **Statistik**. Det ses kun af rmu@ og mvi@best-one.dk, og Apps Scriptet tjekker også selv e-mailen (`CFG.STATS_ADMINS`).
 Der tælles **kun, når der trykkes Kopiér JSON** – udkast, der ikke bliver brugt, er bare afprøvning og tæller ikke. Værktøjet tæller pr. template: hvor tit den kommer med i et udkast, skiftes ud (Ny variant / Vælg selv), slettes, vælges selv, tilføjes, og om den er med, når JSON'en kopieres. Der gemmes kun tal pr. template – ingen kunder eller navne. Tallene ligger i Apps Scriptets Script-egenskaber (`S:<template>`).
-Templates med mindst 5 udkast og over 50 % udskiftet står med gult. Klik på en kolonne for at sortere (klik igen for omvendt). **Nulstil** sletter alle tal.
+Templates med mindst 5 udkast og over 50 % udskiftet står med gult. Klik på en kolonne for at sortere (klik igen for omvendt). **Download som CSV** henter tabellen i den viste sortering (semikolon-separeret, åbner direkte i dansk Excel og Google Sheets). Den røde **Nulstil** åbner en pop-up med *Nulstil alt*, *Download som CSV* (henter filen, pop-uppen bliver stående) og *Fortryd*. Klik uden for boksen eller Esc lukker.
 
 ## Fejlkoder
 Fejl vises i en bar nederst med en kode som `E30-1318-4f2a` (type, klokkeslæt, id). Detaljerne står i browserens konsol under samme kode.
