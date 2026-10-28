@@ -265,7 +265,7 @@ async function loadTemplates(msg) {
   let resetT = null;
   function doReset() {
     state = { brief: {}, proposals: [], active: 0, guess: null }; hist = []; selUid = null; exp = null; lastHas = false; prefixTouched = false;
-    selCust = null; renderCustInfo(); for (const id of ['navn', 'prefix']) $(id).value = ''; for (const x of document.querySelectorAll('#wants input, input[name=hero]')) x.checked = false; { const d = document.querySelector('input[name=h2][value="3"]'); if (d) d.checked = true; } $('heroBox').classList.remove('need'); $('count').value = '1'; if ($('branche')) $('branche').value = ''; syncCount(); const f = document.querySelector('input[name=sidetype][value=Forside]'); if (f) f.checked = true;
+    selCust = null; renderCustInfo(); for (const id of ['navn', 'prefix']) $(id).value = ''; for (const x of document.querySelectorAll('#wants input')) x.checked = false; for (const [n, v] of [['h2', '3'], ['hero', 'form']]) { const d = document.querySelector(`input[name=${n}][value="${v}"]`); if (d) d.checked = true; } $('heroBox').classList.remove('need'); $('count').value = '1'; if ($('branche')) $('branche').value = ''; syncCount(); const f = document.querySelector('input[name=sidetype][value=Forside]'); if (f) f.checked = true;
     $('briefCard').open = true;
     syncPrefix(); $('prefix').hidden = true; setStatus('Startet forfra.', 'ok'); window.scrollTo({ top: 0 }); render();
   }
