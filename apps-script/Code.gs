@@ -46,7 +46,7 @@ function appVersion_() {
 }
 
 /* ---------- API (kaldes fra Shell.html via google.script.run) ---------- */
-const API = { me, templateIndex, templateFiles, templateSheet, customers, inspiration, siteHtml, logStats, stats };
+const API = { me, templateIndex, templateFiles, templateSheet, customers, inspiration, siteHtml, logStats, stats, resetStats };
 function api(name, args) {
   requireBestOne_();
   if (!Object.prototype.hasOwnProperty.call(API, name)) throw new Error('Ukendt kald: ' + name);
@@ -213,7 +213,7 @@ function skeleton_(h) {
 function hostOf_(u) { const m = String(u || '').trim().match(/^(?:https?:\/\/)?([^\/?#:]+)/i); return m ? m[1].toLowerCase().replace(/^www\./, '') : ''; }
 
 /* ---------- statistik ----------
-   Tæller pr. template, hvor tit den kommer med i et udkast, skiftes ud, slettes, vælges selv, tilføjes og kommer med i den kopierede JSON.
+   Værktøjet sender kun tal, når et udkast bliver brugt (Kopiér JSON). Tæller pr. template, hvor tit den kommer med i et udkast, skiftes ud, slettes, vælges selv, tilføjes og kommer med i den kopierede JSON.
    Kun tal pr. template – ingen kunder, navne eller e-mails. Gemmes i Script-egenskaberne som S:<template>. */
 const STAT_EV = ['vist', 'skiftet', 'slettet', 'valgt', 'tilfoejet', 'eksporteret'];
 function logStats(events) {
@@ -236,5 +236,11 @@ function stats() {
   const all = PropertiesService.getScriptProperties().getProperties(), rows = {};
   for (const key in all) if (key.indexOf('S:') === 0) { try { rows[key.slice(2)] = JSON.parse(all[key]); } catch (e) { } }
   return { since: all.S_SINCE || '', rows };
+}
+function resetStats() {   // sletter alle tal (kun administratorer)
+  const mail = requireBestOne_(); if (CFG.STATS_ADMINS.indexOf(mail) < 0) throw new Error('Statistikken er kun for administratorer.');
+  const lock = LockService.getScriptLock(); lock.waitLock(10000);
+  try { const p = PropertiesService.getScriptProperties(); for (const key of p.getKeys()) if (key.indexOf('S:') === 0 || key === 'S_SINCE') p.deleteProperty(key); } finally { lock.releaseLock(); }
+  return true;
 }
 function tz_() { return Session.getScriptTimeZone() || 'Europe/Copenhagen'; }

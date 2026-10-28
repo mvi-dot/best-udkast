@@ -196,7 +196,7 @@ async function loadTemplates(msg) {
       const made = (res.forslag || []).slice(0, n).map((f, i) => ({ id: 'p' + Date.now() + i + 'x', name: f.navn || ('Udkast ' + (state.proposals.length + i + 1)), note: f.note || '', sections: planToSections(f) })).filter(p => p.sections.length);
       if (!made.length) throw new Error('Kunne ikke sætte et udkast sammen af templates.');
       state.proposals = made; state.active = 0;   // ét udkast ad gangen; Fortryd giver det forrige tilbage
-      statSeen = new Set(); stat('vist', ['_udkast'].concat(made[0].sections.map(s => s.tpl)));
+      statDrop(); stat('vist', ['_udkast'].concat(made[0].sections.map(s => s.tpl)));
       setStatus((more ? 'Nyt udkast klar.' : 'Udkast klar.') + guessNote, 'ok');
     } catch (e) { hist.pop(); setStatus(''); showError('Udkastet kunne ikke laves. Prøv igen.', 'E10', (e && e.message) || e); }
     await new Promise(r => setTimeout(r, Math.max(0, 450 - (Date.now() - t0))));   // vis cirklen et øjeblik, så man ser, at der sker noget
@@ -265,7 +265,7 @@ async function loadTemplates(msg) {
   /* ---------- start forfra ---------- */
   let resetT = null;
   function doReset() {
-    state = { brief: {}, proposals: [], active: 0, guess: null }; hist = []; selUid = null; exp = null; lastHas = false; prefixTouched = false;
+    statDrop(); state = { brief: {}, proposals: [], active: 0, guess: null }; hist = []; selUid = null; exp = null; lastHas = false; prefixTouched = false;
     selCust = null; renderCustInfo(); for (const id of ['navn', 'prefix']) $(id).value = ''; for (const x of document.querySelectorAll('#wants input')) x.checked = false; for (const [n, v] of [['h2', '3'], ['hero', 'form']]) { const d = document.querySelector(`input[name=${n}][value="${v}"]`); if (d) d.checked = true; } $('heroBox').classList.remove('need'); $('count').value = '1'; if ($('branche')) $('branche').value = ''; syncCount(); const f = document.querySelector('input[name=sidetype][value=Forside]'); if (f) f.checked = true;
     $('briefCard').open = true;
     syncPrefix(); $('prefix').hidden = true; setStatus('Startet forfra.', 'ok'); window.scrollTo({ top: 0 }); render();
@@ -283,21 +283,30 @@ async function loadTemplates(msg) {
   const undo = () => { if (!hist.length) return; state = JSON.parse(hist.pop()); setStatus('Fortrudt.', 'ok'); render(); };
   document.addEventListener('keydown', e => { if ((e.metaKey || e.ctrlKey) && !e.shiftKey && e.key.toLowerCase() === 'z' && !/^(INPUT|TEXTAREA|SELECT)$/.test((document.activeElement || {}).tagName || '') && hist.length) { e.preventDefault(); undo(); } });   // Cmd/Ctrl + Z fortryder
 
-  /* ---------- statistik: kun tal pr. template, samles og sendes til Apps Script. Kun rmu og mvi kan se dem ---------- */
-  const statQ = []; let statT = null, statSeen = new Set();
-  function stat(ev, tpls) { if (!IN_GAS) return; for (const t of new Set([].concat(tpls).filter(Boolean))) statQ.push({ e: ev, t }); clearTimeout(statT); statT = setTimeout(flushStat, 4000); }
-  function flushStat() { clearTimeout(statT); if (statQ.length) gas('logStats', [statQ.splice(0, 300)]).catch(() => { }); }
-  addEventListener('pagehide', flushStat); document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') flushStat(); });
+  /* ---------- statistik: kun tal pr. template. Tæller KUN når udkastet bliver brugt (Kopiér JSON) – ellers er det bare afprøvning. Kun rmu og mvi kan se dem ---------- */
+  const statQ = []; let statSeen = new Set();
+  function stat(ev, tpls) { if (!IN_GAS) return; for (const t of new Set([].concat(tpls).filter(Boolean))) statQ.push({ e: ev, t }); }   // gemmes lokalt, til der kopieres
+  function statDrop() { statQ.length = 0; statSeen = new Set(); }   // nyt udkast eller Start forfra: det forrige blev ikke brugt
+  function statSend() { if (statQ.length) gas('logStats', [statQ.splice(0, 300)]).catch(() => { }); }
   if (IN_GAS) EARLY.me.then(m => { if (m && m.admin) $('statLink').hidden = false; }).catch(() => { });
-  $('statBtn').onclick = async () => {
-    $('statBox').hidden = false; $('statBody').innerHTML = '<p class="hint">Henter…</p>';
-    try {
-      const d = await gas('stats'); const rows = d.rows || {}; const nU = (rows._udkast || {}).vist || 0; const n = x => x || 0;
-      const keys = [...new Set(E.allowedKeys(LIB).concat(Object.keys(rows)))].filter(k => k !== '_udkast');
-      const list = keys.map(k => { const r = rows[k] || {}; const ud = n(r.skiftet) + n(r.slettet); return { k, r, ud, rate: n(r.vist) ? ud / n(r.vist) : -1 }; }).sort((a, b) => b.rate - a.rate || n(b.r.vist) - n(a.r.vist) || a.k.localeCompare(b.k, 'da'));
-      $('statBody').innerHTML = `<p class="hint" style="margin:0 0 10px">${nU} udkast${d.since ? ' siden ' + E.esc(d.since) : ''}. <b>Udskiftet</b> = skiftet ud eller slettet, i procent af gange den kom med i et udkast. Templates der aldrig er brugt, står nederst.</p>
-        <table class="stattbl"><thead><tr><th>Template</th><th>Type</th><th title="Kom med i et udkast (automatisk eller som ny variant)">I udkast</th><th title="Skiftet ud med en anden variant">Skiftet ud</th><th>Slettet</th><th title="Valgt med Vælg selv">Valgt selv</th><th title="Tilføjet med + Tilføj sektion">Tilføjet</th><th title="Med i den kopierede JSON">Brugt</th><th>Udskiftet</th></tr></thead><tbody>${list.map(x => `<tr${x.rate >= 0.5 && n(x.r.vist) >= 5 ? ' class="warnrow"' : ''}><td>${E.esc(LIB[x.k] ? E.displayName(x.k) : x.k)}</td><td>${E.esc(E.categoryOf(x.k))}</td><td>${n(x.r.vist)}</td><td>${n(x.r.skiftet)}</td><td>${n(x.r.slettet)}</td><td>${n(x.r.valgt)}</td><td>${n(x.r.tilfoejet)}</td><td>${n(x.r.eksporteret)}</td><td>${x.rate < 0 ? '–' : Math.round(x.rate * 100) + ' %'}</td></tr>`).join('')}</tbody></table>`;
-    } catch (e) { $('statBody').innerHTML = `<p class="hint">Statistikken kunne ikke hentes: ${E.esc((e && e.message) || e)}</p>`; }
+  const ST_COLS = [['navn', 'Template'], ['type', 'Type'], ['vist', 'I udkast', 'Kom med i et udkast, der blev kopieret'], ['skiftet', 'Skiftet ud', 'Skiftet ud med Ny variant eller Vælg selv'], ['slettet', 'Slettet'], ['valgt', 'Valgt selv', 'Valgt med Vælg selv'], ['tilfoejet', 'Tilføjet', 'Tilføjet med + Tilføj sektion'], ['eksporteret', 'Brugt', 'Med i den kopierede JSON'], ['rate', 'Udskiftet', 'Skiftet ud eller slettet, i procent af I udkast']];
+  let stData = null, stSort = { k: 'rate', dir: -1 }, stArm = false, stArmT = null;
+  function renderStats() {
+    const d = stData, rows = d.rows || {}, n = x => x || 0, nU = n((rows._udkast || {}).vist);
+    const keys = [...new Set(E.allowedKeys(LIB).concat(Object.keys(rows)))].filter(k => k !== '_udkast');
+    const list = keys.map(k => { const r = rows[k] || {}; const v = { navn: LIB[k] ? E.displayName(k) : k, type: E.categoryOf(k), rate: n(r.vist) ? (n(r.skiftet) + n(r.slettet)) / n(r.vist) : -1 }; for (const [c] of ST_COLS.slice(2, 8)) v[c] = n(r[c]); return v; });
+    const { k: sk, dir } = stSort;
+    list.sort((a, b) => (typeof a[sk] === 'string' ? a[sk].localeCompare(b[sk], 'da', { numeric: true }) : a[sk] - b[sk]) * dir || b.vist - a.vist || a.navn.localeCompare(b.navn, 'da', { numeric: true }));
+    $('statBody').innerHTML = `<p class="hint" style="margin:0 0 10px">${nU} brugte udkast${d.since ? ' siden ' + E.esc(d.since) : ''}. Der tælles kun, når der trykkes <b>Kopiér JSON</b>. Klik på en kolonne for at sortere.</p>
+      <table class="stattbl"><thead><tr>${ST_COLS.map(([c, l, tip]) => `<th data-sort="${c}"${tip ? ` title="${E.esc(tip)}"` : ''} class="${c === sk ? 'on' : ''}">${l}${c === sk ? (dir > 0 ? ' ▲' : ' ▼') : ''}</th>`).join('')}</tr></thead><tbody>${list.map(x => `<tr${x.rate >= 0.5 && x.vist >= 5 ? ' class="warnrow"' : ''}>${ST_COLS.map(([c]) => `<td>${c === 'rate' ? (x.rate < 0 ? '–' : Math.round(x.rate * 100) + ' %') : E.esc(String(x[c]))}</td>`).join('')}</tr>`).join('')}</tbody></table>`;
+  }
+  $('statBody').addEventListener('click', e => { const th = e.target.closest('th[data-sort]'); if (!th || !stData) return; const c = th.dataset.sort; stSort = stSort.k === c ? { k: c, dir: -stSort.dir } : { k: c, dir: c === 'navn' || c === 'type' ? 1 : -1 }; renderStats(); });
+  async function loadStats() { $('statBody').innerHTML = '<p class="hint">Henter…</p>'; try { stData = await gas('stats'); renderStats(); } catch (e) { $('statBody').innerHTML = `<p class="hint">Statistikken kunne ikke hentes: ${E.esc((e && e.message) || e)}</p>`; } }
+  $('statBtn').onclick = () => { $('statBox').hidden = false; loadStats(); };
+  $('statReset').onclick = async () => {   // første klik: "Er du sikker?", andet klik nulstiller
+    const b = $('statReset'); if (!stArm) { stArm = true; b.textContent = 'Er du sikker?'; b.classList.add('arm'); clearTimeout(stArmT); stArmT = setTimeout(() => { stArm = false; b.textContent = 'Nulstil'; b.classList.remove('arm'); }, 3500); return; }
+    stArm = false; clearTimeout(stArmT); b.textContent = 'Nulstil'; b.classList.remove('arm');
+    try { await gas('resetStats'); await loadStats(); } catch (e) { showError('Statistikken kunne ikke nulstilles.', 'E40', (e && e.message) || e); }
   };
   $('statClose').onclick = () => { $('statBox').hidden = true; };
   document.addEventListener('keydown', e => { if (e.key === 'Escape' && !$('statBox').hidden) $('statBox').hidden = true; });
@@ -403,7 +412,7 @@ async function loadTemplates(msg) {
     try { const ta = document.createElement('textarea'); ta.value = text; ta.style.cssText = 'position:fixed;opacity:0'; document.body.appendChild(ta); ta.select(); const ok = document.execCommand('copy'); ta.remove(); if (ok) { flashCopied(); setStatus('JSON kopieret. Indsæt i Bricks med Ctrl/Cmd + V.', 'ok'); return; } } catch (_) { }
     $('cfText').value = text; $('copyFallback').hidden = false; $('cfText').focus(); $('cfText').select(); setStatus('Browseren blokerer kopiering her. JSON er markeret, tryk Ctrl/Cmd + C.', 'warn');
   }
-  $('copyBtn').onclick = () => { if (!exp) return; copyJson(); const nye = [...new Set(cur().sections.map(s => s.tpl))].filter(x => !statSeen.has(x)); nye.forEach(x => statSeen.add(x)); stat('eksporteret', nye); };   // tælles én gang pr. udkast
+  $('copyBtn').onclick = () => { if (!exp) return; copyJson(); const nye = [...new Set(cur().sections.map(s => s.tpl))].filter(x => !statSeen.has(x)); nye.forEach(x => statSeen.add(x)); stat('eksporteret', nye); statSend(); };   // kun brugte udkast tæller; hver template tælles én gang pr. udkast
   // heroens H1 er kundens navn (H1 i heroen, ellers heroens første overskrift)
   function nameH1(p) {
     const navn = String((state.brief || {}).navn || '').trim(); const hero = p && p.sections.find(s => E.categoryOf(s.tpl) === 'Header'); if (!navn || !hero) return;
