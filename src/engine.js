@@ -474,16 +474,16 @@ function localPlan(b, LIB, n, existing, SITES) {
       let nc = 0; cats = cats.filter(c => c !== 'Content' || ++nc <= nC);
       while (cats.filter(c => c === 'Content').length < nC) { const k = cats.lastIndexOf('Content'); cats.splice(k < 0 ? Math.min(2, Math.max(1, cats.length - 1)) : Math.min(k + 2, Math.max(k + 1, cats.length - 1)), 0, 'Content'); }
       { const k = cats.indexOf('Content'); if (k > 1) { cats.splice(k, 1); cats.splice(1, 0, 'Content'); } }   // lige efter heroen kommer et tekstafsnit, aldrig fx Ydelser (det må brugeren selv flytte)
-      { const k = cats.lastIndexOf('Kontakt sektion'); if (k === cats.length - 1) cats.splice(k, 0, CTA_TEXT); else cats.push(CTA_TEXT); }   // CTA-afsnittet til sidst, men før en kontaktsektion med formular
+      if (cats[cats.length - 1] !== 'Kontakt sektion') cats.push(CTA_TEXT);   // CTA-afsnittet til sidst – medmindre siden slutter med kontaktsektionen med formular, så er den afslutningen
       { const m = cats.indexOf('CTA sektion'); if (m >= 0) { cats.splice(m, 1);   // valgt "CTA sektion": et ekstra CTA-afsnit midt på siden
-        const last = cats.lastIndexOf(CTA_TEXT), pos = Math.min(Math.max(2, Math.floor(cats.length / 2)), last - 1);   // mindst én sektion mellem de to CTA-afsnit
+        const last = cats[cats.length - 1] === CTA_TEXT || cats[cats.length - 1] === 'Kontakt sektion' ? cats.length - 1 : cats.length, pos = Math.min(Math.max(2, Math.floor(cats.length / 2)), last - 1);   // mindst én sektion mellem det og afslutningen
         if (pos >= 2 && last - pos >= 1) cats.splice(pos, 0, CTA_TEXT); } }   // er siden for kort, springes det ekstra over
     }
     const mine = new Set(); const sek = [];
     for (const c of cats) {
       let pool = c === CTA_TEXT ? keysAll.filter(isCtaText) : (want.includes(c) ? keysAll : keys).filter(k => categoryOf(k) === c);   // en valgt type må gerne være en, der ellers ikke bruges automatisk (fx CTA)
       if (c === 'Header' && b && typeof b.heroForm === 'boolean') { const f = pool.filter(k => hasForm(LIB, k) === b.heroForm); if (f.length) pool = f; }   // med eller uden kontaktformular
-      if (c === 'Kontakt sektion') { const f = pool.filter(k => !isCtaText(k)); if (f.length) pool = f; }   // "Kontakt sektion" = den med formular; CTA-sektionerne bruges til CTA-afsnittet
+      if (c === 'Kontakt sektion') { const f = pool.filter(k => hasForm(LIB, k)), g = pool.filter(k => !isCtaText(k)); if (f.length) pool = f; else if (g.length) pool = g; }   // "Kontakt sektion" = den med formular; CTA-sektionerne bruges til CTA-afsnittet
       let sub = '';
       if (c === 'Content' || c === CTA_TEXT) {   // tekstafsnit må aldrig mangle: bedste ledige template i prioriteret rækkefølge
         const hasH2 = k => { const t = textStats(k); return t.h2 >= 1 && t.words >= 8; };
