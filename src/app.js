@@ -166,7 +166,8 @@ async function loadTemplates(msg) {
 
   /* ---------- tjekliste: hvilke typer skal med (alle typer fra templates, undtagen hero og Content, der altid er med) ---------- */
   for (const r of document.querySelectorAll('input[name=hero]')) r.addEventListener('change', () => { $('heroBox').classList.remove('need'); if (/header/i.test($('status').textContent)) setStatus(''); });
-  $('wants').innerHTML = [...E.catList(LIB).filter(c => c !== 'Header' && c !== 'Content'), ...(Object.keys(LIB).some(E.isCtaText) ? ['CTA sektion'] : [])].map(c => `<label><input type="checkbox" value="${E.esc(c)}"> ${E.esc(c)}</label>`).join('');   // CTA sektion: kontaktsektioner uden formular
+  const WANT_FIRST = ['Ydelser', 'Anmeldelser', 'Galleri', 'Kontakt sektion', 'CTA sektion'], wantRank = c => { const k = WANT_FIRST.indexOf(c); return k < 0 ? 99 : k; };   // visningsrækkefølge på forsiden, resten bagefter
+  $('wants').innerHTML = [...E.catList(LIB).filter(c => c !== 'Header' && c !== 'Content'), ...(Object.keys(LIB).some(E.isCtaText) ? ['CTA sektion'] : [])].map((c, k) => [c, k]).sort((a, b) => wantRank(a[0]) - wantRank(b[0]) || a[1] - b[1]).map(([c]) => c).map(c => `<label><input type="checkbox" value="${E.esc(c)}"> ${E.esc(c)}</label>`).join('');   // CTA sektion: kontaktsektioner uden formular
 
   /* ---------- kundens navn → klasse-præfiks og telefon ---------- */
   let prefixTouched = false;
