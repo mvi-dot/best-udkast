@@ -438,6 +438,7 @@ function analyzeSite(html, LIB, CLASSES) {
 const hasForm = (LIB, k) => !!(LIB[k] && (LIB[k].els || []).some(e => e.name === 'form')) || Object.keys(BX.html || {}).some(x => x.startsWith('form:' + k + ':'));
 // tekstafsnit: Content med H2 og et tekstfelt med brødtekst (min. 40 ord) · afsluttende CTA-afsnit: kontaktsektion uden formular med H2, kort tekst (8–60 ord) og knap
 const CTA_TEXT = 'CTA-afsnit';
+const textH2 = k => { const t = textStats(k); return t.h2 >= 1 && t.words >= 8; };   // har selv en H2 med tekst (tæller som tekstafsnit)
 const textStats = k => { let h2 = 0, words = 0, longest = 0, buttons = 0; for (const e of (BX_LIB[k] || {}).els || []) { const st = e.settings || {}; if (e.name === 'button') buttons++; if (e.name === 'heading' && (st.tag || 'h3') === 'h2') h2++; if (/^(text|text-basic|rich-text)$/.test(e.name)) { const w = String(st.text || '').replace(/<[^>]+>/g, ' ').split(/\s+/).filter(Boolean).length; words += w; longest = Math.max(longest, w); } } return { h2, words, longest, buttons }; };
 const isBodyH2 = k => { if (categoryOf(k) !== 'Content') return false; const t = textStats(k); return t.h2 >= 1 && t.longest >= 40; };   // ét rigtigt tekstfelt, ikke mange små
 const isCtaText = k => { if (isExcluded(k) || categoryOf(k) !== 'Kontakt sektion' || hasForm(BX_LIB, k)) return false; const t = textStats(k); return t.h2 >= 1 && t.buttons >= 1 && t.words >= 8 && t.words <= 60; };   // CTA-sektion: kontaktsektion uden formular, med H2, kort tekst og knap
@@ -450,7 +451,7 @@ function localPlan(b, LIB, n, existing, SITES) {
   const sameSites = type === 'Forside' ? (SITES || []).filter(s => s.b === gb.b && Array.isArray(s.c) && s.c.length >= 4) : [];
   const names = ['Klassisk', 'Rolig', 'Luftig', 'Kraftig', 'Enkel']; const base = (existing || []).length; const forslag = []; const usedSites = new Set();
   for (let i = 0; i < n; i++) {
-    let cats = DEF.slice(), basis = '', pref = {};
+    let cats = DEF.slice(), basis = '', pref = {}, kontaktH2 = false;
     if (sameSites.length) { const fresh = sameSites.filter(s => !usedSites.has(s.n)); const s = (fresh.length ? fresh : sameSites)[Math.floor(Math.random() * (fresh.length ? fresh : sameSites).length)]; usedSites.add(s.n);
       let c = s.c.filter(x => OK.has(x)); const out = []; for (const x of c) { if (out[out.length - 1] !== x) out.push(x); } while (out.length > 8) out.splice(1 + Math.floor(Math.random() * (out.length - 2)), 1);
       if (out.length >= 4) { if (out[0] !== 'Header') out.unshift('Header'); if (out[out.length - 1] !== 'Kontakt sektion') out.push('Kontakt sektion'); cats = out; basis = s.n; }
@@ -469,8 +470,11 @@ function localPlan(b, LIB, n, existing, SITES) {
       cats = ['Header', ...seq];
     }
     { let sawRev = false; cats = cats.filter(c => c !== 'Anmeldelser' || (!sawRev && (sawRev = true))); }          // kun 1 anmeldelses-sektion pr. udkast
-    if (type !== 'Hero' && type !== 'Menu') {   // basisregel: tekstafsnit (H2) = (antal − 1) Content med brødtekst + 1 afsluttende CTA-afsnit. Standard 3 → 2 Content
-      const nH2 = Math.max(2, Math.min(5, parseInt(b && b.h2, 10) || 3)), nC = nH2 - 1;
+    if (type !== 'Hero' && type !== 'Menu') {   // basisregel: tekstafsnit (H2) = antal H2 med tekst = (antal − 1) Content med brødtekst + 1 afsluttende CTA-afsnit (eller kontaktsektion). Standard 3 → 2 Content
+      const nH2 = Math.max(2, Math.min(5, parseInt(b && b.h2, 10) || 3));
+      // slutter siden med kontaktsektionen med formular, er den afslutningen i stedet for CTA-afsnittet. Har den ikke selv H2 + tekst, kommer der ét Content mere, så antallet passer
+      const formH2 = cats[cats.length - 1] === 'Kontakt sektion' && keysAll.some(k => categoryOf(k) === 'Kontakt sektion' && hasForm(LIB, k) && textH2(k)); kontaktH2 = formH2;
+      const nC = cats[cats.length - 1] === 'Kontakt sektion' && !formH2 ? nH2 : nH2 - 1;
       let nc = 0; cats = cats.filter(c => c !== 'Content' || ++nc <= nC);
       while (cats.filter(c => c === 'Content').length < nC) { const k = cats.lastIndexOf('Content'); cats.splice(k < 0 ? Math.min(2, Math.max(1, cats.length - 1)) : Math.min(k + 2, Math.max(k + 1, cats.length - 1)), 0, 'Content'); }
       { const k = cats.indexOf('Content'); if (k > 1) { cats.splice(k, 1); cats.splice(1, 0, 'Content'); } }   // lige efter heroen kommer et tekstafsnit, aldrig fx Ydelser (det må brugeren selv flytte)
@@ -483,7 +487,7 @@ function localPlan(b, LIB, n, existing, SITES) {
     for (const c of cats) {
       let pool = c === CTA_TEXT ? keysAll.filter(isCtaText) : (want.includes(c) ? keysAll : keys).filter(k => categoryOf(k) === c);   // en valgt type må gerne være en, der ellers ikke bruges automatisk (fx CTA)
       if (c === 'Header' && b && typeof b.heroForm === 'boolean') { const f = pool.filter(k => hasForm(LIB, k) === b.heroForm); if (f.length) pool = f; }   // med eller uden kontaktformular
-      if (c === 'Kontakt sektion') pool = pool.filter(k => hasForm(LIB, k));   // "Kontakt sektion" SKAL have en formular – findes ingen, springes den over. Tekst med knapper er CTA-afsnit
+      if (c === 'Kontakt sektion') { pool = pool.filter(k => hasForm(LIB, k)); if (kontaktH2) pool = pool.filter(textH2); }   // "Kontakt sektion" SKAL have en formular – findes ingen, springes den over. Tekst med knapper er CTA-afsnit
       let sub = '';
       if (c === 'Content' || c === CTA_TEXT) {   // tekstafsnit må aldrig mangle: bedste ledige template i prioriteret rækkefølge
         const hasH2 = k => { const t = textStats(k); return t.h2 >= 1 && t.words >= 8; };
