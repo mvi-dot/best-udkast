@@ -227,7 +227,7 @@ async function loadTemplates(msg) {
   function renderBriefSum() {
     const el = $('briefSum'); const b = state.brief || {}; const has = !!cur(); el.hidden = !has; if (!has) return;
     const g = state.guess; const side = b.sidetype && b.sidetype !== 'Forside' ? b.sidetype : 'Forside'; const antal = state.proposals.length;
-    const bran = g && g.b ? `<span class="bchip">${E.esc(g.b)}</span><small>${E.esc(VIA[g.via] || g.via || '')}</small>` : b.branche ? `<span class="bchip">${E.esc(b.branche)}</span><small>${b.kunde ? 'fra ClickUp' : 'dit valg'}</small>` : '<small>gættes ud fra navnet</small>';
+    const bran = g && g.b ? `<span class="bchip">${E.esc(g.b)}</span>${g.via === 'fra ClickUp' ? '' : `<small>${E.esc(VIA[g.via] || g.via || '')}</small>`}` : b.branche ? `<span class="bchip">${E.esc(b.branche)}</span>${b.kunde ? '' : '<small>dit valg</small>'}` : '<small>gættes ud fra navnet</small>';
     el.innerHTML = `<div class="bsum-h"><b>Info</b></div><dl class="bsum-l"><div><dt>Kunde</dt><dd>${E.esc(b.navn || '')}</dd></div><div><dt>Branche</dt><dd>${bran}</dd></div><div><dt>Class-name</dt><dd><code>${E.esc($('prefixShow').textContent || '')}</code></dd></div></dl>`;
   }
   document.addEventListener('keydown', e => { if (e.key === 'Escape' && selUid && $('picker').hidden) { selUid = null; render(); } });
