@@ -1147,9 +1147,12 @@ function renderBricks(sections, CLASSES, ropts) {
     };
     rootsOf(sec.els).forEach((root, i) => { const out = r(root.id); html += i === 0 ? out.replace(/^<(\w+)/, `<$1 data-sec="${sec.uid}"`) : out; });
   }
-  let clsCss = '';
-  for (const id of usedClasses) { const c = CLASSES[id]; clsCss += BX.classes[c.name] !== undefined ? BX.classes[c.name] : bxGenCss('.' + c.name.replace(/[^a-zA-Z0-9_-]/g, '\\$&'), c.settings && !Array.isArray(c.settings) ? c.settings : {}); }
-  return { html, css: clsCss + css };
+  let clsCss = '', kfCss = ''; const kfSeen = new Set();
+  // @keyframes står i klassens egen CSS, men kommer ikke med, når CSS'en hentes fra templatesitet (de hører ikke til en klasse) – så animationen fandtes ikke
+  const addKf = raw => { for (const b of cssBlocks(String(raw || '').replace(/\/\*[\s\S]*?\*\//g, ''))) { const m = b.head.match(/^@(?:-webkit-)?keyframes\s+([\w-]+)/i); if (m && !kfSeen.has(m[1])) { kfSeen.add(m[1]); kfCss += `@keyframes ${m[1]}{${b.body}}`; } } };
+  for (const id of usedClasses) { const c = CLASSES[id]; const st = c.settings && !Array.isArray(c.settings) ? c.settings : {}; clsCss += BX.classes[c.name] !== undefined ? BX.classes[c.name] : bxGenCss('.' + c.name.replace(/[^a-zA-Z0-9_-]/g, '\\$&'), st); addKf(st._cssCustom); }
+  for (const sec of sections) for (const e of sec.els || []) addKf((e.settings || {})._cssCustom);
+  return { html, css: clsCss + css + kfCss };
 }
 // Hele iframe-dokumentet: jeres CSS/JS fra stocksitet + udkastets HTML/CSS. Iframen melder sin højde og klik tilbage med postMessage.
 function bricksDoc(r, opts) {
@@ -1160,7 +1163,7 @@ function bricksDoc(r, opts) {
   return `<!doctype html><html lang="da" data-brx-theme="light"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 ${L.css.map(u => `<link rel="stylesheet" href="${esc(u)}">`).join('\n')}
 <style>${V(o.theme !== undefined ? o.theme : BX.theme || '')}</style><style>${V(r.css)}</style>
-<style>html{overflow:${o.live ? 'auto' : 'hidden'}}body{margin:0;overflow:visible!important}[data-sec]{cursor:pointer}${sel}${o.extraCss || ''}</style>
+<style>html{overflow:${o.live ? 'auto' : 'hidden'}}body{margin:0;overflow:visible!important}${sel}${o.extraCss || ''}</style>
 ${o.live ? '' : `<script>/* previewet scroller aldrig selv i den delte visning (det er lige så højt som siden), så scroll-animationer (fx GSAP ScrollTrigger med pin) giver en lang tom sektion.
 Derfor svarer previewet scripts, at brugeren har slået animationer fra ("reducér bevægelse") – så viser sektionerne deres færdige udseende */
 (function(){var mm=window.matchMedia&&window.matchMedia.bind(window);if(!mm)return;var re=/prefers-reduced-motion\\s*:\\s*(reduce|no-preference)/i;
@@ -1177,9 +1180,13 @@ ${(o.scripts === false ? [] : L.js).map(u => `<script src="${esc(u)}"><\/script>
 /* højden måles på indholdet – scrollHeight kan aldrig blive mindre end rammen selv, så en side der blev kortere, fik en hvid bund */
 var send=function(){var m=document.getElementById('brx-content'),h=m?Math.ceil(m.getBoundingClientRect().bottom+scrollY):0;post({udkast:'h',h:h>0?h:document.documentElement.scrollHeight})};
 var ro=new ResizeObserver(send);ro.observe(document.body);var mc=document.getElementById('brx-content');if(mc)ro.observe(mc);addEventListener('load',send);setTimeout(send,400);setTimeout(send,1500);
-document.addEventListener('click',function(ev){if(ev.target.closest('a,button,input,textarea,select'))ev.preventDefault();var s=ev.target.closest('[data-sec]');if(s)post({udkast:'sel',uid:s.getAttribute('data-sec')})},true);
+/* klik virker som på sitet (FAQ, slider-pile, felter) – kun links må ikke navigere. Dobbeltklik markerer sektionen */
+document.addEventListener('click',function(ev){if(ev.target.closest('a[href]'))ev.preventDefault()},true);
+document.addEventListener('dblclick',function(ev){var s=ev.target.closest('[data-sec]');if(s){var g=getSelection&&getSelection();if(g)g.removeAllRanges();post({udkast:'sel',uid:s.getAttribute('data-sec')})}},true);
+var syT=0;addEventListener('scroll',function(){if(syT)return;syT=setTimeout(function(){syT=0;post({udkast:'sy',y:scrollY})},120)},{passive:true});
 document.addEventListener('submit',function(ev){ev.preventDefault()},true);
 addEventListener('message',function(ev){var d=ev.data||{};
+if(d.udkast==='scroll'){document.documentElement.style.scrollBehavior='auto';scrollTo(0,d.y||0);document.documentElement.style.scrollBehavior=''}
 if(d.udkast==='go'){var g=document.querySelector('[data-sec="'+d.uid+'"]');if(g)scrollTo({top:g.getBoundingClientRect().top+scrollY,behavior:'smooth'})}
 if(d.udkast==='where'){var s=document.querySelector('[data-sec="'+d.uid+'"]');if(s)post({udkast:'top',uid:d.uid,top:s.getBoundingClientRect().top+scrollY})}
 if(d.udkast==='sel'){[].forEach.call(document.querySelectorAll('.udk-sel'),function(x){x.classList.remove('udk-sel')});if(d.uid){var t=document.querySelector('[data-sec="'+d.uid+'"]');if(t)t.classList.add('udk-sel')}}});

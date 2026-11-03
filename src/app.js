@@ -76,7 +76,7 @@ async function loadTemplates(msg) {
   root.innerHTML = '<style id="pvStyle"></style><div id="frame"><div id="pvContent"></div></div>';
   const frame = root.getElementById('frame'), pvContent = root.getElementById('pvContent'), pvStyle = root.getElementById('pvStyle');
   /* ---------- preview i iframe: Bricks' markup med stocksitets CSS/JS. Genindlæses kun, når siden ændrer sig ---------- */
-  let pvFrame = $('pvFrame'), pvNext = null, pvNextH = 0, pvNextT = null; let pvDoc = '', pvH = 600;
+  let pvFrame = $('pvFrame'), pvNext = null, pvNextH = 0, pvNextT = null, pvSY = 0; let pvDoc = '', pvH = 600;   // pvSY: hvor langt man har scrollet i previewet – det nye preview starter samme sted
   const useFrame = on => { $('pvHost').hidden = on; pvFrame.hidden = !on; };
   const selFrame = () => { if (pvFrame.contentWindow) pvFrame.contentWindow.postMessage({ udkast: 'sel', uid: selUid || '' }, '*'); };
   // previewet er et rigtigt browservindue, man scroller indeni, så vh-enheder og scroll-animationer (fx GSAP) virker som på sitet.
@@ -116,8 +116,9 @@ async function loadTemplates(msg) {
   function pvBusy(on) { $('pvOuter').classList.toggle('pvload', on); document.body.classList.toggle('pvbusy', on); }
   const scrollBox = el => { for (let n = el.parentElement; n; n = n.parentElement) { const o = getComputedStyle(n).overflowY; if (/(auto|scroll)/.test(o) && n.scrollHeight > n.clientHeight) return n; } return document.scrollingElement; };
   addEventListener('message', ev => {
-    if (pvNext && ev.source === pvNext.contentWindow) { const d = ev.data || {}; if (d.udkast === 'h' && d.h > 0 && !pvLive) pvNextH = d.h; else if (d.udkast === 'ready') pvCommit(); return; }
+    if (pvNext && ev.source === pvNext.contentWindow) { const d = ev.data || {}; if (d.udkast === 'h' && d.h > 0 && !pvLive) pvNextH = d.h; else if (d.udkast === 'ready') { if (pvLive && pvSY) pvNext.contentWindow.postMessage({ udkast: 'scroll', y: pvSY }, '*'); setTimeout(pvCommit, pvLive && pvSY ? 80 : 0); } return; }
     if (ev.source !== pvFrame.contentWindow) return; const d = ev.data || {};
+    if (d.udkast === 'sy') { pvSY = d.y || 0; return; }
     if (d.udkast === 'h') { if (!pvLive && d.h > 0 && Math.abs(d.h - pvH) > 1) { pvH = d.h; fit(); } }
     else if (d.udkast === 'ready') { selFrame(); if (!pvNext) { clearTimeout(pvNextT); pvBusy(false); } }
     else if (d.udkast === 'sel') { selUid = selUid === d.uid ? null : d.uid; render(); }
@@ -250,7 +251,7 @@ async function loadTemplates(msg) {
       const made = (res.forslag || []).slice(0, n).map((f, i) => ({ id: 'p' + Date.now() + i + 'x', name: f.navn || ('Udkast ' + (state.proposals.length + i + 1)), note: f.note || '', sections: planToSections(f) })).filter(p => p.sections.length);
       if (!made.length) throw new Error('Kunne ikke sætte et udkast sammen af templates.');
       state.proposals = made; state.active = 0;   // ét udkast ad gangen; Fortryd giver det forrige tilbage
-      statDrop(); varSeen.clear(); stat('vist', ['_udkast'].concat(made[0].sections.map(s => s.tpl)));
+      statDrop(); varSeen.clear(); pvSY = 0; stat('vist', ['_udkast'].concat(made[0].sections.map(s => s.tpl)));
       setStatus((more ? 'Nyt udkast klar.' : 'Udkast klar.') + guessNote, 'ok');
     } catch (e) { hist.pop(); setStatus(''); showError('Udkastet kunne ikke laves. Prøv igen.', 'E10', (e && e.message) || e); }
     await new Promise(r => setTimeout(r, Math.max(0, 450 - (Date.now() - t0))));   // vis cirklen et øjeblik, så man ser, at der sker noget
