@@ -107,7 +107,6 @@ async function loadTemplates(msg) {
     if (!pvNext) return; clearTimeout(pvNextT);
     pvFrame.remove(); pvNext.id = 'pvFrame'; pvNext.style.position = pvNext.style.left = pvNext.style.top = pvNext.style.zIndex = pvNext.style.pointerEvents = '';
     pvFrame = pvNext; pvNext = null; if (pvNextH > 0) pvH = pvNextH; pvBusy(false); fit(); selFrame();
-    pvFrame.style.display = 'none'; void pvFrame.offsetHeight; pvFrame.style.display = 'block';   // tving browseren til at tegne rammen, når den kommer frem bagfra
   }
   // mens previewet opdateres: overlay med spinner, og listen/knapperne er låst, så man ikke klikker videre midt i det
   // fullscreen: skjuler venstre side, så previewet får hele bredden
