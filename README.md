@@ -7,6 +7,8 @@ Skriv kundens navn og tryk **Enter**.
 ## Login og templates
 Værktøjet åbnes via Apps Script-linket med en best-one.dk-konto (se [apps-script/LAES-MIG.md](apps-script/LAES-MIG.md)). Templates ligger ikke i koden. De hentes fra Drive-mappen **Best Templates**, når værktøjet åbnes.
 
+Broen mellem Apps Script og værktøjet er låst: værktøjet taler kun med vores eget Apps Scripts faste sandbox-adresse (`GAS_ORIGIN` øverst i `src/app.js`). Andres Apps Scripts kan ikke vise værktøjet og give det data. Laver man et **nyt** Apps Script-projekt (ikke bare en ny version), får det en ny adresse, og `GAS_ORIGIN` skal opdateres.
+
 **Ny eller rettet template:** Eksportér templaten i Bricks (Templates → Eksportér) og læg `.json`-filen i Drive-mappen. Næste gang værktøjet åbnes, er den med. Navnet i Bricks bestemmer templatens navn i værktøjet, fx `cta-1`.
 
 ## Preview
