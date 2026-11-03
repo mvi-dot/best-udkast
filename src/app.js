@@ -213,7 +213,7 @@ async function loadTemplates(msg) {
     'USP': 'Kundens styrker (USP’er). Placeres et tilfældigt sted, aldrig lige under heroen.',
     'Logo slider': 'Logoer der glider forbi. Ligger altid lige under heroen.'
   };   // tooltip på Ønsker
-  const WANT_LABEL = { 'CTA sektion': 'CTA', 'Kontakt sektion': 'Kontaktformular' };   // kun visningsnavne – værdierne er de samme
+  const WANT_LABEL = { 'CTA sektion': 'CTA', 'Kontakt sektion': 'Kontaktformular', 'Header': 'Hero' };   // kun visningsnavne – værdierne er de samme
   const WANT_EXTRA = ['Produkter'];   // står under "Ønsker udover standard"
   const WANT_FIRST = ['Ydelser', 'Anmeldelser', 'Galleri', 'Kontakt sektion', 'CTA sektion'], wantRank = c => { const k = WANT_FIRST.indexOf(c); return k < 0 ? 99 : k; };   // visningsrækkefølge på forsiden, resten bagefter
   const wantCats = [...E.catList(LIB).filter(c => c !== 'Header' && c !== 'Content'), ...(Object.keys(LIB).some(E.isCtaText) ? ['CTA sektion'] : [])].map((c, k) => [c, k]).sort((a, b) => wantRank(a[0]) - wantRank(b[0]) || a[1] - b[1]).map(([c]) => c);
