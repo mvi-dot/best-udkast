@@ -76,18 +76,37 @@ async function loadTemplates(msg) {
   root.innerHTML = '<style id="pvStyle"></style><div id="frame"><div id="pvContent"></div></div>';
   const frame = root.getElementById('frame'), pvContent = root.getElementById('pvContent'), pvStyle = root.getElementById('pvStyle');
   /* ---------- preview i iframe: Bricks' markup med stocksitets CSS/JS. Genindlæses kun, når siden ændrer sig ---------- */
-  const pvFrame = $('pvFrame'); let pvDoc = '', pvH = 600;
+  let pvFrame = $('pvFrame'), pvNext = null, pvNextH = 0, pvNextT = null; let pvDoc = '', pvH = 600;
   const useFrame = on => { $('pvHost').hidden = on; pvFrame.hidden = !on; };
   const selFrame = () => { if (pvFrame.contentWindow) pvFrame.contentWindow.postMessage({ udkast: 'sel', uid: selUid || '' }, '*'); };
   function showFrame(p) {
     const doc = E.bricksDoc(E.renderBricks(p.sections, CLASSES, { h1: 'page' }), { frameId: 'main', vh: DEVICE_H[device] });
-    useFrame(true); if (doc !== pvDoc) { pvDoc = doc; pvFrame.srcdoc = doc; } else selFrame(); fit();
+    if (doc === pvDoc) { useFrame(true); selFrame(); fit(); return; }
+    pvDoc = doc;
+    pvBusy(true);
+    if (pvFrame.hidden || !pvFrame.srcdoc) { useFrame(true); pvFrame.srcdoc = doc; fit(); clearTimeout(pvNextT); pvNextT = setTimeout(() => pvBusy(false), 15000); return; }   // første gang: ingen gammel at vise imens
+    // ellers: det gamle preview bliver stående, mens det nye hentes i baggrunden – så skiftes de, når det nye er klar (ingen hvid skærm)
+    if (pvNext) pvNext.remove(); clearTimeout(pvNextT);
+    pvNext = pvFrame.cloneNode(false); pvNext.removeAttribute('id'); pvNextH = 0;
+    // bag det gamle (ikke skjult – ellers starter Bricks' animationer ikke, og indholdet bliver usynligt)
+    pvNext.style.cssText = pvFrame.style.cssText + `;position:absolute;left:0;top:${pvFrame.offsetTop}px;z-index:-1;pointer-events:none`;
+    pvFrame.parentNode.appendChild(pvNext); pvNext.srcdoc = doc;
+    pvNextT = setTimeout(pvCommit, 15000);   // nød-udvej, hvis det nye aldrig melder klar
   }
+  function pvCommit() {
+    if (!pvNext) return; clearTimeout(pvNextT);
+    pvFrame.remove(); pvNext.id = 'pvFrame'; pvNext.style.position = pvNext.style.left = pvNext.style.top = pvNext.style.zIndex = pvNext.style.pointerEvents = '';
+    pvFrame = pvNext; pvNext = null; if (pvNextH > 0) pvH = pvNextH; pvBusy(false); fit(); selFrame();
+    pvFrame.style.display = 'none'; void pvFrame.offsetHeight; pvFrame.style.display = 'block';   // tving browseren til at tegne rammen, når den kommer frem bagfra
+  }
+  // mens previewet opdateres: overlay med spinner, og listen/knapperne er låst, så man ikke klikker videre midt i det
+  function pvBusy(on) { $('pvOuter').classList.toggle('pvload', on); document.body.classList.toggle('pvbusy', on); }
   const scrollBox = el => { for (let n = el.parentElement; n; n = n.parentElement) { const o = getComputedStyle(n).overflowY; if (/(auto|scroll)/.test(o) && n.scrollHeight > n.clientHeight) return n; } return document.scrollingElement; };
   addEventListener('message', ev => {
+    if (pvNext && ev.source === pvNext.contentWindow) { const d = ev.data || {}; if (d.udkast === 'h' && d.h > 0) pvNextH = d.h; else if (d.udkast === 'ready') pvCommit(); return; }
     if (ev.source !== pvFrame.contentWindow) return; const d = ev.data || {};
     if (d.udkast === 'h') { if (d.h > 0 && Math.abs(d.h - pvH) > 1) { pvH = d.h; fit(); } }
-    else if (d.udkast === 'ready') selFrame();
+    else if (d.udkast === 'ready') { selFrame(); if (!pvNext) { clearTimeout(pvNextT); pvBusy(false); } }
     else if (d.udkast === 'sel') { selUid = selUid === d.uid ? null : d.uid; render(); }
     else if (d.udkast === 'top') { const box = scrollBox(pvFrame); const sc = pvFrame.getBoundingClientRect().width / (DEVICES[device] || 1); const y = pvFrame.getBoundingClientRect().top + d.top * sc - 130; if (box === document.scrollingElement) scrollBy({ top: y, behavior: 'smooth' }); else box.scrollBy({ top: y - box.getBoundingClientRect().top, behavior: 'smooth' }); }
   });

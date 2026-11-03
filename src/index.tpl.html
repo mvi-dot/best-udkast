@@ -609,6 +609,9 @@ svg.ic{width:16px;height:16px;flex:none;fill:none;stroke:currentColor;stroke-wid
 #moreBtn .gspin{display:none;width:14px;height:14px;border-radius:50%;border:2px solid rgba(255,255,255,.25);border-top-color:#fff;animation:bootspin .8s linear infinite}
 #moreBtn.loading .gspin{display:inline-block}#moreBtn.loading svg.ic{display:none}#moreBtn.loading,#moreBtn.loading:disabled{opacity:1;cursor:progress;color:var(--ink)}
 html[data-theme=dark] .composer #navn.need{border-color:#e8b866!important}
+#pvOuter{position:relative}#pvBusy{display:none}#pvOuter.pvload #pvBusy{display:flex;position:absolute;inset:0;z-index:5;justify-content:center;align-items:flex-start;padding-top:90px;background:rgba(15,20,26,.45);backdrop-filter:blur(1.5px);animation:ovIn .15s both}
+#pvBusy .pvpill{position:sticky;top:120px;display:flex;align-items:center;gap:10px;padding:10px 16px;border-radius:999px;background:#0b0f13;color:#eef2f6;font-size:13px;box-shadow:0 8px 28px rgba(0,0,0,.35)}#pvBusy .pvspin{width:16px;height:16px;border:2px solid rgba(255,255,255,.25);border-top-color:#fff;border-radius:50%;animation:sp .8s linear infinite}
+body.pvbusy #listCard,body.pvbusy #tabrow{pointer-events:none;opacity:.55;transition:opacity .15s}
 #tip{position:fixed;z-index:60;max-width:260px;padding:7px 10px;border-radius:7px;background:#0b0f13;color:#eef2f6;border:1px solid #3a4652;font-size:12.5px;line-height:1.4;pointer-events:none;box-shadow:0 6px 20px rgba(0,0,0,.35)}
 /* statistik */
 #statLink{margin-top:6px;text-align:center}#statLink .linkbtn{font-size:12px;opacity:.7;display:inline-flex;align-items:center;gap:5px}#statLink .linkbtn:hover{opacity:1}#statLink svg.ic{width:14px;height:14px}
@@ -689,7 +692,7 @@ html[data-theme=dark] .composer #navn.need{border-color:#e8b866!important}
           </ul>
         </div>
       </div>
-      <div id="pvOuter" hidden><div class="chrome"><i></i><i></i><i></i><span id="chromeUrl">Udkast</span></div><div id="pvHost"></div><iframe id="pvFrame" sandbox="allow-scripts" title="Preview af udkastet" hidden></iframe></div>
+      <div id="pvOuter" hidden><div class="chrome"><i></i><i></i><i></i><span id="chromeUrl">Udkast</span></div><div id="pvHost"></div><iframe id="pvFrame" sandbox="allow-scripts" title="Preview af udkastet" hidden></iframe><div id="pvBusy" role="status" aria-live="polite"><span class="pvpill"><span class="pvspin" aria-hidden="true"></span>Opdaterer preview…</span></div></div>
     </div>
   </section>
 </main>

@@ -51,6 +51,9 @@ Med ClickUp sat op (se apps-script/LAES-MIG.md) henter værktøjet kunderne med 
 
 Lokalt: `python3 build.py`, derefter `python3 -m http.server 8000` og åbn http://localhost:8000/index.html. Uden Apps Script bruger værktøjet `.claude/dev-templates.json`, hvis den findes (ligger ikke i repoet).
 
+## Preview
+Når et udkast ændres (Ny variant, Vælg selv, flyt, slet osv.), bygges det nye preview i baggrunden, mens det gamle bliver stående. Imens ligger et overlay med "Opdaterer preview…" over previewet, og listen og knapperne er låst, så man ikke klikker videre midt i det. Når det nye preview er klar, skiftes de (nød-udvej: efter 15 sek.).
+
 ## Statistik
 Under formularen på forsiden står et lille link **Statistik**. Det ses kun af rmu@ og mvi@best-one.dk, og Apps Scriptet tjekker også selv e-mailen (`CFG.STATS_ADMINS`).
 Der tælles **kun, når der trykkes Kopiér JSON** – udkast, der ikke bliver brugt, er bare afprøvning og tæller ikke. Værktøjet tæller pr. template: hvor tit den kommer med i et udkast, skiftes ud (Ny variant / Vælg selv), slettes, vælges selv, tilføjes, og om den er med, når JSON'en kopieres. Der gemmes kun tal pr. template – ingen kunder eller navne. Tallene ligger i Apps Scriptets Script-egenskaber (`S:<template>`).
