@@ -7,7 +7,7 @@ Skriv kundens navn og tryk **Enter**.
 ## Login og templates
 Værktøjet åbnes via Apps Script-linket med en best-one.dk-konto (se [apps-script/LAES-MIG.md](apps-script/LAES-MIG.md)). Templates ligger ikke i koden. De hentes fra Drive-mappen **Best Templates**, når værktøjet åbnes.
 
-Broen mellem Apps Script og værktøjet er låst: værktøjet taler kun med vores eget Apps Scripts faste sandbox-adresse (`GAS_ORIGIN` øverst i `src/app.js`). Andres Apps Scripts kan ikke vise værktøjet og give det data. Laver man et **nyt** Apps Script-projekt (ikke bare en ny version), får det en ny adresse, og `GAS_ORIGIN` skal opdateres.
+Broen mellem Apps Script og værktøjet godtager kun svar fra Apps Scripts sandbox (`*.googleusercontent.com`). Den kan ikke låses til én fast adresse, fordi sandbox-adressen er forskellig fra bruger til bruger (det blev prøvet 3/11 og gav "Apps Script svarede ikke" for andre end Rasmus).
 
 Hentede templates gemmes i browserens IndexedDB, så næste gang hentes kun nye eller ændrede filer (plads til mange hundrede templates). Den gamle cache i localStorage flyttes automatisk over første gang.
 
