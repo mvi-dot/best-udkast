@@ -316,7 +316,7 @@ async function loadTemplates(msg) {
   function statList() {   // rækkerne i den sortering, der vises
     const rows = stData.rows || {}, n = x => x || 0;
     const keys = [...new Set(E.allowedKeys(LIB).concat(Object.keys(rows)))].filter(k => k !== '_udkast');
-    const list = keys.map(k => { const r = rows[k] || {}; const v = { navn: LIB[k] ? E.displayName(k) : k, type: E.categoryOf(k), rate: n(r.vist) ? (n(r.skiftet) + n(r.slettet)) / n(r.vist) : -1 }; for (const [c] of ST_COLS.slice(2, 8)) v[c] = n(r[c]); return v; });
+    const list = keys.map(k => { const r = rows[k] || {}; const v = { navn: LIB[k] ? E.displayName(k) : k, type: LIB[k] ? pkLabel(pkCatOf(k)) : E.categoryOf(k), rate: n(r.vist) ? (n(r.skiftet) + n(r.slettet)) / n(r.vist) : -1 }; for (const [c] of ST_COLS.slice(2, 8)) v[c] = n(r[c]); return v; });
     const { k: sk, dir } = stSort;
     return list.sort((a, b) => (typeof a[sk] === 'string' ? a[sk].localeCompare(b[sk], 'da', { numeric: true }) : a[sk] - b[sk]) * dir || b.vist - a.vist || a.navn.localeCompare(b.navn, 'da', { numeric: true }));
   }
@@ -366,7 +366,7 @@ async function loadTemplates(msg) {
     if (a === 'variant') { const used = p.sections.map(x => x.tpl); const hf = (state.brief || {}).heroForm; let nx = E.nextVariant(LIB, s.tpl, used);
       if (E.categoryOf(s.tpl) === 'Header' && typeof hf === 'boolean') for (let g = 0; nx && g < 40 && E.hasForm(LIB, nx) !== hf; g++) nx = E.nextVariant(LIB, nx, used);   // heroen bliver med/uden kontaktformular, som valgt
       if (nx && nx !== s.tpl) swapTo(i, nx); return; }
-    if (a === 'pick') { openPicker({ mode: 'swap', index: i, cat: E.categoryOf(s.tpl) }); return; }
+    if (a === 'pick') { openPicker({ mode: 'swap', index: i, cat: pkCatOf(s.tpl) }); return; }
     if (a === 'del') {   // første klik: "Er du sikker?", andet klik fjerner
       if (delArm !== s.uid) { delArm = s.uid; clearTimeout(delT); delT = setTimeout(() => { delArm = null; render(); }, 3500); render(); return; }
       delArm = null; clearTimeout(delT); pushHist(); E.applyOps(p, [{ op: 'remove', index: i }], LIB, tlf(), CLASSES); stat('slettet', s.tpl); render(); return; }
@@ -383,6 +383,10 @@ async function loadTemplates(msg) {
 
   /* ---------- vælger med live-miniaturer ---------- */
   let pk = null;
+  // samme navne som på forsiden: Kontakt sektion deles i Kontaktformular (med formular) og CTA (uden formular)
+  const pkCatOf = k => { const c = E.categoryOf(k); return c === 'Kontakt sektion' && !E.hasForm(LIB, k) ? 'CTA sektion' : c; };
+  const pkCatList = () => E.catList(LIB).flatMap(c => c !== 'Kontakt sektion' ? [c] : E.variantsOf(LIB, c).some(k => !E.hasForm(LIB, k)) ? [c, 'CTA sektion'] : [c]);
+  const pkLabel = c => WANT_LABEL[c] || c;
   function openPicker(opts) { pk = opts; $('picker').hidden = false; $('pkClose').focus(); renderPicker(); }
   // miniaturer: Bricks-preview i en lille iframe (uden JS), tegnes først når kortet kommer i syne
   const thumbIO = new IntersectionObserver(ents => { for (const en of ents) { if (!en.isIntersecting) continue; const host = en.target; thumbIO.unobserve(host); if (host.firstChild) continue;
@@ -398,14 +402,14 @@ async function loadTemplates(msg) {
   const SORTS = [['nyeste', 'Nyeste først'], ['aeldste', 'Ældste først'], ['navn', 'Navn A–Å'], ['brugt', 'Mest brugt']];
   function renderPicker() {
     $('pkTitle').textContent = pk.mode === 'swap' ? `Vælg anden variant af sektion ${pk.index}` : 'Tilføj sektion';
-    $('pkCats').innerHTML = [...['Nyeste', ...(E.groupKeys(LIB, 'Live sektioner').length ? ['Live sektioner'] : [])], ...E.catList(LIB)].map(n => `<button class="chip" aria-pressed="${n === pk.cat}" data-cat="${n}">${n}</button>`).join('');
+    $('pkCats').innerHTML = [...['Nyeste', ...(E.groupKeys(LIB, 'Live sektioner').length ? ['Live sektioner'] : [])], ...pkCatList()].map(n => `<button class="chip" aria-pressed="${n === pk.cat}" data-cat="${E.esc(n)}">${E.esc(pkLabel(n))}</button>`).join('');
     pk.sort = pk.sort || pkSortPref; { const so = $('pkSort'); if (so) { so.hidden = pk.cat === 'Nyeste'; so.value = pk.sort; } }
     renderPkFoot();
-    let keys = pk.cat === 'Nyeste' ? E.newestKeys(LIB, 10) : pk.cat === 'Live sektioner' ? E.groupKeys(LIB, 'Live sektioner') : E.variantsOf(LIB, pk.cat); const grid = $('pkGrid'); grid.innerHTML = '';
+    let keys = pk.cat === 'Nyeste' ? E.newestKeys(LIB, 10) : pk.cat === 'Live sektioner' ? E.groupKeys(LIB, 'Live sektioner') : pk.cat === 'Kontakt sektion' || pk.cat === 'CTA sektion' ? E.variantsOf(LIB, 'Kontakt sektion').filter(k => pkCatOf(k) === pk.cat) : E.variantsOf(LIB, pk.cat); const grid = $('pkGrid'); grid.innerHTML = '';
     if (pk.cat !== 'Nyeste' && pk.cat !== 'Live sektioner' && pk.mode !== 'swap') keys = keys.filter(k => !(LIB[k] && LIB[k].group));      // live sektioner har deres egen fane
     if (pk.cat !== 'Nyeste') keys = E.sortKeys(LIB, keys, pk.sort || 'nyeste', k => (USE[k] || [0])[0]);
-    if (pk.cat === 'Live sektioner') { const subs = [...new Set(keys.map(k => E.categoryOf(k)))]; if (pk.sub && subs.includes(pk.sub)) keys = keys.filter(k => E.categoryOf(k) === pk.sub);
-      $('pkCats').insertAdjacentHTML('beforeend', '<div class="pksub" style="flex-basis:100%;display:flex;gap:6px;flex-wrap:wrap;margin-top:6px">' + ['Alle', ...subs].map(sb => `<button class="chip sm" data-sub="${E.esc(sb)}" aria-pressed="${(pk.sub || 'Alle') === sb}">${E.esc(sb)}</button>`).join('') + '</div>'); }
+    if (pk.cat === 'Live sektioner') { const subs = [...new Set(keys.map(pkCatOf))]; if (pk.sub && subs.includes(pk.sub)) keys = keys.filter(k => pkCatOf(k) === pk.sub);
+      $('pkCats').insertAdjacentHTML('beforeend', '<div class="pksub" style="flex-basis:100%;display:flex;gap:6px;flex-wrap:wrap;margin-top:6px">' + ['Alle', ...subs].map(sb => `<button class="chip sm" data-sub="${E.esc(sb)}" aria-pressed="${(pk.sub || 'Alle') === sb}">${E.esc(pkLabel(sb))}</button>`).join('') + '</div>'); }
     const p = cur(); const curTpl = pk.mode === 'swap' && p ? p.sections[pk.index - 1].tpl : null;
     for (const k of keys) {
       const card = document.createElement('button'); card.className = 'pkcard'; card.dataset.k = k;
