@@ -166,8 +166,25 @@ async function loadTemplates(msg) {
 
   /* ---------- tjekliste: hvilke typer skal med (alle typer fra templates, undtagen hero og Content, der altid er med) ---------- */
   for (const r of document.querySelectorAll('input[name=hero]')) r.addEventListener('change', () => { $('heroBox').classList.remove('need'); if (/header/i.test($('status').textContent)) setStatus(''); });
+  const WANT_TIP = {
+    'Ydelser': 'En sektion med kundens ydelser.',
+    'Produkter': 'En sektion med produkter. Placeres et tilfældigt sted, aldrig lige under heroen.',
+    'Anmeldelser': 'En sektion med anmeldelser. Der kommer højst én pr. udkast.',
+    'Galleri': 'Et galleri med billeder.',
+    'Kontakt sektion': 'En kontaktsektion MED formular helt til sidst. Den afslutter siden i stedet for CTA-afsnittet.',
+    'CTA sektion': 'Et ekstra CTA-afsnit midt på siden: H2, kort tekst og en knap, uden formular.',
+    'Cases': 'En sektion med cases eller projekter.',
+    'Priser': 'En sektion med priser eller pakker.',
+    'FAQ': 'Ofte stillede spørgsmål.',
+    'Medarbejdere': 'En sektion, der præsenterer medarbejderne.',
+    'USP': 'Kundens styrker (USP’er). Placeres et tilfældigt sted, aldrig lige under heroen.',
+    'Logo slider': 'Logoer der glider forbi. Ligger altid lige under heroen.'
+  };   // tooltip på Ønsker
   const WANT_FIRST = ['Ydelser', 'Anmeldelser', 'Galleri', 'Kontakt sektion', 'CTA sektion'], wantRank = c => { const k = WANT_FIRST.indexOf(c); return k < 0 ? 99 : k; };   // visningsrækkefølge på forsiden, resten bagefter
-  $('wants').innerHTML = [...E.catList(LIB).filter(c => c !== 'Header' && c !== 'Content'), ...(Object.keys(LIB).some(E.isCtaText) ? ['CTA sektion'] : [])].map((c, k) => [c, k]).sort((a, b) => wantRank(a[0]) - wantRank(b[0]) || a[1] - b[1]).map(([c]) => c).map(c => `<label><input type="checkbox" value="${E.esc(c)}"> ${E.esc(c)}</label>`).join('');   // CTA sektion: kontaktsektioner uden formular
+  $('wants').innerHTML = [...E.catList(LIB).filter(c => c !== 'Header' && c !== 'Content'), ...(Object.keys(LIB).some(E.isCtaText) ? ['CTA sektion'] : [])].map((c, k) => [c, k]).sort((a, b) => wantRank(a[0]) - wantRank(b[0]) || a[1] - b[1]).map(([c]) => c).map(c => `<label${WANT_TIP[c] ? ` data-tip="${E.esc(WANT_TIP[c])}"` : ''}><input type="checkbox" value="${E.esc(c)}"> ${E.esc(c)}</label>`).join('');   // CTA sektion: kontaktsektioner uden formular
+  { const tip = document.createElement('div'); tip.id = 'tip'; tip.hidden = true; document.body.appendChild(tip);   // én fælles tooltip, så den ikke klippes af felterne
+    document.addEventListener('mouseover', e => { const el = e.target.closest('[data-tip]'); if (!el) { tip.hidden = true; return; } tip.textContent = el.dataset.tip; tip.hidden = false; const r = el.getBoundingClientRect(), w = tip.offsetWidth, h = tip.offsetHeight; tip.style.left = Math.max(8, Math.min(innerWidth - w - 8, r.left + r.width / 2 - w / 2)) + 'px'; tip.style.top = (r.top - h - 8 < 8 ? r.bottom + 8 : r.top - h - 8) + 'px'; });
+    document.addEventListener('scroll', () => { tip.hidden = true; }, true); }
 
   /* ---------- kundens navn → klasse-præfiks og telefon ---------- */
   let prefixTouched = false;
