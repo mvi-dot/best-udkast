@@ -441,6 +441,9 @@ const CTA_TEXT = 'CTA-afsnit';
 const textStats = k => { let h2 = 0, words = 0, longest = 0, buttons = 0; for (const e of (BX_LIB[k] || {}).els || []) { const st = e.settings || {}; if (e.name === 'button') buttons++; if (e.name === 'heading' && (st.tag || 'h3') === 'h2') h2++; if (/^(text|text-basic|rich-text)$/.test(e.name)) { const w = String(st.text || '').replace(/<[^>]+>/g, ' ').split(/\s+/).filter(Boolean).length; words += w; longest = Math.max(longest, w); } } return { h2, words, longest, buttons }; };
 const isBodyH2 = k => { if (categoryOf(k) !== 'Content') return false; const t = textStats(k); return t.h2 >= 1 && t.longest >= 40; };   // ét rigtigt tekstfelt, ikke mange små
 const isCtaText = k => { if (isExcluded(k) || categoryOf(k) !== 'Kontakt sektion' || hasForm(BX_LIB, k)) return false; const t = textStats(k); return t.h2 >= 1 && t.buttons >= 1 && t.words >= 8 && t.words <= 60; };   // CTA-sektion: kontaktsektion uden formular, med H2, kort tekst og knap
+// heroen har sin egen logo-række (fx Hero #17's "Logo loop") – så må der ikke også være en Logo slider (aldrig 2 logo-rækker)
+const LOGO_RE = /logo[\s_-]*(loop|slider|group|gruppe|row|række|wall|carousel)|^logoer$/i;
+const heroLogos = (LIB, k) => (((LIB || {})[k] || {}).els || []).some(e => { const st = e.settings || {}; return LOGO_RE.test(String(e.label || '')) || LOGO_RE.test(String(st._cssClasses || '')) || (st._cssGlobalClasses || []).some(id => LOGO_RE.test(String(((ENV.CLASSES || {})[id] || {}).name || ''))); });
 const WANT_ORDER = ['Ydelser', 'Anmeldelser', 'Cases', 'Priser', 'Galleri', 'Medarbejdere', 'FAQ', 'CTA sektion', 'Kontakt sektion'];   // "CTA sektion" = et ekstra CTA-afsnit midt på siden
 function localPlan(b, LIB, n, existing, SITES) {
   const keys = allowedKeys(LIB, true), keysAll = allowedKeys(LIB); const want = Array.isArray(b && b.want) ? b.want.filter(c => c && c !== 'Header' && c !== 'Content' && !EXCLUDED_CATS.has(c)) : []; const used = new Set([].concat(...(existing || []))); const msg = String((b && b.msg) || '').toLowerCase(); const type = (b && b.sidetype) || 'Forside'; const has = re => re.test(msg);
@@ -503,6 +506,7 @@ function localPlan(b, LIB, n, existing, SITES) {
       mine.add(pick); sek.push({ tpl: pick, hvorfor: sub ? sub : like ? 'Ligner sektionen på ' + basis : LIB[pick] && LIB[pick].site ? 'Rigtig sektion fra ' + LIB[pick].site : 'Standardopbygning' });
     }
     mine.forEach(k => used.add(k));
+    { const h = sek.find(x => categoryOf(x.tpl) === 'Header'); if (h && heroLogos(LIB, h.tpl)) for (let q = sek.length - 1; q >= 0; q--) if (categoryOf(sek[q].tpl) === 'Logo slider') sek.splice(q, 1); }   // aldrig 2 logo-rækker: heroen har allerede logoer
     forslag.push({ navn: names[(base + i) % names.length], note: 'Branche: ' + (gb.b || 'ukendt') + ' (' + gb.via + ')' + (basis ? ' · opbygning og templates som ' + basis : ''), sektioner: sek, gaet: gb });
   }
   return { forslag, branche: gb };
@@ -1194,5 +1198,5 @@ addEventListener('load',function(){post({udkast:'ready'})});})();<\/script>
 </body></html>`;
 }
 
-const API = { isBodyH2, isCtaText, hasForm, analyzeSite, guessBranche, renderBricks, bricksDoc, setBricks, libFromExports, keyAlias, clone, esc, stripTags, mapOf, rootsOf, walk, makeSection, applyOps, applyPhone, buildExport, validate, renderSections, nativize, setStock, stockify, videoify, sortKeys, localPlan, guessBranche, onlineClean, BS_VIDEO, loremify, loremText, fixH1, newestKeys, groupKeys, STOCK_BASE, secTitle, groupInfoSec, SECTION_ONLY, makeSections, splitParts, parsePhone, classPrefix, setEnv, removeSubtree, categoryOf, displayName, describeKey, setMeta, variantsOf, nextVariant, allowedKeys, catList, sanitizePlan, TYPE_ORDER, WHOLE_PAGE, cleanSettings, resizeGroup, groupInfo, getGroups, FORM_ID, PH_URL, unitFix };
+const API = { isBodyH2, isCtaText, hasForm, heroLogos, analyzeSite, guessBranche, renderBricks, bricksDoc, setBricks, libFromExports, keyAlias, clone, esc, stripTags, mapOf, rootsOf, walk, makeSection, applyOps, applyPhone, buildExport, validate, renderSections, nativize, setStock, stockify, videoify, sortKeys, localPlan, guessBranche, onlineClean, BS_VIDEO, loremify, loremText, fixH1, newestKeys, groupKeys, STOCK_BASE, secTitle, groupInfoSec, SECTION_ONLY, makeSections, splitParts, parsePhone, classPrefix, setEnv, removeSubtree, categoryOf, displayName, describeKey, setMeta, variantsOf, nextVariant, allowedKeys, catList, sanitizePlan, TYPE_ORDER, WHOLE_PAGE, cleanSettings, resizeGroup, groupInfo, getGroups, FORM_ID, PH_URL, unitFix };
 if (typeof module !== 'undefined') module.exports = API;

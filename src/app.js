@@ -384,9 +384,16 @@ async function loadTemplates(msg) {
   document.addEventListener('keydown', e => { if (e.key !== 'Escape') return; if (!$('statConfirm').hidden) $('statConfirm').hidden = true; else if (!$('statBox').hidden) statClose(); });
 
   /* ---------- sektionsliste: rækkefølge, variant, vælg, fjern ---------- */
+  // aldrig 2 logo-rækker: har heroen egne logoer, må der ikke også være en Logo slider
+  function logoRule(added) {
+    const p = cur(); if (!p) return; const h = p.sections.find(x => E.categoryOf(x.tpl) === 'Header'); if (!h || !E.heroLogos(LIB, h.tpl)) return;
+    const idx = p.sections.map((x, i) => E.categoryOf(x.tpl) === 'Logo slider' ? i + 1 : 0).filter(Boolean); if (!idx.length) return;
+    if (added === 'Logo slider') { state = JSON.parse(hist.pop()); setStatus('Heroen har allerede sin egen logo-række, så der kan ikke også være en Logo slider. Vælg en hero uden logoer først.', 'warn'); return; }
+    for (const i of idx.reverse()) E.applyOps(p, [{ op: 'remove', index: i }], LIB, tlf(), CLASSES); setStatus('Heroen har sin egen logo-række, så Logo slideren er fjernet (der må kun være én).', 'warn');
+  }
   function swapTo(index, tpl, how) {
     const old = (cur().sections[index - 1] || {}).tpl;
-    pushHist(); const out = E.applyOps(cur(), [{ op: 'swap', index, tpl, manual: true }], LIB, tlf(), CLASSES); if (!out.added.length) { hist.pop(); showError('Sektionen kunne ikke skiftes.', 'E30', tpl); } else { stat('skiftet', old); stat(how || 'vist', tpl); } render();
+    pushHist(); const out = E.applyOps(cur(), [{ op: 'swap', index, tpl, manual: true }], LIB, tlf(), CLASSES); if (!out.added.length) { hist.pop(); showError('Sektionen kunne ikke skiftes.', 'E30', tpl); } else { stat('skiftet', old); stat(how || 'vist', tpl); logoRule(E.categoryOf(tpl)); } render();
   }
   let delArm = null, delT = null; const varSeen = new Map();   // Ny variant: hvilke templates man har set pr. gruppe (nulstilles ved nyt udkast)
   $('list').addEventListener('click', ev => {
@@ -398,7 +405,8 @@ async function loadTemplates(msg) {
     if (a === 'dup') { const c = JSON.parse(JSON.stringify(s)); c.uid = 's' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5); pushHist(); p.sections.splice(i, 0, c); selUid = c.uid; render(); return; }   // dublet lige under originalen
     if (a === 'variant') { const used = p.sections.map(x => x.tpl); const hf = (state.brief || {}).heroForm, isHero = E.categoryOf(s.tpl) === 'Header', grp = pkCatOf(s.tpl);
       // tilfældig variant: samme gruppe (Kontaktformular forbliver med formular, CTA uden), og heroen bliver med/uden kontaktformular, som valgt
-      const ok = k => pkCatOf(k) === grp && !(isHero && typeof hf === 'boolean' && E.hasForm(LIB, k) !== hf);
+      const hasSlider = p.sections.some(x => E.categoryOf(x.tpl) === 'Logo slider');
+      const ok = k => pkCatOf(k) === grp && !(isHero && typeof hf === 'boolean' && E.hasForm(LIB, k) !== hf) && !(isHero && hasSlider && E.heroLogos(LIB, k));   // med en Logo slider: kun heroes uden egne logoer
       // "pose": tilfældig rækkefølge, men samme template kommer først igen, når man har set alle de andre i gruppen
       const seen = varSeen.get(grp) || new Set(); varSeen.set(grp, seen); seen.add(s.tpl);
       const all = E.variantsOf(LIB, E.categoryOf(s.tpl)).filter(k => k !== s.tpl && ok(k)), pick = l => l[Math.floor(Math.random() * l.length)];
@@ -472,7 +480,7 @@ async function loadTemplates(msg) {
     const c = e.target.closest('.pkcard'); if (!c || !pk) return;
     const k = c.dataset.k, o = pk; closePicker();
     if (o.mode === 'swap') { swapTo(o.index, k, 'valgt'); return; }
-    const p = cur(); pushHist(); const cat = E.categoryOf(k); const addOp = { op: 'add', tpl: k, manual: true }; if (cat === 'Menu') addOp.at = 1; else if (p.sections.length && E.categoryOf(p.sections[p.sections.length - 1].tpl) === 'Footer' && cat !== 'Footer') addOp.at = p.sections.length; const out = E.applyOps(p, [addOp], LIB, tlf(), CLASSES); if (!out.added.length) { hist.pop(); showError('Sektionen kunne ikke tilføjes.', 'E30', k); } else stat('tilfoejet', k); render();
+    const p = cur(); pushHist(); const cat = E.categoryOf(k); const addOp = { op: 'add', tpl: k, manual: true }; if (cat === 'Menu') addOp.at = 1; else if (p.sections.length && E.categoryOf(p.sections[p.sections.length - 1].tpl) === 'Footer' && cat !== 'Footer') addOp.at = p.sections.length; const out = E.applyOps(p, [addOp], LIB, tlf(), CLASSES); if (!out.added.length) { hist.pop(); showError('Sektionen kunne ikke tilføjes.', 'E30', k); } else { stat('tilfoejet', k); logoRule(cat); } render();
   });
 
 
