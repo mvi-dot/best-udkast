@@ -8,13 +8,12 @@ const gas = (() => {
   let n = 0; const wait = {};
   addEventListener('message', ev => {
     const d = ev.data || {}; if (d.udkastApi !== 1 || !wait[d.id] || ev.source !== window.parent) return;
-    let host = ''; try { host = new URL(ev.origin).hostname; } catch (_) { } if (!/\.googleusercontent\.com$/.test(host)) return;   // kun svar fra Apps Script
-    if (ev.origin !== GAS_ORIGIN && !gas.warned) { gas.warned = true; const t = document.createElement('div'); t.textContent = 'Broen: svar fra ' + ev.origin; t.style.cssText = 'position:fixed;left:8px;bottom:8px;z-index:99999;background:#c33;color:#fff;padding:6px 10px;font:12px monospace;border-radius:6px'; document.body.appendChild(t); }   // midlertidig kontrol før låsen
+    if (ev.origin !== GAS_ORIGIN) return;   // kun svar fra vores eget Apps Script (ikke fra andres, der viser værktøjet)
     const w = wait[d.id]; delete wait[d.id]; d.ok ? w.res(d.value) : w.rej(new Error(d.value));
   });
   return (name, ...args) => new Promise((res, rej) => {
     const id = 'c' + (++n) + Math.random().toString(36).slice(2, 7); wait[id] = { res, rej };
-    window.parent.postMessage({ udkastApi: 1, id, name, args }, '*');
+    window.parent.postMessage({ udkastApi: 1, id, name, args }, GAS_ORIGIN);   // kun til vores eget Apps Script
     setTimeout(() => { if (wait[id]) { delete wait[id]; rej(new Error('Apps Script svarede ikke')); } }, 120000);
   });
 })();
