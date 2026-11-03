@@ -442,6 +442,8 @@ const textStats = k => { let h2 = 0, words = 0, longest = 0, buttons = 0; for (c
 const isBodyH2 = k => { if (categoryOf(k) !== 'Content') return false; const t = textStats(k); return t.h2 >= 1 && t.longest >= 40; };   // ét rigtigt tekstfelt, ikke mange små
 const isCtaText = k => { if (isExcluded(k) || categoryOf(k) !== 'Kontakt sektion' || hasForm(BX_LIB, k)) return false; const t = textStats(k); return t.h2 >= 1 && t.buttons >= 1 && t.words >= 8 && t.words <= 60; };   // CTA-sektion: kontaktsektion uden formular, med H2, kort tekst og knap
 // heroen har sin egen logo-række (fx Hero #17's "Logo loop") – så må der ikke også være en Logo slider (aldrig 2 logo-rækker)
+// Kontaktsektion #7 og #8 må kun bruges som sidens sidste sektion (før en evt. footer)
+const BOTTOM_ONLY = new Set(['kontaktsektion-7', 'kontaktsektion-8']); const isBottomOnly = k => BOTTOM_ONLY.has(k);
 const LOGO_RE = /logo[\s_-]*(loop|slider|group|gruppe|row|række|wall|carousel)|^logoer$/i;
 const heroLogos = (LIB, k) => (((LIB || {})[k] || {}).els || []).some(e => { const st = e.settings || {}; return LOGO_RE.test(String(e.label || '')) || LOGO_RE.test(String(st._cssClasses || '')) || (st._cssGlobalClasses || []).some(id => LOGO_RE.test(String(((ENV.CLASSES || {})[id] || {}).name || ''))); });
 const WANT_ORDER = ['Ydelser', 'Anmeldelser', 'Cases', 'Priser', 'Galleri', 'Medarbejdere', 'FAQ', 'CTA sektion', 'Kontakt sektion'];   // "CTA sektion" = et ekstra CTA-afsnit midt på siden
@@ -487,7 +489,7 @@ function localPlan(b, LIB, n, existing, SITES) {
         if (pos >= 2 && last - pos >= 1) cats.splice(pos, 0, CTA_TEXT); } }   // er siden for kort, springes det ekstra over
     }
     const mine = new Set(); const sek = [];
-    for (const c of cats) {
+    for (const [ci, c] of cats.entries()) {
       let pool = c === CTA_TEXT ? keysAll.filter(isCtaText) : (want.includes(c) ? keysAll : keys).filter(k => categoryOf(k) === c);   // en valgt type må gerne være en, der ellers ikke bruges automatisk (fx CTA)
       if (c === 'Header' && b && typeof b.heroForm === 'boolean') { const f = pool.filter(k => hasForm(LIB, k) === b.heroForm); if (f.length) pool = f; }   // med eller uden kontaktformular
       if (c === 'Kontakt sektion') pool = pool.filter(k => hasForm(LIB, k));   // "Kontakt sektion" SKAL have en formular – findes ingen, springes den over. Tekst med knapper er CTA-afsnit
@@ -499,6 +501,7 @@ function localPlan(b, LIB, n, existing, SITES) {
           : [keysAll.filter(isCtaText), keysAll.filter(k => categoryOf(k) === 'Kontakt sektion' && hasH2(k)), keysAll.filter(isBodyH2), keysAll.filter(hasH2)];
         const ti = tiers.findIndex(t => t.some(k => !mine.has(k))); pool = ti >= 0 ? tiers[ti] : pool; if (ti > 0) sub = c === 'Content' ? 'Erstatning: ingen ledig Content med H2 og brødtekst' : 'Erstatning: intet ledigt kort CTA-afsnit med H2';
       }
+      if (ci !== cats.length - 1) pool = pool.filter(k => !isBottomOnly(k));   // #7 og #8 kun i bunden
       if (!pool.length) continue; let fresh = pool.filter(k => !used.has(k) && !mine.has(k)); if (!fresh.length) fresh = pool.filter(k => !mine.has(k)); if (!fresh.length) continue;   // aldrig samme template to gange i ét udkast
       const wts = fresh.map(k => { const t = LIB[k] || {}; return t.group === 'Live sektioner' && t.site ? (t.branche && t.branche === gb.b ? 4 : 1.8) : 1; }); const tot = wts.reduce((a, x) => a + x, 0); let r = Math.random() * tot, pick = fresh[0];
       for (let q = 0; q < fresh.length; q++) { r -= wts[q]; if (r <= 0) { pick = fresh[q]; break; } }
@@ -1175,7 +1178,9 @@ window.matchMedia=function(q){var m=re.exec(String(q));if(!m)return mm(q);var on
 return{matches:on,media:String(q),onchange:null,addListener:f,removeListener:f,addEventListener:f,removeEventListener:f,dispatchEvent:function(){return false}}}})();<\/script>`}
 </head><body class="wp-singular page wp-theme-bricks wp-child-theme-bricks-child brx-body bricks-is-frontend">
 <main id="brx-content">${V(r.html)}</main>
-<script>window.bricksData=${JSON.stringify(BX.bricksData || {}).replace(/</g, '\\u003c')};
+<script>/* iframen har ingen rigtig adresse, så history.replaceState/pushState fejler – Bricks' accordion (FAQ m.m.) kalder den ved klik og stoppede derfor */
+(function(){['replaceState','pushState'].forEach(function(m){var o=history[m];history[m]=function(){try{return o.apply(history,arguments)}catch(e){}}})})();
+window.bricksData=${JSON.stringify(BX.bricksData || {}).replace(/</g, '\\u003c')};
 /* iframen er isoleret (sandbox uden same-origin), så localStorage er blokeret – Bricks' JS får en hukommelses-udgave i stedet */
 (function(){var ok=true;try{window.localStorage.getItem('x')}catch(e){ok=false}if(ok)return;var m={},st={getItem:function(k){return k in m?m[k]:null},setItem:function(k,v){m[k]=String(v)},removeItem:function(k){delete m[k]},clear:function(){m={}},key:function(i){return Object.keys(m)[i]||null},get length(){return Object.keys(m).length}};
 try{Object.defineProperty(window,'localStorage',{value:st,configurable:true});Object.defineProperty(window,'sessionStorage',{value:st,configurable:true})}catch(e){}})();<\/script>
@@ -1198,5 +1203,5 @@ addEventListener('load',function(){post({udkast:'ready'})});})();<\/script>
 </body></html>`;
 }
 
-const API = { isBodyH2, isCtaText, hasForm, heroLogos, analyzeSite, guessBranche, renderBricks, bricksDoc, setBricks, libFromExports, keyAlias, clone, esc, stripTags, mapOf, rootsOf, walk, makeSection, applyOps, applyPhone, buildExport, validate, renderSections, nativize, setStock, stockify, videoify, sortKeys, localPlan, guessBranche, onlineClean, BS_VIDEO, loremify, loremText, fixH1, newestKeys, groupKeys, STOCK_BASE, secTitle, groupInfoSec, SECTION_ONLY, makeSections, splitParts, parsePhone, classPrefix, setEnv, removeSubtree, categoryOf, displayName, describeKey, setMeta, variantsOf, nextVariant, allowedKeys, catList, sanitizePlan, TYPE_ORDER, WHOLE_PAGE, cleanSettings, resizeGroup, groupInfo, getGroups, FORM_ID, PH_URL, unitFix };
+const API = { isBodyH2, isCtaText, hasForm, heroLogos, isBottomOnly, analyzeSite, guessBranche, renderBricks, bricksDoc, setBricks, libFromExports, keyAlias, clone, esc, stripTags, mapOf, rootsOf, walk, makeSection, applyOps, applyPhone, buildExport, validate, renderSections, nativize, setStock, stockify, videoify, sortKeys, localPlan, guessBranche, onlineClean, BS_VIDEO, loremify, loremText, fixH1, newestKeys, groupKeys, STOCK_BASE, secTitle, groupInfoSec, SECTION_ONLY, makeSections, splitParts, parsePhone, classPrefix, setEnv, removeSubtree, categoryOf, displayName, describeKey, setMeta, variantsOf, nextVariant, allowedKeys, catList, sanitizePlan, TYPE_ORDER, WHOLE_PAGE, cleanSettings, resizeGroup, groupInfo, getGroups, FORM_ID, PH_URL, unitFix };
 if (typeof module !== 'undefined') module.exports = API;
