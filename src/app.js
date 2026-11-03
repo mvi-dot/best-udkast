@@ -1,12 +1,15 @@
 /* ===== UI v2 ===== */
 /* ===== Data: templates fra Drive via Apps Script ===== */
 // Værktøjet vises inde i Apps Script-siden (Shell.html), som står for login og data. Uden den får værktøjet ingen templates.
+// vores Apps Scripts sandbox-adresse (fast for projektet). Laver man et nyt Apps Script-projekt, skal den opdateres her
+const GAS_ORIGIN = 'https://n-5kfqspfv6eu7bq4y2cvui6qwuqiuahjmlf3upeq-0lu-script.googleusercontent.com';
 const IN_GAS = (() => { try { return window.parent !== window && new URLSearchParams(location.search).get('host') === 'gas'; } catch (_) { return false; } })();
 const gas = (() => {
   let n = 0; const wait = {};
   addEventListener('message', ev => {
     const d = ev.data || {}; if (d.udkastApi !== 1 || !wait[d.id] || ev.source !== window.parent) return;
     let host = ''; try { host = new URL(ev.origin).hostname; } catch (_) { } if (!/\.googleusercontent\.com$/.test(host)) return;   // kun svar fra Apps Script
+    if (ev.origin !== GAS_ORIGIN && !gas.warned) { gas.warned = true; const t = document.createElement('div'); t.textContent = 'Broen: svar fra ' + ev.origin; t.style.cssText = 'position:fixed;left:8px;bottom:8px;z-index:99999;background:#c33;color:#fff;padding:6px 10px;font:12px monospace;border-radius:6px'; document.body.appendChild(t); }   // midlertidig kontrol før låsen
     const w = wait[d.id]; delete wait[d.id]; d.ok ? w.res(d.value) : w.rej(new Error(d.value));
   });
   return (name, ...args) => new Promise((res, rej) => {
