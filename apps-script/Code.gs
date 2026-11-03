@@ -134,8 +134,13 @@ function templateSheet() {
   const cache = CacheService.getScriptCache(); const hit = cache.get('tplSheet'); if (hit) return JSON.parse(hit);
   const r = UrlFetchApp.fetch(DRIVE_API + '/' + CFG.TEMPLATE_SHEET + '/export?mimeType=text%2Fcsv', { headers: authHeader_(), muteHttpExceptions: true });
   if (r.getResponseCode() !== 200) throw new Error('Regnearket svarede ' + r.getResponseCode());
-  const rows = Utilities.parseCsv(r.getContentText('UTF-8')); const h = rows.findIndex(x => String(x[1]).trim() === 'Navn'); if (h < 0) return [];
-  const out = rows.slice(h + 1).filter(x => x[1] && String(x[1]).trim()).map(x => { const u = String(x[4] || '').trim(); return { n: String(x[1]).trim(), t: String(x[2] || '').trim(), d: String(x[3] || '').trim(), u, s: u.replace(/\/+$/, '').split('/').pop(), b: String(x[5] || '').trim() }; });
+  const rows = Utilities.parseCsv(r.getContentText('UTF-8')); const norm = v => String(v || '').trim().toLowerCase();
+  const h = rows.findIndex(x => x.some(v => norm(v) === 'navn')); if (h < 0) return [];
+  // kolonnerne findes ud fra overskriften, så man gerne må flytte eller indsætte kolonner i arket
+  const col = names => rows[h].findIndex(v => names.indexOf(norm(v)) >= 0);
+  const cN = col(['navn']), cT = col(['type']), cD = col(['udgivelsesdato', 'dato']), cU = col(['link', 'url']), cB = col(['beskrivelse']);
+  const get = (x, c) => c < 0 ? '' : String(x[c] || '').trim();
+  const out = rows.slice(h + 1).filter(x => get(x, cN)).map(x => { const u = get(x, cU); return { n: get(x, cN), t: get(x, cT), d: get(x, cD), u, s: u.replace(/\/+$/, '').split('/').pop(), b: get(x, cB) }; });
   try { cache.put('tplSheet', JSON.stringify(out), 120); } catch (e) { }
   return out;
 }

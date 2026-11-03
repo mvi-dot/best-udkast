@@ -445,7 +445,10 @@ const isCtaText = k => { if (isExcluded(k) || categoryOf(k) !== 'Kontakt sektion
 // Kontaktsektion #7 og #8 må kun bruges som sidens sidste sektion (før en evt. footer)
 const BOTTOM_ONLY = new Set(['kontaktsektion-7', 'kontaktsektion-8']); const isBottomOnly = k => BOTTOM_ONLY.has(k);
 const LOGO_RE = /logo[\s_-]*(loop|slider|group|gruppe|row|række|wall|carousel)|^logoer$/i;
-const heroLogos = (LIB, k) => (((LIB || {})[k] || {}).els || []).some(e => { const st = e.settings || {}; return LOGO_RE.test(String(e.label || '')) || LOGO_RE.test(String(st._cssClasses || '')) || (st._cssGlobalClasses || []).some(id => LOGO_RE.test(String(((ENV.CLASSES || {})[id] || {}).name || ''))); });
+const LOGO_ONE_RE = /^logo\s*\d*$/i, PARTNER_RE = /samarbejdspartner|partnerlogo/i;
+const heroLogos = (LIB, k) => { const els = ((LIB || {})[k] || {}).els || [];
+  if (els.filter(e => LOGO_ONE_RE.test(String(e.label || '').trim())).length >= 3) return true;   // fx en slider med blokkene "Logo", "Logo 2", "Logo 3" … (Hero #3)
+  return els.some(e => { const st = e.settings || {}; return LOGO_RE.test(String(e.label || '')) || PARTNER_RE.test(String(e.label || '')) || LOGO_RE.test(String(st._cssClasses || '')) || (st._cssGlobalClasses || []).some(id => LOGO_RE.test(String(((ENV.CLASSES || {})[id] || {}).name || ''))); }); };
 const WANT_ORDER = ['Ydelser', 'Anmeldelser', 'Cases', 'Priser', 'Galleri', 'Medarbejdere', 'FAQ', 'CTA sektion', 'Kontakt sektion'];   // "CTA sektion" = et ekstra CTA-afsnit midt på siden
 function localPlan(b, LIB, n, existing, SITES) {
   const keys = allowedKeys(LIB, true), keysAll = allowedKeys(LIB); const want = Array.isArray(b && b.want) ? b.want.filter(c => c && c !== 'Header' && c !== 'Content' && !EXCLUDED_CATS.has(c)) : []; const used = new Set([].concat(...(existing || []))); const msg = String((b && b.msg) || '').toLowerCase(); const type = (b && b.sidetype) || 'Forside'; const has = re => re.test(msg);

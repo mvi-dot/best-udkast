@@ -18,15 +18,27 @@ const gas = (() => {
   });
 })();
 const TPL_CACHE = 'udkast-templates-v1';
+// template-cachen ligger i IndexedDB (plads til mange hundrede templates; localStorage kan kun ~5 MB). Virker IndexedDB ikke, bruges localStorage som før
+const idb = (() => { let dbP = null; const open = () => dbP || (dbP = new Promise((res, rej) => { const r = indexedDB.open('udkast', 1); r.onupgradeneeded = () => r.result.createObjectStore('kv'); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); }));
+  const tx = (mode, fn) => open().then(db => new Promise((res, rej) => { const t = db.transaction('kv', mode); const q = fn(t.objectStore('kv')); t.oncomplete = () => res(q && q.result); t.onerror = t.onabort = () => rej(t.error); }));
+  return { get: k => tx('readonly', st => st.get(k)), set: (k, v) => tx('readwrite', st => st.put(v, k)) }; })();
+async function readTplCache() {
+  try { const v = await Promise.race([idb.get(TPL_CACHE), new Promise(r => setTimeout(() => r(null), 3000))]); if (v && v.files) return v.files; } catch (_) { }   // svarer IndexedDB ikke, venter vi ikke på den
+  try { return (JSON.parse(localStorage.getItem(TPL_CACHE) || '{}').files) || {}; } catch (_) { return {}; }   // første gang: den gamle cache flyttes med, så intet hentes igen
+}
+async function writeTplCache(files) {
+  try { await idb.set(TPL_CACHE, { files }); try { localStorage.removeItem(TPL_CACHE); } catch (_) { } return; } catch (_) { }
+  try { localStorage.setItem(TPL_CACHE, JSON.stringify({ files })); } catch (_) { }
+}
 // kunder og navn hentes med det samme, samtidig med templates (ClickUp er et par sekunder om at svare)
 const EARLY = IN_GAS ? { customers: gas('customers').catch(() => null), me: gas('me').catch(() => null) } : {};
 const CUST_CACHE = 'udkast-kunder-v1';
 async function loadTemplates(msg) {
-  let cache = {}; try { cache = (JSON.parse(localStorage.getItem(TPL_CACHE) || '{}').files) || {}; } catch (_) { }
   if (!IN_GAS) {   // lokal test: .claude/dev-templates.json (ligger ikke i repoet)
     try { const r = await fetch('.claude/dev-templates.json', { cache: 'no-store' }); if (r.ok) return { files: await r.json(), source: 'dev' }; } catch (_) { }
     return { files: [], source: 'none' };
   }
+  const cache = await readTplCache();
   try {
     msg('Loader templates\nTjekker for nye templates…'); const idx = await gas('templateIndex');
     const need = idx.filter(f => !cache[f.id] || cache[f.id].modified !== f.modified).map(f => f.id); 
@@ -36,7 +48,7 @@ async function loadTemplates(msg) {
     const run = async () => { for (let ids; (ids = packs.shift());) { for (const g of await gas('templateFiles', ids)) cache[g.id] = g; got += ids.length; msg(`Loader templates\n${got}/${need.length}`); } };
     await Promise.all([run(), run(), run(), run()]);
     const ids = new Set(idx.map(f => f.id)); for (const id of Object.keys(cache)) if (!ids.has(id)) delete cache[id];
-    try { localStorage.setItem(TPL_CACHE, JSON.stringify({ files: Object.fromEntries(Object.entries(cache).filter(([, g]) => g.text)) })); } catch (_) { }   // en fil, der ikke kunne læses (tom), hentes igen næste gang
+    await writeTplCache(Object.fromEntries(Object.entries(cache).filter(([, g]) => g.text)));   // en fil, der ikke kunne læses (tom), hentes igen næste gang
     return { files: Object.values(cache), source: 'drive', changed: need.length };
   } catch (e) {   // Drive/Apps Script svarer ikke: brug den sidst hentede udgave
     const files = Object.values(cache); if (!files.length) throw e;
@@ -392,7 +404,7 @@ async function loadTemplates(msg) {
     const old = (cur().sections[index - 1] || {}).tpl;
     pushHist(); const out = E.applyOps(cur(), [{ op: 'swap', index, tpl, manual: true }], LIB, tlf(), CLASSES); if (!out.added.length) { hist.pop(); showError('Sektionen kunne ikke skiftes.', 'E30', tpl); } else { stat('skiftet', old); stat(how || 'vist', tpl); } render();
   }
-  let delArm = null, delT = null; const varSeen = new Map();   // Ny variant: hvilke templates man har set pr. gruppe (nulstilles ved nyt udkast)
+  const varSeen = new Map();   // Ny variant: hvilke templates man har set pr. gruppe (nulstilles ved nyt udkast)
   $('list').addEventListener('click', ev => {
     const b = ev.target.closest('button[data-a]');
     if (!b) { const li = ev.target.closest('li[data-uid]'); if (li) { if (selUid === li.dataset.uid) { selUid = null; render(); return; } selUid = li.dataset.uid; render(); if (!pvFrame.hidden) { if (pvFrame.contentWindow) pvFrame.contentWindow.postMessage({ udkast: pvLive ? 'go' : 'where', uid: li.dataset.uid }, '*'); } else { const el = root.querySelector(`[data-sec="${li.dataset.uid}"]`); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' }); } } return; }
@@ -401,10 +413,8 @@ async function loadTemplates(msg) {
     pendingAnim = { i, a };
     if (a === 'dup') { const c = JSON.parse(JSON.stringify(s)); c.uid = 's' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5); pushHist(); p.sections.splice(i, 0, c); selUid = c.uid; render(); return; }   // dublet lige under originalen
     if (a === 'variant') { const used = p.sections.map(x => x.tpl); const hf = (state.brief || {}).heroForm, isHero = E.categoryOf(s.tpl) === 'Header', grp = pkCatOf(s.tpl);
-      // tilfældig variant: samme gruppe (Kontaktformular forbliver med formular, CTA uden), og heroen bliver med/uden kontaktformular, som valgt
-      const hasSlider = p.sections.some(x => E.categoryOf(x.tpl) === 'Logo slider');
-      const lastIdx = i === p.sections.filter(x => E.categoryOf(x.tpl) !== 'Footer').length;   // står sektionen nederst? Kun dér vælger Ny variant #7/#8 (man må selv flytte dem)
-      const ok = k => !(E.isBottomOnly(k) && !lastIdx) && pkCatOf(k) === grp && !(isHero && typeof hf === 'boolean' && E.hasForm(LIB, k) !== hf) && !(isHero && hasSlider && E.heroLogos(LIB, k));   // med en Logo slider: kun heroes uden egne logoer
+      // tilfældig variant: samme gruppe (Kontaktformular forbliver med formular, CTA uden), og heroen bliver med/uden kontaktformular, som valgt. Ellers frit: reglerne gælder kun, når værktøjet laver udkastet
+      const ok = k => pkCatOf(k) === grp && !(isHero && typeof hf === 'boolean' && E.hasForm(LIB, k) !== hf);
       // "pose": tilfældig rækkefølge, men samme template kommer først igen, når man har set alle de andre i gruppen
       const seen = varSeen.get(grp) || new Set(); varSeen.set(grp, seen); seen.add(s.tpl);
       const all = E.variantsOf(LIB, E.categoryOf(s.tpl)).filter(k => k !== s.tpl && ok(k)), pick = l => l[Math.floor(Math.random() * l.length)];
@@ -413,9 +423,8 @@ async function loadTemplates(msg) {
       const nx = pool.length ? pick(pool) : null; if (nx) seen.add(nx);
       if (nx && nx !== s.tpl) swapTo(i, nx); else setStatus('Der er ingen andre ledige varianter af denne sektion.', 'warn'); return; }
     if (a === 'pick') { openPicker({ mode: 'swap', index: i, cat: pkCatOf(s.tpl) }); return; }
-    if (a === 'del') {   // første klik: "Er du sikker?", andet klik fjerner
-      if (delArm !== s.uid) { delArm = s.uid; clearTimeout(delT); delT = setTimeout(() => { delArm = null; render(); }, 3500); render(); return; }
-      delArm = null; clearTimeout(delT); pushHist(); E.applyOps(p, [{ op: 'remove', index: i }], LIB, tlf(), CLASSES); stat('slettet', s.tpl); render(); return; }
+    if (a === 'del') {   // ét klik fjerner (Fortryd giver den tilbage)
+      pushHist(); E.applyOps(p, [{ op: 'remove', index: i }], LIB, tlf(), CLASSES); stat('slettet', s.tpl); setStatus('Sektionen er fjernet. Fortryd med ⌘Z / Ctrl+Z.', 'ok'); render(); return; }
   });
   let dragFrom = null;
   $('list').addEventListener('dragstart', ev => { const li = ev.target.closest('li[data-i]'); if (!li) return; dragFrom = +li.dataset.i; li.classList.add('drag'); ev.dataTransfer.effectAllowed = 'move'; try { ev.dataTransfer.setData('text/plain', String(dragFrom)); } catch (_) { } });
@@ -540,7 +549,7 @@ async function loadTemplates(msg) {
     $('valList').innerHTML = val.map(v => `<li data-p="${v.pass}"><span>${v.pass ? '✓' : '✗'}</span> ${E.esc(v.name)}${v.pass ? '' : ' – ' + E.esc(v.detail)}</li>`).join('') + (pageLike ? `<li data-p="${!h1bad}"><span>${h1bad ? '⚠' : '✓'}</span> Præcis én H1 (SEO)${h1bad ? ' – ' + E.esc(h1msg) : ''}</li>` : '');
     const prevUids = lastUids; lastUids = new Set(p.sections.map(s => s.uid));
     $('list').innerHTML = p.sections.map((s, i) => `<li draggable="true" data-i="${i + 1}" data-uid="${s.uid}" class="${s.uid === selUid ? 'sel ' : ''}${s.part > 1 ? 'cont ' : ''}${prevUids.has(s.uid) ? '' : 'new'}"><span class="grip" aria-hidden="true">⠿</span><span class="n">${i + 1}</span><div class="t"><b>${(t => { const m = t.match(/^(.*?)\s*(#\s*\d+.*)$/); return m ? `${E.esc(m[1])} <span class="num">${E.esc(m[2])}</span>` : E.esc(t); })(E.secTitle(s))}${s.parts > 1 ? ` <em class="part" title="${E.esc(E.displayName(s.tpl))} består af ${s.parts} sektioner i Bricks. De kan flyttes eller fjernes hver for sig.">sektion ${s.part} af ${s.parts}</em>` : ''}</b>${/^Erstatning/.test(s.why || '') ? `<small class="secwarn" title="${E.esc(s.why.replace(/^Erstatning: /, ''))}">⚠ Erstatning – der manglede en ledig template til tekstafsnittet</small>` : ''}</div><div class="ac">
-      <button class="lbl" data-a="variant" data-i="${i + 1}" data-lock aria-label="Prøv en anden variant" title="${s.part > 1 ? 'Prøv næste variant af hele ' + E.esc(E.displayName(s.tpl)) : 'Prøv næste variant (fx en anden hero)'}"><svg viewBox="0 0 24 24"><path d="M20 11a8 8 0 0 0-14.3-4.6L4 8.5M4 4v4.5h4.5M4 13a8 8 0 0 0 14.3 4.6L20 15.5M20 20v-4.5h-4.5"/></svg>Ny variant</button><button class="lbl" data-a="pick" data-i="${i + 1}" data-lock aria-label="Vælg variant" title="${s.part > 1 ? 'Vælg en anden variant af hele ' + E.esc(E.displayName(s.tpl)) : 'Vælg variant med billeder'}"><svg viewBox="0 0 24 24"><rect x="4" y="4" width="7" height="7" rx="1.8"/><rect x="13" y="4" width="7" height="7" rx="1.8"/><rect x="4" y="13" width="7" height="7" rx="1.8"/><rect x="13" y="13" width="7" height="7" rx="1.8"/></svg>Vælg selv</button><button class="lbl" data-a="dup" data-i="${i + 1}" data-lock aria-label="Duplikér sektionen" title="Indsæt en kopi af sektionen lige under"><svg viewBox="0 0 24 24"><rect x="8.5" y="8.5" width="11" height="11" rx="2.2"/><path d="M15.5 8.5V6.7a2.2 2.2 0 0 0-2.2-2.2H6.7a2.2 2.2 0 0 0-2.2 2.2v6.6a2.2 2.2 0 0 0 2.2 2.2h1.8M14 11.5v5M11.5 14h5"/></svg>Duplikér</button><button data-a="del" data-i="${i + 1}" data-lock aria-label="Fjern" title="Fjern sektion"${delArm === s.uid ? ' class="arm"' : ''}>${delArm === s.uid ? '<span class="blbl">Er du sikker?</span>' : ''}<svg viewBox="0 0 24 24"><path d="M4.5 7h15M9.5 7V4.5h5V7M6.5 7l.8 12.2a1.5 1.5 0 0 0 1.5 1.3h6.4a1.5 1.5 0 0 0 1.5-1.3L17.5 7M10 11v6M14 11v6"/></svg></button></div></li>`).join('');
+      <button class="lbl" data-a="variant" data-i="${i + 1}" data-lock aria-label="Prøv en anden variant" title="${s.part > 1 ? 'Prøv næste variant af hele ' + E.esc(E.displayName(s.tpl)) : 'Prøv næste variant (fx en anden hero)'}"><svg viewBox="0 0 24 24"><path d="M20 11a8 8 0 0 0-14.3-4.6L4 8.5M4 4v4.5h4.5M4 13a8 8 0 0 0 14.3 4.6L20 15.5M20 20v-4.5h-4.5"/></svg>Ny variant</button><button class="lbl" data-a="pick" data-i="${i + 1}" data-lock aria-label="Vælg variant" title="${s.part > 1 ? 'Vælg en anden variant af hele ' + E.esc(E.displayName(s.tpl)) : 'Vælg variant med billeder'}"><svg viewBox="0 0 24 24"><rect x="4" y="4" width="7" height="7" rx="1.8"/><rect x="13" y="4" width="7" height="7" rx="1.8"/><rect x="4" y="13" width="7" height="7" rx="1.8"/><rect x="13" y="13" width="7" height="7" rx="1.8"/></svg>Vælg selv</button><button class="lbl" data-a="dup" data-i="${i + 1}" data-lock aria-label="Duplikér sektionen" title="Indsæt en kopi af sektionen lige under"><svg viewBox="0 0 24 24"><rect x="8.5" y="8.5" width="11" height="11" rx="2.2"/><path d="M15.5 8.5V6.7a2.2 2.2 0 0 0-2.2-2.2H6.7a2.2 2.2 0 0 0-2.2 2.2v6.6a2.2 2.2 0 0 0 2.2 2.2h1.8M14 11.5v5M11.5 14h5"/></svg>Duplikér</button><button data-a="del" data-i="${i + 1}" data-lock aria-label="Fjern" title="Fjern sektion"><svg viewBox="0 0 24 24"><path d="M4.5 7h15M9.5 7V4.5h5V7M6.5 7l.8 12.2a1.5 1.5 0 0 0 1.5 1.3h6.4a1.5 1.5 0 0 0 1.5-1.3L17.5 7M10 11v6M14 11v6"/></svg></button></div></li>`).join('');
     if (pendingAnim) { const pa = pendingAnim; pendingAnim = null; const li = $('list').querySelector(`li[data-i="${pa.i}"]`); if (li) { if (pa.a === 'up' || pa.a === 'down') li.classList.add('moved');  } }
     $('planNote').textContent = ''; $('planNote').hidden = true;
     if (BRICKS_OK) showFrame(p); else { useFrame(false);
