@@ -33,8 +33,8 @@ function removeSubtree(els, id) {
 }
 
 /* ---------- kategorier / varianter (navne som i skabelon-arket) + meta fra arket ---------- */
-const TYPE_ORDER = ['Header', 'Ydelser', 'Anmeldelser', 'Cases', 'Priser', 'FAQ', 'Content', 'Galleri', 'Medarbejdere', 'Kontakt sektion', 'Underside', 'Marketing'];
-const PREFIX_TYPE = { hero: 'Header', ydelse: 'Ydelser', anmeldelse: 'Anmeldelser', cases: 'Cases', priser: 'Priser', faq: 'FAQ', content: 'Content', kontaktsektion: 'Kontakt sektion', kontakformular: 'Kontaktformular', kontaktformular: 'Kontaktformular', kontakt: 'Kontakt side', knapper: 'Knapper', underside: 'Underside', geo: 'Marketing', viden: 'Marketing', seo: 'Marketing', blog: 'Marketing', galleri: 'Galleri', medarbejdere: 'Medarbejdere', cta: 'Knapper' };   // cta-… er knapper; CTA-sektionerne ligger under Kontakt sektion
+const TYPE_ORDER = ['Header', 'Logo slider', 'Ydelser', 'Produkter', 'USP', 'Anmeldelser', 'Cases', 'Priser', 'FAQ', 'Content', 'Galleri', 'Medarbejdere', 'Kontakt sektion', 'Underside', 'Marketing'];
+const PREFIX_TYPE = { hero: 'Header', ydelse: 'Ydelser', anmeldelse: 'Anmeldelser', cases: 'Cases', priser: 'Priser', faq: 'FAQ', content: 'Content', kontaktsektion: 'Kontakt sektion', kontakformular: 'Kontaktformular', kontaktformular: 'Kontaktformular', kontakt: 'Kontakt side', knapper: 'Knapper', underside: 'Underside', geo: 'Marketing', viden: 'Marketing', seo: 'Marketing', blog: 'Marketing', galleri: 'Galleri', medarbejdere: 'Medarbejdere', usp: 'USP', produkter: 'Produkter', logo: 'Logo slider', cta: 'Knapper' };   // cta-… er knapper; CTA-sektionerne ligger under Kontakt sektion
 const WHOLE_PAGE = new Set(['Underside', 'Marketing', 'Menu', 'Footer']);                   // hele sider: kun hvis der bedes om det
 const SHEET_ALIAS = { underside: 'underside-1', 'seo-blogindlaeg': 'seo-blogindlg', 'menu-10': 'menu-10-mega-menu' };
 let META = {}; let MISSING = []; let CATS = {}, TITLES = {}; let SHEETDATE = {};
@@ -478,6 +478,8 @@ function localPlan(b, LIB, n, existing, SITES) {
       let nc = 0; cats = cats.filter(c => c !== 'Content' || ++nc <= nC);
       while (cats.filter(c => c === 'Content').length < nC) { const k = cats.lastIndexOf('Content'); cats.splice(k < 0 ? Math.min(2, Math.max(1, cats.length - 1)) : Math.min(k + 2, Math.max(k + 1, cats.length - 1)), 0, 'Content'); }
       { const k = cats.indexOf('Content'); if (k > 1) { cats.splice(k, 1); cats.splice(1, 0, 'Content'); } }   // lige efter heroen kommer et tekstafsnit, aldrig fx Ydelser (det må brugeren selv flytte)
+      for (const c of ['USP', 'Produkter']) { const m = cats.indexOf(c); if (m >= 0) { cats.splice(m, 1); const end = cats[cats.length - 1] === 'Kontakt sektion' ? cats.length - 1 : cats.length; cats.splice(2 + Math.floor(Math.random() * (Math.max(2, end) - 1)), 0, c); } }   // USP og Produkter: et tilfældigt sted, men aldrig lige efter heroen
+      { const m = cats.indexOf('Logo slider'); if (m >= 0) { cats.splice(m, 1); cats.splice(1, 0, 'Logo slider'); } }   // Logo slider SKAL ligge lige under heroen (før tekstafsnittet)
       if (cats[cats.length - 1] !== 'Kontakt sektion') cats.push(CTA_TEXT);   // CTA-afsnittet til sidst – medmindre siden slutter med kontaktsektionen med formular, så er den afslutningen
       { const m = cats.indexOf('CTA sektion'); if (m >= 0) { cats.splice(m, 1);   // valgt "CTA sektion": et ekstra CTA-afsnit midt på siden
         const last = cats[cats.length - 1] === CTA_TEXT || cats[cats.length - 1] === 'Kontakt sektion' ? cats.length - 1 : cats.length, pos = Math.min(Math.max(2, Math.floor(cats.length / 2)), last - 1);   // mindst én sektion mellem det og afslutningen
