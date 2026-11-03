@@ -251,7 +251,7 @@ async function loadTemplates(msg) {
       const made = (res.forslag || []).slice(0, n).map((f, i) => ({ id: 'p' + Date.now() + i + 'x', name: f.navn || ('Udkast ' + (state.proposals.length + i + 1)), note: f.note || '', sections: planToSections(f) })).filter(p => p.sections.length);
       if (!made.length) throw new Error('Kunne ikke sætte et udkast sammen af templates.');
       state.proposals = made; state.active = 0;   // ét udkast ad gangen; Fortryd giver det forrige tilbage
-      statDrop(); stat('vist', ['_udkast'].concat(made[0].sections.map(s => s.tpl)));
+      statDrop(); varSeen.clear(); stat('vist', ['_udkast'].concat(made[0].sections.map(s => s.tpl)));
       setStatus((more ? 'Nyt udkast klar.' : 'Udkast klar.') + guessNote, 'ok');
     } catch (e) { hist.pop(); setStatus(''); showError('Udkastet kunne ikke laves. Prøv igen.', 'E10', (e && e.message) || e); }
     await new Promise(r => setTimeout(r, Math.max(0, 450 - (Date.now() - t0))));   // vis cirklen et øjeblik, så man ser, at der sker noget
@@ -388,7 +388,7 @@ async function loadTemplates(msg) {
     const old = (cur().sections[index - 1] || {}).tpl;
     pushHist(); const out = E.applyOps(cur(), [{ op: 'swap', index, tpl, manual: true }], LIB, tlf(), CLASSES); if (!out.added.length) { hist.pop(); showError('Sektionen kunne ikke skiftes.', 'E30', tpl); } else { stat('skiftet', old); stat(how || 'vist', tpl); } render();
   }
-  let delArm = null, delT = null;
+  let delArm = null, delT = null; const varSeen = new Map();   // Ny variant: hvilke templates man har set pr. gruppe (nulstilles ved nyt udkast)
   $('list').addEventListener('click', ev => {
     const b = ev.target.closest('button[data-a]');
     if (!b) { const li = ev.target.closest('li[data-uid]'); if (li) { if (selUid === li.dataset.uid) { selUid = null; render(); return; } selUid = li.dataset.uid; render(); if (!pvFrame.hidden) { if (pvFrame.contentWindow) pvFrame.contentWindow.postMessage({ udkast: 'where', uid: li.dataset.uid }, '*'); } else { const el = root.querySelector(`[data-sec="${li.dataset.uid}"]`); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' }); } } return; }
@@ -398,7 +398,13 @@ async function loadTemplates(msg) {
     if (a === 'dup') { const c = JSON.parse(JSON.stringify(s)); c.uid = 's' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5); pushHist(); p.sections.splice(i, 0, c); selUid = c.uid; render(); return; }   // dublet lige under originalen
     if (a === 'variant') { const used = p.sections.map(x => x.tpl); const hf = (state.brief || {}).heroForm, isHero = E.categoryOf(s.tpl) === 'Header', grp = pkCatOf(s.tpl);
       // tilfældig variant: samme gruppe (Kontaktformular forbliver med formular, CTA uden), og heroen bliver med/uden kontaktformular, som valgt
-      const nx = E.nextVariant(LIB, s.tpl, used, k => pkCatOf(k) === grp && !(isHero && typeof hf === 'boolean' && E.hasForm(LIB, k) !== hf));
+      const ok = k => pkCatOf(k) === grp && !(isHero && typeof hf === 'boolean' && E.hasForm(LIB, k) !== hf);
+      // "pose": tilfældig rækkefølge, men samme template kommer først igen, når man har set alle de andre i gruppen
+      const seen = varSeen.get(grp) || new Set(); varSeen.set(grp, seen); seen.add(s.tpl);
+      const all = E.variantsOf(LIB, E.categoryOf(s.tpl)).filter(k => k !== s.tpl && ok(k)), pick = l => l[Math.floor(Math.random() * l.length)];
+      let pool = all.filter(k => !seen.has(k) && !used.includes(k));
+      if (!pool.length) { seen.clear(); seen.add(s.tpl); pool = all.filter(k => !used.includes(k)); if (!pool.length) pool = all; }   // alle set: start forfra
+      const nx = pool.length ? pick(pool) : null; if (nx) seen.add(nx);
       if (nx && nx !== s.tpl) swapTo(i, nx); return; }
     if (a === 'pick') { openPicker({ mode: 'swap', index: i, cat: pkCatOf(s.tpl) }); return; }
     if (a === 'del') {   // første klik: "Er du sikker?", andet klik fjerner
