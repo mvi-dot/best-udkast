@@ -53,6 +53,8 @@ Lokalt: `python3 build.py`, derefter `python3 -m http.server 8000` og åbn http:
 
 ## Preview
 Når et udkast ændres (Ny variant, Vælg selv, flyt, slet osv.), bygges det nye preview i baggrunden, mens det gamle bliver stående. Imens ligger et overlay med "Opdaterer preview…" over previewet, og listen og knapperne er låst, så man ikke klikker videre midt i det. Når det nye preview er klar, skiftes de (nød-udvej: efter 15 sek.).
+Previewet scroller aldrig selv (det er lige så højt som siden). Derfor svarer det scripts, at brugeren har valgt *reducér bevægelse* (`prefers-reduced-motion: reduce`), så scroll-animationer (fx GSAP ScrollTrigger med pin i Kontaktsektion #7) viser deres færdige udseende i stedet for en lang tom sektion. **Byg derfor scroll-animationer, så de har en udgave uden animation** (som #7 har). Previewets højde måles på indholdet, så den også bliver mindre, når siden bliver kortere.
+
 **Se fullscreen** (ved siden af Start forfra) skjuler venstre side, så previewet får hele bredden. Klik igen (Luk fullscreen) eller tryk Esc for at komme tilbage.
 
 ## Statistik

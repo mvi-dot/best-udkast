@@ -87,7 +87,7 @@ async function loadTemplates(msg) {
     if (pvFrame.hidden || !pvFrame.srcdoc) { useFrame(true); pvFrame.srcdoc = doc; fit(); clearTimeout(pvNextT); pvNextT = setTimeout(() => pvBusy(false), 15000); return; }   // første gang: ingen gammel at vise imens
     // ellers: det gamle preview bliver stående, mens det nye hentes i baggrunden – så skiftes de, når det nye er klar (ingen hvid skærm)
     if (pvNext) pvNext.remove(); clearTimeout(pvNextT);
-    pvNext = pvFrame.cloneNode(false); pvNext.removeAttribute('id'); pvNextH = 0;
+    pvNext = document.createElement('iframe'); pvNext.setAttribute('sandbox', 'allow-scripts'); pvNext.title = pvFrame.title; pvNextH = 0;   // ny ramme – en kopi (cloneNode) af den gamle får 0 i højde indeni i Chrome
     // bag det gamle (ikke skjult – ellers starter Bricks' animationer ikke, og indholdet bliver usynligt)
     pvNext.style.cssText = pvFrame.style.cssText + `;position:absolute;left:0;top:${pvFrame.offsetTop}px;z-index:-1;pointer-events:none`;
     pvFrame.parentNode.appendChild(pvNext); pvNext.srcdoc = doc;

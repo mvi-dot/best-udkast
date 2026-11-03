@@ -1163,6 +1163,11 @@ function bricksDoc(r, opts) {
 ${L.css.map(u => `<link rel="stylesheet" href="${esc(u)}">`).join('\n')}
 <style>${V(o.theme !== undefined ? o.theme : BX.theme || '')}</style><style>${V(r.css)}</style>
 <style>html{overflow:hidden}body{margin:0;overflow:visible!important}[data-sec]{cursor:pointer}${sel}${o.extraCss || ''}</style>
+<script>/* previewet scroller aldrig selv (det er lige så højt som siden), så scroll-animationer (fx GSAP ScrollTrigger med pin) giver en lang tom sektion.
+Derfor svarer previewet scripts, at brugeren har slået animationer fra ("reducér bevægelse") – så viser sektionerne deres færdige udseende */
+(function(){var mm=window.matchMedia&&window.matchMedia.bind(window);if(!mm)return;var re=/prefers-reduced-motion\\s*:\\s*(reduce|no-preference)/i;
+window.matchMedia=function(q){var m=re.exec(String(q));if(!m)return mm(q);var on=m[1].toLowerCase()==='reduce',f=function(){};
+return{matches:on,media:String(q),onchange:null,addListener:f,removeListener:f,addEventListener:f,removeEventListener:f,dispatchEvent:function(){return false}}}})();<\/script>
 </head><body class="wp-singular page wp-theme-bricks wp-child-theme-bricks-child brx-body bricks-is-frontend">
 <main id="brx-content">${V(r.html)}</main>
 <script>window.bricksData=${JSON.stringify(BX.bricksData || {}).replace(/</g, '\\u003c')};
@@ -1171,8 +1176,9 @@ ${L.css.map(u => `<link rel="stylesheet" href="${esc(u)}">`).join('\n')}
 try{Object.defineProperty(window,'localStorage',{value:st,configurable:true});Object.defineProperty(window,'sessionStorage',{value:st,configurable:true})}catch(e){}})();<\/script>
 ${(o.scripts === false ? [] : L.js).map(u => `<script src="${esc(u)}"><\/script>`).join('\n')}
 <script>(function(){var id=${fid},post=function(m){m.id=id;parent.postMessage(m,'*')};
-var send=function(){post({udkast:'h',h:document.documentElement.scrollHeight})};
-new ResizeObserver(send).observe(document.body);addEventListener('load',send);setTimeout(send,400);setTimeout(send,1500);
+/* højden måles på indholdet – scrollHeight kan aldrig blive mindre end rammen selv, så en side der blev kortere, fik en hvid bund */
+var send=function(){var m=document.getElementById('brx-content'),h=m?Math.ceil(m.getBoundingClientRect().bottom+scrollY):0;post({udkast:'h',h:h>0?h:document.documentElement.scrollHeight})};
+var ro=new ResizeObserver(send);ro.observe(document.body);var mc=document.getElementById('brx-content');if(mc)ro.observe(mc);addEventListener('load',send);setTimeout(send,400);setTimeout(send,1500);
 document.addEventListener('click',function(ev){if(ev.target.closest('a,button,input,textarea,select'))ev.preventDefault();var s=ev.target.closest('[data-sec]');if(s)post({udkast:'sel',uid:s.getAttribute('data-sec')})},true);
 document.addEventListener('submit',function(ev){ev.preventDefault()},true);
 addEventListener('message',function(ev){var d=ev.data||{};
