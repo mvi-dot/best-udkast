@@ -122,7 +122,7 @@ async function loadTemplates(msg) {
   const tlf = () => '';                                   // telefonnummer er droppet: templates beholder deres pladsholder
 
   /* ---------- brief ---------- */
-  function readBrief() { return { navn: $('navn').value.trim(), branche: (selCust && selCust.branche) || '', kunde: selCust ? { id: selCust.id, name: selCust.name, website: selCust.website, url: selCust.url } : null, msg: '', want: [...document.querySelectorAll('#wants input:checked')].map(x => x.value), h2: +((document.querySelector('input[name=h2]:checked') || {}).value || 3), heroForm: (v => v === 'form' ? true : v === 'noform' ? false : null)((document.querySelector('input[name=hero]:checked') || {}).value), sidetype: (document.querySelector('input[name=sidetype]:checked') || {}).value || 'Forside', prefix: $('prefix').value.trim().toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/^-+|-+$/g, '') }; }
+  function readBrief() { return { navn: $('navn').value.trim(), branche: (selCust && selCust.branche) || '', kunde: selCust ? { id: selCust.id, name: selCust.name, website: selCust.website, url: selCust.url } : null, msg: '', want: [...document.querySelectorAll('#wants input:checked, #wants2 input:checked')].map(x => x.value), h2: +((document.querySelector('input[name=h2]:checked') || {}).value || 3), heroForm: (v => v === 'form' ? true : v === 'noform' ? false : null)((document.querySelector('input[name=hero]:checked') || {}).value), sidetype: (document.querySelector('input[name=sidetype]:checked') || {}).value || 'Forside', prefix: $('prefix').value.trim().toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/^-+|-+$/g, '') }; }
 
   /* ---------- kunde fra ClickUp (Opstarter: to-do, afventer, i gang, på ugen – med HOS/HOS+/RE/RE+) ----------
      Uden ClickUp (lokalt, eller hvis det fejler) skriver man bare kundens navn. */
@@ -180,8 +180,13 @@ async function loadTemplates(msg) {
     'USP': 'Kundens styrker (USP’er). Placeres et tilfældigt sted, aldrig lige under heroen.',
     'Logo slider': 'Logoer der glider forbi. Ligger altid lige under heroen.'
   };   // tooltip på Ønsker
+  const WANT_LABEL = { 'CTA sektion': 'CTA', 'Kontakt sektion': 'Kontaktformular' };   // kun visningsnavne – værdierne er de samme
+  const WANT_EXTRA = ['Produkter'];   // står under "Ønsker udover standard"
   const WANT_FIRST = ['Ydelser', 'Anmeldelser', 'Galleri', 'Kontakt sektion', 'CTA sektion'], wantRank = c => { const k = WANT_FIRST.indexOf(c); return k < 0 ? 99 : k; };   // visningsrækkefølge på forsiden, resten bagefter
-  $('wants').innerHTML = [...E.catList(LIB).filter(c => c !== 'Header' && c !== 'Content'), ...(Object.keys(LIB).some(E.isCtaText) ? ['CTA sektion'] : [])].map((c, k) => [c, k]).sort((a, b) => wantRank(a[0]) - wantRank(b[0]) || a[1] - b[1]).map(([c]) => c).map(c => `<label${WANT_TIP[c] ? ` data-tip="${E.esc(WANT_TIP[c])}"` : ''}><input type="checkbox" value="${E.esc(c)}"> ${E.esc(c)}</label>`).join('');   // CTA sektion: kontaktsektioner uden formular
+  const wantCats = [...E.catList(LIB).filter(c => c !== 'Header' && c !== 'Content'), ...(Object.keys(LIB).some(E.isCtaText) ? ['CTA sektion'] : [])].map((c, k) => [c, k]).sort((a, b) => wantRank(a[0]) - wantRank(b[0]) || a[1] - b[1]).map(([c]) => c);
+  const wantHtml = c => `<label${WANT_TIP[c] ? ` data-tip="${E.esc(WANT_TIP[c])}"` : ''}><input type="checkbox" value="${E.esc(c)}"> ${E.esc(WANT_LABEL[c] || c)}</label>`;
+  $('wants').innerHTML = wantCats.filter(c => !WANT_EXTRA.includes(c)).map(wantHtml).join('');
+  $('wants2').innerHTML = wantCats.filter(c => WANT_EXTRA.includes(c)).map(wantHtml).join(''); $('extraBox').hidden = !$('wants2').innerHTML;   // "Ønsker udover standard"
   { const tip = document.createElement('div'); tip.id = 'tip'; tip.hidden = true; document.body.appendChild(tip);   // én fælles tooltip, så den ikke klippes af felterne
     document.addEventListener('mouseover', e => { const el = e.target.closest('[data-tip]'); if (!el) { tip.hidden = true; return; } tip.textContent = el.dataset.tip; tip.hidden = false; const r = el.getBoundingClientRect(), w = tip.offsetWidth, h = tip.offsetHeight; tip.style.left = Math.max(8, Math.min(innerWidth - w - 8, r.left + r.width / 2 - w / 2)) + 'px'; tip.style.top = (r.top - h - 8 < 8 ? r.bottom + 8 : r.top - h - 8) + 'px'; });
     document.addEventListener('scroll', () => { tip.hidden = true; }, true); }
@@ -283,13 +288,13 @@ async function loadTemplates(msg) {
   let resetT = null;
   function doReset() {
     statDrop(); state = { brief: {}, proposals: [], active: 0, guess: null }; hist = []; selUid = null; exp = null; lastHas = false; prefixTouched = false;
-    selCust = null; renderCustInfo(); for (const id of ['navn', 'prefix']) $(id).value = ''; for (const x of document.querySelectorAll('#wants input')) x.checked = false; for (const [n, v] of [['h2', '3'], ['hero', 'form']]) { const d = document.querySelector(`input[name=${n}][value="${v}"]`); if (d) d.checked = true; } $('heroBox').classList.remove('need'); $('count').value = '1'; if ($('branche')) $('branche').value = ''; syncCount(); const f = document.querySelector('input[name=sidetype][value=Forside]'); if (f) f.checked = true;
+    selCust = null; renderCustInfo(); for (const id of ['navn', 'prefix']) $(id).value = ''; for (const x of document.querySelectorAll('#wants input, #wants2 input')) x.checked = false; for (const [n, v] of [['h2', '3'], ['hero', 'form']]) { const d = document.querySelector(`input[name=${n}][value="${v}"]`); if (d) d.checked = true; } $('heroBox').classList.remove('need'); $('count').value = '1'; if ($('branche')) $('branche').value = ''; syncCount(); const f = document.querySelector('input[name=sidetype][value=Forside]'); if (f) f.checked = true;
     $('briefCard').open = true;
     syncPrefix(); $('prefix').hidden = true; setStatus('Startet forfra.', 'ok'); window.scrollTo({ top: 0 }); render();
   }
   const resetLbl = t => { $('resetBtn').querySelector('.blbl').textContent = t; };
   $('resetBtn').onclick = () => {
-    const dirty = state.proposals.length || $('navn').value || document.querySelector('#wants input:checked');
+    const dirty = state.proposals.length || $('navn').value || document.querySelector('#wants input:checked, #wants2 input:checked');
     if (!dirty) { doReset(); return; }
     if (resetT) { clearTimeout(resetT); resetT = null; resetLbl('Start forfra'); $('resetBtn').classList.remove('warn'); doReset(); return; }
     resetLbl('Er du sikker?'); $('resetBtn').classList.add('warn');

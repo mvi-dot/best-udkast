@@ -49,7 +49,7 @@ function setMeta(LIB, rows) {
   return { matched: Object.keys(META).length, missing: MISSING };
 }
 const prefixOf = k => k.split('-')[0];
-function categoryOf(key) { if (CATS[key]) return CATS[key]; if (META[key]) return META[key].type; const p = prefixOf(key); return PREFIX_TYPE[p] || (p.charAt(0).toUpperCase() + p.slice(1)); }
+function categoryOf(key) { const c = CATS[key] || (META[key] && META[key].type) || PREFIX_TYPE[prefixOf(key)] || (prefixOf(key).charAt(0).toUpperCase() + prefixOf(key).slice(1)); return /^usp$/i.test(c) ? 'USP' : c; }   // USP skrives altid med store bogstaver
 function displayName(key) { if (META[key]) return META[key].name; if (TITLES[key] && !/^[a-z]+-\d+$/.test(key)) return TITLES[key]; const m = key.match(/^([a-zæøå]+)-(\d+)/i); return m ? m[1].charAt(0).toUpperCase() + m[1].slice(1) + ' #' + m[2] : key; }
 let DESCS = {};
 const describeKey = key => (META[key] && META[key].desc) || DESCS[key] || '';
