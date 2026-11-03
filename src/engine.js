@@ -1180,6 +1180,7 @@ var ro=new ResizeObserver(send);ro.observe(document.body);var mc=document.getEle
 document.addEventListener('click',function(ev){if(ev.target.closest('a,button,input,textarea,select'))ev.preventDefault();var s=ev.target.closest('[data-sec]');if(s)post({udkast:'sel',uid:s.getAttribute('data-sec')})},true);
 document.addEventListener('submit',function(ev){ev.preventDefault()},true);
 addEventListener('message',function(ev){var d=ev.data||{};
+if(d.udkast==='go'){var g=document.querySelector('[data-sec="'+d.uid+'"]');if(g)scrollTo({top:g.getBoundingClientRect().top+scrollY,behavior:'smooth'})}
 if(d.udkast==='where'){var s=document.querySelector('[data-sec="'+d.uid+'"]');if(s)post({udkast:'top',uid:d.uid,top:s.getBoundingClientRect().top+scrollY})}
 if(d.udkast==='sel'){[].forEach.call(document.querySelectorAll('.udk-sel'),function(x){x.classList.remove('udk-sel')});if(d.uid){var t=document.querySelector('[data-sec="'+d.uid+'"]');if(t)t.classList.add('udk-sel')}}});
 addEventListener('load',function(){post({udkast:'ready'})});})();<\/script>

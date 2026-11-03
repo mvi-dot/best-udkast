@@ -79,10 +79,10 @@ async function loadTemplates(msg) {
   let pvFrame = $('pvFrame'), pvNext = null, pvNextH = 0, pvNextT = null; let pvDoc = '', pvH = 600;
   const useFrame = on => { $('pvHost').hidden = on; pvFrame.hidden = !on; };
   const selFrame = () => { if (pvFrame.contentWindow) pvFrame.contentWindow.postMessage({ udkast: 'sel', uid: selUid || '' }, '*'); };
-  // fullscreen = som et rigtigt browservindue: previewet har skærmens højde og scrolles indeni, så scroll-animationer (fx GSAP) virker.
-  // Ellers er previewet lige så højt som siden og vises statisk (scripts får "reducér bevægelse")
+  // previewet er et rigtigt browservindue, man scroller indeni, så vh-enheder og scroll-animationer (fx GSAP) virker som på sitet.
+  // Delt visning: enhedens rigtige proportioner (fx 1600 × 900). Fullscreen: så højt, som der er plads til
   function liveVp() {
-    if (!document.body.classList.contains('pvfull')) return 0;
+    if (!document.body.classList.contains('pvfull')) return DEVICE_H[device];
     const sc = Math.min(1, ($('canvas').clientWidth || 900) / DEVICES[device]), ch = $('pvOuter').querySelector('.chrome');
     const top = $('pvOuter').getBoundingClientRect().top + scrollY;
     return Math.max(400, Math.round((innerHeight - top - (ch ? ch.offsetHeight : 0) - 16) / sc));
@@ -391,7 +391,7 @@ async function loadTemplates(msg) {
   let delArm = null, delT = null; const varSeen = new Map();   // Ny variant: hvilke templates man har set pr. gruppe (nulstilles ved nyt udkast)
   $('list').addEventListener('click', ev => {
     const b = ev.target.closest('button[data-a]');
-    if (!b) { const li = ev.target.closest('li[data-uid]'); if (li) { if (selUid === li.dataset.uid) { selUid = null; render(); return; } selUid = li.dataset.uid; render(); if (!pvFrame.hidden) { if (pvFrame.contentWindow) pvFrame.contentWindow.postMessage({ udkast: 'where', uid: li.dataset.uid }, '*'); } else { const el = root.querySelector(`[data-sec="${li.dataset.uid}"]`); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' }); } } return; }
+    if (!b) { const li = ev.target.closest('li[data-uid]'); if (li) { if (selUid === li.dataset.uid) { selUid = null; render(); return; } selUid = li.dataset.uid; render(); if (!pvFrame.hidden) { if (pvFrame.contentWindow) pvFrame.contentWindow.postMessage({ udkast: pvLive ? 'go' : 'where', uid: li.dataset.uid }, '*'); } else { const el = root.querySelector(`[data-sec="${li.dataset.uid}"]`); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' }); } } return; }
     let i = +b.dataset.i; const a = b.dataset.a, p = cur(); let s = p.sections[i - 1];
     if ((a === 'variant' || a === 'pick') && s.part > 1) { let j = i - 1; while (j > 0 && !(p.sections[j - 1].tpl === s.tpl && p.sections[j - 1].part === 1)) j--; if (j > 0) { i = j; s = p.sections[j - 1]; } }   // del 2 af en template: skift hele templaten
     pendingAnim = { i, a };

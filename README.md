@@ -54,9 +54,9 @@ Lokalt: `python3 build.py`, derefter `python3 -m http.server 8000` og åbn http:
 
 ## Preview
 Når et udkast ændres (Ny variant, Vælg selv, flyt, slet osv.), bygges det nye preview i baggrunden, mens det gamle bliver stående. Imens ligger et overlay med "Opdaterer preview…" over previewet, og listen og knapperne er låst, så man ikke klikker videre midt i det. Når det nye preview er klar, skiftes de (nød-udvej: efter 15 sek.).
-I den delte visning scroller previewet aldrig selv (det er lige så højt som siden). Derfor svarer det scripts, at brugeren har valgt *reducér bevægelse* (`prefers-reduced-motion: reduce`), så scroll-animationer (fx GSAP ScrollTrigger med pin i Kontaktsektion #7) viser deres færdige udseende i stedet for en lang tom sektion. **Byg derfor scroll-animationer, så de har en udgave uden animation** (som #7 har). Previewets højde måles på indholdet, så den også bliver mindre, når siden bliver kortere.
+Previewet er et rigtigt browservindue, man scroller indeni: i den delte visning med enhedens proportioner (fx 1600 × 900 for desktop, skaleret ned), i fullscreen så højt, som der er plads til. Derfor virker vh-enheder og scroll-animationer (fx GSAP ScrollTrigger med pin i Kontaktsektion #7) som på sitet. Klik på en sektion i listen scroller previewet hen til den. Tomme flader under siden undgås, fordi højden ikke længere følger indholdet.
 
-**Se fullscreen** (ved siden af Start forfra) skjuler venstre side, så previewet får hele bredden, og previewet opfører sig som et rigtigt browservindue: det har skærmens højde (også for vh-enheder), man scroller inde i det, og scroll-animationer kører som på sitet. Klik igen (Luk fullscreen) eller tryk Esc for at komme tilbage.
+**Se fullscreen** (ved siden af Start forfra) skjuler venstre side, så previewet får hele bredden, og vinduet bliver så stort, som der er plads til. Klik igen (Luk fullscreen) eller tryk Esc for at komme tilbage.
 
 ## Statistik
 Under formularen på forsiden står et lille link **Statistik**. Det ses kun af rmu@ og mvi@best-one.dk, og Apps Scriptet tjekker også selv e-mailen (`CFG.STATS_ADMINS`).
