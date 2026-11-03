@@ -567,8 +567,6 @@ body.home #briefCard #h2Box{margin-bottom:0}
 #devices button,#copyBtn,#resetBtn,#fullBtn{display:inline-flex;align-items:center;gap:6px}
 svg.ic{width:16px;height:16px;flex:none;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
 #list .t small.secwarn{display:block;margin-top:4px;color:#e8b866!important;font-size:12px;opacity:1}
-#tabs .tab.name{cursor:default}
-#tabs .tab.name,html[data-theme=dark] #tabs .tab.name{background:transparent!important;border-color:var(--line)!important;color:var(--ink)!important;box-shadow:none!important;font-weight:600}   /* kun en etiket – ikke CTA-blå, den kan ikke klikkes */
 #tabs #moreBtn{display:inline-flex;align-items:center;gap:6px;max-width:none;overflow:visible;white-space:nowrap;text-overflow:clip;flex:none}
 #tabs{flex-wrap:wrap;overflow:visible}
 /* sektionslisten */
@@ -613,7 +611,7 @@ svg.ic{width:16px;height:16px;flex:none;fill:none;stroke:currentColor;stroke-wid
 html[data-theme=dark] .composer #navn.need{border-color:#e8b866!important}
 #pvOuter{position:relative}#pvBusy{display:none}#pvOuter.pvload #pvBusy{display:flex;position:absolute;inset:0;z-index:5;justify-content:center;align-items:flex-start;padding-top:90px;background:rgba(15,20,26,.45);backdrop-filter:blur(1.5px);animation:ovIn .15s both}
 #pvBusy .pvpill{position:sticky;top:120px;display:flex;align-items:center;gap:10px;padding:10px 16px;border-radius:999px;background:#0b0f13;color:#eef2f6;font-size:13px;box-shadow:0 8px 28px rgba(0,0,0,.35)}#pvBusy .pvspin{width:16px;height:16px;border:2px solid rgba(255,255,255,.25);border-top-color:#fff;border-radius:50%;animation:sp .8s linear infinite}
-body.pvbusy #listCard,body.pvbusy #tabrow{pointer-events:none;opacity:.55;transition:opacity .15s}
+body.pvbusy #listCard,body.pvbusy #tabrow,body.genbusy #listCard{pointer-events:none;opacity:.55;transition:opacity .15s}
 #tip{position:fixed;z-index:60;max-width:260px;padding:7px 10px;border-radius:7px;background:#0b0f13;color:#eef2f6;border:1px solid #3a4652;font-size:12.5px;line-height:1.4;pointer-events:none;box-shadow:0 6px 20px rgba(0,0,0,.35)}
 /* statistik */
 #statLink{margin-top:6px;text-align:center}#statLink .linkbtn{font-size:12px;opacity:.7;display:inline-flex;align-items:center;gap:5px}#statLink .linkbtn:hover{opacity:1}#statLink svg.ic{width:14px;height:14px}

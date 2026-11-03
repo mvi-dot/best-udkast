@@ -33,10 +33,12 @@ Alle templates må gerne ligge i Drive-mappen. Reglerne ligger i værktøjet (`s
 - I **+ Tilføj sektion**, **Vælg selv** og statistikken bruges de samme navne som på forsiden: typen Kontakt sektion vises som **Kontaktformular** (med formular) og **CTA** (uden formular).
 - "CTA" under Ønsker til design (internt "CTA sektion") giver et ekstra CTA-afsnit midt på siden (ud over det afsluttende).
 - Heroens **H1 er kundens navn**, både i preview og i JSON'en. "Prøv næste variant" på heroen holder sig til med/uden kontaktformular.
-- Er der ikke flere ledige templates til et tekstafsnit, bruges den bedste anden template med tekst som erstatning, og det står i "Tjek følgende igennem efter paste". Et tekstafsnit mangler aldrig.
+- Er der ikke flere ledige templates til et tekstafsnit, bruges den bedste anden template med tekst som erstatning, og det står i "Tjek følgende igennem efter paste". Et tekstafsnit mangler aldrig. Erstatningen er aldrig en hero, anmeldelse, Logo slider, USP, Produkter eller en sektion med formular.
 - **Bruges aldrig:** Menu, Footer, Marketing, Underside, Knapper (tidl. CTA), Kontakt side og Kontaktformular (`EXCLUDED_CATS`, `EXCLUDED_RE`).
 - Samme template bruges aldrig to gange i ét udkast.
-- "CTA": der står altid mindst én sektion mellem de to CTA-afsnit. Er siden for kort, springes det ekstra over.
+- "CTA": det ekstra CTA-afsnit kommer altid efter det første tekstafsnit, og der står mindst én sektion mellem de to CTA-afsnit. Er siden for kort, springes det ekstra over.
+- Findes der ingen kontaktsektion med formular, slutter siden med CTA-afsnittet i stedet. Findes der ingen hero med/uden formular som valgt, bruges en af den anden slags, og den får "⚠ Erstatning".
+- Der er ingen grænse på 12 sektioner længere: alle valgte ønsker + tekstafsnit + afslutning kommer med (loft 30).
 - Man skal vælge en kunde fra ClickUp-listen for at lave et udkast.
 - Erstatninger får "⚠ Erstatning" i listen.
 - Tomme sektioner i en template (bruges til interne noter) kommer aldrig med i udkastet.

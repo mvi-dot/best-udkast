@@ -115,13 +115,16 @@ function templateFiles(ids) {
   const hit = cache.getAll(want.map(key)); const out = []; const miss = [];
   for (const id of want) { const t = hit[key(id)]; if (t != null) out.push({ id, name: byId[id].name, modified: byId[id].modified, text: t }); else miss.push(id); }
   if (miss.length) {
+    const viaDriveApp = id => { try { return DriveApp.getFileById(id).getBlob().getDataAsString('UTF-8'); } catch (e) { return null; } };   // én fil, der ikke kan læses, vælter ikke de andre
     let texts; try {
       const res = UrlFetchApp.fetchAll(miss.map(id => ({ url: DRIVE_API + '/' + id + '?alt=media&supportsAllDrives=true', headers: authHeader_(), muteHttpExceptions: true })));
-      texts = res.map((r, i) => r.getResponseCode() === 200 ? r.getContentText('UTF-8') : DriveApp.getFileById(miss[i]).getBlob().getDataAsString('UTF-8'));
-    } catch (e) { texts = miss.map(id => DriveApp.getFileById(id).getBlob().getDataAsString('UTF-8')); }
-    const put = {};
-    miss.forEach((id, i) => { out.push({ id, name: byId[id].name, modified: byId[id].modified, text: texts[i] }); if (texts[i].length < 95000) put[key(id)] = texts[i]; });
-    try { cache.putAll(put, FILE_TTL); } catch (e) { }
+      texts = res.map((r, i) => r.getResponseCode() === 200 ? r.getContentText('UTF-8') : viaDriveApp(miss[i]));
+    } catch (e) { texts = miss.map(viaDriveApp); }
+    miss.forEach((id, i) => {
+      if (texts[i] == null) { out.push({ id, name: byId[id].name, modified: byId[id].modified, text: '' }); return; }   // tom tekst: værktøjet viser den som "kunne ikke læses"
+      out.push({ id, name: byId[id].name, modified: byId[id].modified, text: texts[i] });
+      if (Utilities.newBlob(texts[i]).getBytes().length < 95000) { try { cache.put(key(id), texts[i], FILE_TTL); } catch (e) { } }   // grænsen er 100 KB i bytes (æøå fylder 2)
+    });
   }
   return out;
 }

@@ -476,6 +476,7 @@ function localPlan(b, LIB, n, existing, SITES) {
     { let sawRev = false; cats = cats.filter(c => c !== 'Anmeldelser' || (!sawRev && (sawRev = true))); }          // kun 1 anmeldelses-sektion pr. udkast
     if (type !== 'Hero' && type !== 'Menu') {   // basisregel: tekstafsnit (H2) = antal H2 med tekst = (antal − 1) Content med brødtekst + 1 afsluttende CTA-afsnit (eller kontaktsektion). Standard 3 → 2 Content
       const nH2 = Math.max(2, Math.min(5, parseInt(b && b.h2, 10) || 3));
+      if (cats[cats.length - 1] === 'Kontakt sektion' && !(want.includes('Kontakt sektion') ? keysAll : keys).some(k => categoryOf(k) === 'Kontakt sektion' && hasForm(LIB, k))) cats.pop();   // ingen kontaktsektion med formular i biblioteket: siden slutter med CTA-afsnittet i stedet (ellers manglede afslutningen)
       // slutter siden med kontaktsektionen med formular, er den afslutningen i stedet for CTA-afsnittet. Den tæller aldrig som tekstafsnit (selv om den har en H2), så der kommer ét Content mere
       const nC = cats[cats.length - 1] === 'Kontakt sektion' ? nH2 : nH2 - 1;
       let nc = 0; cats = cats.filter(c => c !== 'Content' || ++nc <= nC);
@@ -485,20 +486,20 @@ function localPlan(b, LIB, n, existing, SITES) {
       { const m = cats.indexOf('Logo slider'); if (m >= 0) { cats.splice(m, 1); cats.splice(1, 0, 'Logo slider'); } }   // Logo slider SKAL ligge lige under heroen (før tekstafsnittet)
       if (cats[cats.length - 1] !== 'Kontakt sektion') cats.push(CTA_TEXT);   // CTA-afsnittet til sidst – medmindre siden slutter med kontaktsektionen med formular, så er den afslutningen
       { const m = cats.indexOf('CTA sektion'); if (m >= 0) { cats.splice(m, 1);   // valgt "CTA sektion": et ekstra CTA-afsnit midt på siden
-        const last = cats[cats.length - 1] === CTA_TEXT || cats[cats.length - 1] === 'Kontakt sektion' ? cats.length - 1 : cats.length, pos = Math.min(Math.max(2, Math.floor(cats.length / 2)), last - 1);   // mindst én sektion mellem det og afslutningen
-        if (pos >= 2 && last - pos >= 1) cats.splice(pos, 0, CTA_TEXT); } }   // er siden for kort, springes det ekstra over
+        const last = cats[cats.length - 1] === CTA_TEXT || cats[cats.length - 1] === 'Kontakt sektion' ? cats.length - 1 : cats.length, lo = cats.indexOf('Content') + 1, pos = Math.min(Math.max(lo, 2, Math.floor(cats.length / 2)), last - 1);   // efter første tekstafsnit, og mindst én sektion mellem det og afslutningen
+        if (pos >= 2 && pos >= lo && last - pos >= 1) cats.splice(pos, 0, CTA_TEXT); } }   // er siden for kort, springes det ekstra over
     }
     const mine = new Set(); const sek = [];
     for (const [ci, c] of cats.entries()) {
       let pool = c === CTA_TEXT ? keysAll.filter(isCtaText) : (want.includes(c) ? keysAll : keys).filter(k => categoryOf(k) === c);   // en valgt type må gerne være en, der ellers ikke bruges automatisk (fx CTA)
-      if (c === 'Header' && b && typeof b.heroForm === 'boolean') { const f = pool.filter(k => hasForm(LIB, k) === b.heroForm); if (f.length) pool = f; }   // med eller uden kontaktformular
-      if (c === 'Kontakt sektion') pool = pool.filter(k => hasForm(LIB, k));   // "Kontakt sektion" SKAL have en formular – findes ingen, springes den over. Tekst med knapper er CTA-afsnit
       let sub = '';
+      if (c === 'Header' && b && typeof b.heroForm === 'boolean') { const f = pool.filter(k => hasForm(LIB, k) === b.heroForm); if (f.length) pool = f; else sub = 'Erstatning: ingen ledig hero ' + (b.heroForm ? 'med' : 'uden') + ' kontaktformular'; }   // med eller uden kontaktformular
+      if (c === 'Kontakt sektion') pool = pool.filter(k => hasForm(LIB, k));   // "Kontakt sektion" SKAL have en formular – findes ingen, springes den over. Tekst med knapper er CTA-afsnit
       if (c === 'Content' || c === CTA_TEXT) {   // tekstafsnit må aldrig mangle: bedste ledige template i prioriteret rækkefølge
-        const hasH2 = k => { const t = textStats(k); return t.h2 >= 1 && t.words >= 8; };
+        const NO_SUB = new Set(['Header', 'Anmeldelser', 'Logo slider', 'USP', 'Produkter']); const hasH2 = k => { if (NO_SUB.has(categoryOf(k)) || hasForm(LIB, k)) return false; const t = textStats(k); return t.h2 >= 1 && t.words >= 8; };   // erstatning: aldrig hero, anmeldelse, logoer, USP/Produkter eller en formular
         const tiers = c === 'Content'
           ? [keysAll.filter(isBodyH2), keysAll.filter(k => categoryOf(k) === 'Content'), keysAll.filter(hasH2)]
-          : [keysAll.filter(isCtaText), keysAll.filter(k => categoryOf(k) === 'Kontakt sektion' && hasH2(k)), keysAll.filter(isBodyH2), keysAll.filter(hasH2)];
+          : [keysAll.filter(isCtaText), keysAll.filter(k => categoryOf(k) === 'Kontakt sektion' && !hasForm(LIB, k) && hasH2(k)), keysAll.filter(isBodyH2), keysAll.filter(hasH2)];
         const ti = tiers.findIndex(t => t.some(k => !mine.has(k))); pool = ti >= 0 ? tiers[ti] : pool; if (ti > 0) sub = c === 'Content' ? 'Erstatning: ingen ledig Content med H2 og brødtekst' : 'Erstatning: intet ledigt kort CTA-afsnit med H2';
       }
       if (ci !== cats.length - 1) pool = pool.filter(k => !isBottomOnly(k));   // #7 og #8 kun i bunden
@@ -902,7 +903,7 @@ const iconHtml = ic => {
   const cls = String(ic.icon); const key = cls.split(/\s+/).pop(); const fa = /^(fas|far|fab|fa-solid|fa-regular|fa-brands)\b/.test(cls) || /fontawesome/i.test(ic.library || '');
   return `<i class="b-ic ${fa ? esc(cls) : ''}" data-g="${esc(GLYPH[key] || '●')}"></i>`;
 };
-const sanitizeHtml = h => String(h || '').replace(/<script[\s\S]*?<\/script>/gi, '').replace(/\son\w+\s*=\s*("[^"]*"|'[^']*')/gi, '').replace(/javascript:/gi, '');
+const sanitizeHtml = h => String(h || '').replace(/<script[\s\S]*?<\/script>/gi, '').replace(/[\s/]on\w+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, '').replace(/javascript:/gi, '');
 const tagOr = (s, ok, dflt) => (typeof s.tag === 'string' && ok.test(s.tag)) ? s.tag : dflt;
 const fauxForm = `<div class="ph-form"><i>Navn</i><i>E-mail</i><i>Telefon</i><i class="t">Besked</i><b>Send</b></div>`;
 
@@ -978,7 +979,7 @@ function sanitizePlan(list, LIB) {
     count[x.tpl] = (count[x.tpl] || 0) + 1; if (count[x.tpl] > 2) continue; out.push(x);
   }
   { const hi = out.findIndex(o => o.tpl && categoryOf(o.tpl) === 'Header'); if (hi > 0) out.unshift(out.splice(hi, 1)[0]); }   // hero altid som første sektion
-  return out.slice(0, 12);
+  return out.slice(0, 30);   // loft mod løbske planer – højt nok til alle ønsker + 5 tekstafsnit + afslutning (12 skar afslutningen væk)
 }
 const SECTION_ONLY = { 'Hero': 'Header', 'Menu': 'Menu', 'Pris-sektion': 'Priser', 'Cases-sektion': 'Cases', 'Anmeldelses-sektion': 'Anmeldelser', 'FAQ-sektion': 'FAQ' };
 const tplKeyOf = (d, file) => { const n = String((d && d.name) || '').trim().toLowerCase(); if (/^[a-z0-9-]+$/.test(n)) return n;
@@ -1192,7 +1193,7 @@ var ro=new ResizeObserver(send);ro.observe(document.body);var mc=document.getEle
 /* klik virker som på sitet (FAQ, slider-pile, felter) – kun links må ikke navigere. Dobbeltklik markerer sektionen */
 document.addEventListener('click',function(ev){if(ev.target.closest('a[href]'))ev.preventDefault()},true);
 document.addEventListener('dblclick',function(ev){var s=ev.target.closest('[data-sec]');if(s){var g=getSelection&&getSelection();if(g)g.removeAllRanges();post({udkast:'sel',uid:s.getAttribute('data-sec')})}},true);
-var syT=0;addEventListener('scroll',function(){if(syT)return;syT=setTimeout(function(){syT=0;post({udkast:'sy',y:scrollY})},120)},{passive:true});
+addEventListener('keydown',function(e){if(e.key==='Escape')post({udkast:'esc'})});var syT=0;addEventListener('scroll',function(){if(syT)return;syT=setTimeout(function(){syT=0;post({udkast:'sy',y:scrollY})},120)},{passive:true});
 document.addEventListener('submit',function(ev){ev.preventDefault()},true);
 addEventListener('message',function(ev){var d=ev.data||{};
 if(d.udkast==='scroll'){document.documentElement.style.scrollBehavior='auto';scrollTo(0,d.y||0);document.documentElement.style.scrollBehavior=''}

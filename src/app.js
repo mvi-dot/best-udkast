@@ -28,12 +28,13 @@ async function loadTemplates(msg) {
   try {
     msg('Loader templates\nTjekker for nye templates…'); const idx = await gas('templateIndex');
     const need = idx.filter(f => !cache[f.id] || cache[f.id].modified !== f.modified).map(f => f.id); 
-    // alle pakker på én gang (Apps Script henter dem parallelt fra Drive)
+    // op til 4 pakker ad gangen (Apps Script henter hver pakke parallelt fra Drive; for mange samtidige kald rammer Googles grænse)
     let got = 0; const packs = []; for (let i = 0; i < need.length; i += 25) packs.push(need.slice(i, i + 25));   // 25: virker også med en ældre Code.gs
     if (need.length) msg(`Loader templates\n0/${need.length}`);
-    await Promise.all(packs.map(async ids => { for (const g of await gas('templateFiles', ids)) cache[g.id] = g; got += ids.length; msg(`Loader templates\n${got}/${need.length}`); }));
+    const run = async () => { for (let ids; (ids = packs.shift());) { for (const g of await gas('templateFiles', ids)) cache[g.id] = g; got += ids.length; msg(`Loader templates\n${got}/${need.length}`); } };
+    await Promise.all([run(), run(), run(), run()]);
     const ids = new Set(idx.map(f => f.id)); for (const id of Object.keys(cache)) if (!ids.has(id)) delete cache[id];
-    try { localStorage.setItem(TPL_CACHE, JSON.stringify({ files: cache })); } catch (_) { }
+    try { localStorage.setItem(TPL_CACHE, JSON.stringify({ files: Object.fromEntries(Object.entries(cache).filter(([, g]) => g.text)) })); } catch (_) { }   // en fil, der ikke kunne læses (tom), hentes igen næste gang
     return { files: Object.values(cache), source: 'drive', changed: need.length };
   } catch (e) {   // Drive/Apps Script svarer ikke: brug den sidst hentede udgave
     const files = Object.values(cache); if (!files.length) throw e;
@@ -112,13 +113,14 @@ async function loadTemplates(msg) {
   // fullscreen: skjuler venstre side, så previewet får hele bredden
   function setFull(on) { document.body.classList.toggle('pvfull', on); const b = $('fullBtn'); b.setAttribute('aria-pressed', String(on)); b.querySelector('.blbl').textContent = on ? 'Luk fullscreen' : 'Se fullscreen'; if (on) scrollTo(0, 0); requestAnimationFrame(() => { if (BRICKS_OK && cur()) showFrame(cur()); else fit(); }); }
   $('fullBtn').onclick = () => setFull(!document.body.classList.contains('pvfull'));
-  document.addEventListener('keydown', e => { if (e.key === 'Escape' && document.body.classList.contains('pvfull') && $('picker').hidden && $('statBox').hidden) setFull(false); });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape' && document.body.classList.contains('pvfull') && $('picker').hidden && $('statBox').hidden && $('copyFallback').hidden) setFull(false); });
   function pvBusy(on) { $('pvOuter').classList.toggle('pvload', on); document.body.classList.toggle('pvbusy', on); }
   const scrollBox = el => { for (let n = el.parentElement; n; n = n.parentElement) { const o = getComputedStyle(n).overflowY; if (/(auto|scroll)/.test(o) && n.scrollHeight > n.clientHeight) return n; } return document.scrollingElement; };
   addEventListener('message', ev => {
-    if (pvNext && ev.source === pvNext.contentWindow) { const d = ev.data || {}; if (d.udkast === 'h' && d.h > 0 && !pvLive) pvNextH = d.h; else if (d.udkast === 'ready') { if (pvLive && pvSY) pvNext.contentWindow.postMessage({ udkast: 'scroll', y: pvSY }, '*'); setTimeout(pvCommit, pvLive && pvSY ? 80 : 0); } return; }
+    if (pvNext && ev.source === pvNext.contentWindow) { const d = ev.data || {}; if (d.udkast === 'h' && d.h > 0 && !pvLive) pvNextH = d.h; else if (d.udkast === 'ready') { if (pvLive && pvSY) pvNext.contentWindow.postMessage({ udkast: 'scroll', y: pvSY }, '*'); const f = pvNext; setTimeout(() => { if (pvNext === f) pvCommit(); }, pvLive && pvSY ? 80 : 0); } return; }   // kun den ramme, der meldte klar (ikke en nyere, der stadig loader)
     if (ev.source !== pvFrame.contentWindow) return; const d = ev.data || {};
     if (d.udkast === 'sy') { pvSY = d.y || 0; return; }
+    if (d.udkast === 'esc') { document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' })); return; }   // Esc i previewet (efter klik i det) virker som Esc i værktøjet
     if (d.udkast === 'h') { if (!pvLive && d.h > 0 && Math.abs(d.h - pvH) > 1) { pvH = d.h; fit(); } }
     else if (d.udkast === 'ready') { selFrame(); if (!pvNext) { clearTimeout(pvNextT); pvBusy(false); } }
     else if (d.udkast === 'sel') { selUid = selUid === d.uid ? null : d.uid; render(); }
@@ -266,7 +268,7 @@ async function loadTemplates(msg) {
     btn.classList.remove('go'); void btn.offsetWidth; btn.classList.add('go'); setTimeout(() => btn.classList.remove('go'), 1600);
   }
   // knappen viser en drejende cirkel, mens udkastet laves
-  function genBusy(on) { const b = $('genBtn'); b.disabled = on; b.classList.toggle('loading', on); b.querySelector('.gtxt').textContent = on ? 'Genererer udkast…' : 'Generer udkast'; const m = $('moreBtn'); if (m) { m.disabled = on; m.classList.toggle('loading', on); m.querySelector('.mtxt').textContent = on ? 'Genererer nyt udkast…' : 'Generer nyt udkast på samme indstillinger'; } }
+  function genBusy(on) { document.body.classList.toggle('genbusy', on); const b = $('genBtn'); b.disabled = on; b.classList.toggle('loading', on); b.querySelector('.gtxt').textContent = on ? 'Genererer udkast…' : 'Generer udkast'; const m = $('moreBtn'); if (m) { m.disabled = on; m.classList.toggle('loading', on); m.querySelector('.mtxt').textContent = on ? 'Genererer nyt udkast…' : 'Generer nyt udkast på samme indstillinger'; } }
   $('genBtn').onclick = e => { if ($('genBtn').disabled) return; burst($('genBtn'), e); generate(false); };
   // små stjerner fra tryllestaven, mens man holder musen over knappen
   { const btn = $('genBtn'); let tw = null;
@@ -286,7 +288,7 @@ async function loadTemplates(msg) {
     const bran = g && g.b ? `<span class="bchip">${E.esc(g.b)}</span>${g.via === 'fra ClickUp' ? '' : `<small>${E.esc(VIA[g.via] || g.via || '')}</small>`}` : b.branche ? `<span class="bchip">${E.esc(b.branche)}</span>${b.kunde ? '' : '<small>dit valg</small>'}` : '<small>gættes ud fra navnet</small>';
     el.innerHTML = `<div class="bsum-h"><b>Info</b></div><dl class="bsum-l"><div><dt>Kunde</dt><dd>${E.esc(b.navn || '')}</dd></div><div><dt>Branche</dt><dd>${bran}</dd></div>${b.kunde && b.kunde.url ? `<div><dt>BestCRM</dt><dd><a href="${E.esc(b.kunde.url)}" target="_blank" rel="noopener">Åbn kunden ↗</a></dd></div>` : ''}<div><dt>Class-name</dt><dd><code>${E.esc($('prefixShow').textContent || '')}</code></dd></div></dl>`;
   }
-  document.addEventListener('keydown', e => { if (e.key === 'Escape' && selUid && $('picker').hidden) { selUid = null; render(); } });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape' && selUid && $('picker').hidden && $('statBox').hidden && $('copyFallback').hidden) { selUid = null; render(); } });
   document.addEventListener('click', e => { if (!selUid || !$('picker').hidden) return; const path = e.composedPath ? e.composedPath() : []; if (path.some(n => n && n.nodeType === 1 && (n.id === 'list' || n.id === 'pvOuter' || n.id === 'picker' || /^(BUTTON|INPUT|TEXTAREA|SELECT|SUMMARY|LABEL|A|DIALOG)$/.test(n.tagName)))) return; selUid = null; render(); });
   /* ---------- antal udkast ---------- */
   const syncCount = () => { for (const r of document.querySelectorAll('input[name=cnt]')) { r.checked = r.value === $('count').value; r.parentElement.classList.toggle('on', +r.value <= +$('count').value); } };
@@ -361,7 +363,7 @@ async function loadTemplates(msg) {
   // CSV med semikolon og BOM, så dansk Excel åbner den rigtigt
   function statCsv() {
     if (!stData) return;
-    const q = v => /[";\n]/.test(v = String(v)) ? '"' + v.replace(/"/g, '""') + '"' : v;
+    const q = v => /[";\r\n]/.test(v = String(v)) ? '"' + v.replace(/"/g, '""') + '"' : v;
     const lines = [ST_COLS.map(c => c[1])].concat(statList().map(x => ST_COLS.map(([c]) => c === 'rate' ? (x.rate < 0 ? '' : Math.round(x.rate * 100) + ' %') : x[c])));
     lines.push([], ['Brugte udkast', ((stData.rows || {})._udkast || {}).vist || 0], ['Talt siden', stData.since || '']);
     const url = URL.createObjectURL(new Blob(['\ufeff' + lines.map(r => r.map(q).join(';')).join('\r\n')], { type: 'text/csv;charset=utf-8' }));
@@ -376,7 +378,7 @@ async function loadTemplates(msg) {
   $('scCancel').onclick = () => { $('statConfirm').hidden = true; };
   $('scAll').onclick = async () => {
     $('statConfirm').hidden = true;
-    try { await gas('resetStats'); await loadStats(); } catch (e) { showError('Statistikken kunne ikke nulstilles.', 'E40', (e && e.message) || e); }
+    try { await gas('resetStats'); await loadStats(); } catch (e) { showError('Statistikken kunne ikke nulstilles.', 'E90', (e && e.message) || e); }
   };
   $('statClose').onclick = statClose;
   $('statBox').addEventListener('click', e => { if (e.target === $('statBox')) statClose(); });   // klik uden for boksen lukker
@@ -405,9 +407,9 @@ async function loadTemplates(msg) {
       const seen = varSeen.get(grp) || new Set(); varSeen.set(grp, seen); seen.add(s.tpl);
       const all = E.variantsOf(LIB, E.categoryOf(s.tpl)).filter(k => k !== s.tpl && ok(k)), pick = l => l[Math.floor(Math.random() * l.length)];
       let pool = all.filter(k => !seen.has(k) && !used.includes(k));
-      if (!pool.length) { seen.clear(); seen.add(s.tpl); pool = all.filter(k => !used.includes(k)); if (!pool.length) pool = all; }   // alle set: start forfra
+      if (!pool.length) { seen.clear(); seen.add(s.tpl); pool = all.filter(k => !used.includes(k)); }   // alle set: start forfra (men aldrig en template, der allerede er i udkastet)
       const nx = pool.length ? pick(pool) : null; if (nx) seen.add(nx);
-      if (nx && nx !== s.tpl) swapTo(i, nx); return; }
+      if (nx && nx !== s.tpl) swapTo(i, nx); else setStatus('Der er ingen andre ledige varianter af denne sektion.', 'warn'); return; }
     if (a === 'pick') { openPicker({ mode: 'swap', index: i, cat: pkCatOf(s.tpl) }); return; }
     if (a === 'del') {   // første klik: "Er du sikker?", andet klik fjerner
       if (delArm !== s.uid) { delArm = s.uid; clearTimeout(delT); delT = setTimeout(() => { delArm = null; render(); }, 3500); render(); return; }
@@ -502,7 +504,7 @@ async function loadTemplates(msg) {
   function nameH1(p) {
     const navn = String((state.brief || {}).navn || '').trim(); const hero = p && p.sections.find(s => E.categoryOf(s.tpl) === 'Header'); if (!navn || !hero) return;
     const hs = hero.els.filter(e => e.name === 'heading'); const h = hs.find(e => (e.settings || {}).tag === 'h1') || hs[0]; if (!h) return;
-    h.settings = Object.assign({}, h.settings, { text: navn });
+    h.settings = Object.assign({}, h.settings, { text: E.esc(navn) });   // navnet fra ClickUp er tekst, ikke HTML
   }
   $('cfClose').onclick = () => { $('copyFallback').hidden = true; };
   document.addEventListener('keydown', e => { if (e.key === 'Escape' && !$('copyFallback').hidden) $('copyFallback').hidden = true; });
@@ -521,6 +523,7 @@ async function loadTemplates(msg) {
   }
   { const ro = new ResizeObserver(() => { if (cur()) requestAnimationFrame(fit); }); ro.observe($('canvas')); ro.observe(document.documentElement); }
   addEventListener('resize', () => { if (cur()) requestAnimationFrame(fit); });   // preview zoomer ud, så den altid passer i pladsen
+  { let t = null; addEventListener('resize', () => { clearTimeout(t); t = setTimeout(() => { if (BRICKS_OK && cur() && document.body.classList.contains('pvfull') && liveVp() !== pvLive) showFrame(cur()); }, 300); }); }   // fullscreen: ny vinduesstørrelse = ny skærmhøjde i previewet
 
   function render() {
     const p = cur(); const has = !!p; document.body.classList.toggle('home', !has);
@@ -541,7 +544,6 @@ async function loadTemplates(msg) {
     if (BRICKS_OK) showFrame(p); else { useFrame(false);
     const r = E.renderSections(p.sections, CLASSES, VARS, { h1: 'page' }); const selCss = '[data-sec]{scroll-margin-top:130px}' + (selUid && p.sections.some(x => x.uid === selUid) ? `[data-sec="${selUid}"]{outline:4px solid #3a7cc0;outline-offset:-4px;position:relative;z-index:1}` : ''); pvStyle.textContent = '#frame{overflow:hidden}' + r.css + selCss; pvContent.innerHTML = r.html;
     fit(); faApply(pvContent, root); setTimeout(fit, 50); }
-    const kb = Math.round(JSON.stringify(exp.json).length / 1024), rawKb = Math.round(JSON.stringify(E.buildExport(p, CLASSES, { raw: true }).json).length / 1024);
     
   }
 
