@@ -60,10 +60,10 @@ const isExcluded = k => EXCLUDED_KEYS.has(k) || EXCLUDED_RE.test(k);
 const allowedKeys = (LIB, auto) => Object.keys(LIB).filter(k => !EXCLUDED_CATS.has(categoryOf(k)) && !isExcluded(k)).sort((a, b) => a.localeCompare(b, 'da', { numeric: true }));
 const variantsOf = (LIB, cat) => allowedKeys(LIB).filter(k => categoryOf(k) === cat);
 function catList(LIB) { const have = new Set(allowedKeys(LIB).map(categoryOf)); return TYPE_ORDER.filter(c => have.has(c)).concat([...have].filter(c => !TYPE_ORDER.includes(c)).sort()); }
-function nextVariant(LIB, tpl, used) {
-  const list = variantsOf(LIB, categoryOf(tpl)); if (list.length < 2) return null;
-  const i = list.indexOf(tpl); const order = i < 0 ? list : list.slice(i + 1).concat(list.slice(0, i));
-  return order.find(k => !used.includes(k)) || order[0];
+function nextVariant(LIB, tpl, used, ok) {   // tilfældig anden variant af samme type – helst en, der ikke allerede er i udkastet
+  const list = variantsOf(LIB, categoryOf(tpl)).filter(k => k !== tpl && (!ok || ok(k))); if (!list.length) return null;
+  const fresh = list.filter(k => !(used || []).includes(k)), pool = fresh.length ? fresh : list;
+  return pool[Math.floor(Math.random() * pool.length)];
 }
 
 /* ---------- tekst (kun til import af kundens egne tekster – ellers rører vi ikke tekst) ---------- */
@@ -1162,12 +1162,12 @@ function bricksDoc(r, opts) {
   return `<!doctype html><html lang="da" data-brx-theme="light"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 ${L.css.map(u => `<link rel="stylesheet" href="${esc(u)}">`).join('\n')}
 <style>${V(o.theme !== undefined ? o.theme : BX.theme || '')}</style><style>${V(r.css)}</style>
-<style>html{overflow:hidden}body{margin:0;overflow:visible!important}[data-sec]{cursor:pointer}${sel}${o.extraCss || ''}</style>
-<script>/* previewet scroller aldrig selv (det er lige så højt som siden), så scroll-animationer (fx GSAP ScrollTrigger med pin) giver en lang tom sektion.
+<style>html{overflow:${o.live ? 'auto' : 'hidden'}}body{margin:0;overflow:visible!important}[data-sec]{cursor:pointer}${sel}${o.extraCss || ''}</style>
+${o.live ? '' : `<script>/* previewet scroller aldrig selv i den delte visning (det er lige så højt som siden), så scroll-animationer (fx GSAP ScrollTrigger med pin) giver en lang tom sektion.
 Derfor svarer previewet scripts, at brugeren har slået animationer fra ("reducér bevægelse") – så viser sektionerne deres færdige udseende */
 (function(){var mm=window.matchMedia&&window.matchMedia.bind(window);if(!mm)return;var re=/prefers-reduced-motion\\s*:\\s*(reduce|no-preference)/i;
 window.matchMedia=function(q){var m=re.exec(String(q));if(!m)return mm(q);var on=m[1].toLowerCase()==='reduce',f=function(){};
-return{matches:on,media:String(q),onchange:null,addListener:f,removeListener:f,addEventListener:f,removeEventListener:f,dispatchEvent:function(){return false}}}})();<\/script>
+return{matches:on,media:String(q),onchange:null,addListener:f,removeListener:f,addEventListener:f,removeEventListener:f,dispatchEvent:function(){return false}}}})();<\/script>`}
 </head><body class="wp-singular page wp-theme-bricks wp-child-theme-bricks-child brx-body bricks-is-frontend">
 <main id="brx-content">${V(r.html)}</main>
 <script>window.bricksData=${JSON.stringify(BX.bricksData || {}).replace(/</g, '\\u003c')};

@@ -79,8 +79,18 @@ async function loadTemplates(msg) {
   let pvFrame = $('pvFrame'), pvNext = null, pvNextH = 0, pvNextT = null; let pvDoc = '', pvH = 600;
   const useFrame = on => { $('pvHost').hidden = on; pvFrame.hidden = !on; };
   const selFrame = () => { if (pvFrame.contentWindow) pvFrame.contentWindow.postMessage({ udkast: 'sel', uid: selUid || '' }, '*'); };
+  // fullscreen = som et rigtigt browservindue: previewet har skærmens højde og scrolles indeni, så scroll-animationer (fx GSAP) virker.
+  // Ellers er previewet lige så højt som siden og vises statisk (scripts får "reducér bevægelse")
+  function liveVp() {
+    if (!document.body.classList.contains('pvfull')) return 0;
+    const sc = Math.min(1, ($('canvas').clientWidth || 900) / DEVICES[device]), ch = $('pvOuter').querySelector('.chrome');
+    const top = $('pvOuter').getBoundingClientRect().top + scrollY;
+    return Math.max(400, Math.round((innerHeight - top - (ch ? ch.offsetHeight : 0) - 16) / sc));
+  }
+  let pvLive = 0;
   function showFrame(p) {
-    const doc = E.bricksDoc(E.renderBricks(p.sections, CLASSES, { h1: 'page' }), { frameId: 'main', vh: DEVICE_H[device] });
+    pvLive = liveVp();
+    const doc = E.bricksDoc(E.renderBricks(p.sections, CLASSES, { h1: 'page' }), { frameId: 'main', vh: pvLive || DEVICE_H[device], live: !!pvLive });
     if (doc === pvDoc) { useFrame(true); selFrame(); fit(); return; }
     pvDoc = doc;
     pvBusy(true);
@@ -101,15 +111,15 @@ async function loadTemplates(msg) {
   }
   // mens previewet opdateres: overlay med spinner, og listen/knapperne er låst, så man ikke klikker videre midt i det
   // fullscreen: skjuler venstre side, så previewet får hele bredden
-  function setFull(on) { document.body.classList.toggle('pvfull', on); const b = $('fullBtn'); b.setAttribute('aria-pressed', String(on)); b.querySelector('.blbl').textContent = on ? 'Luk fullscreen' : 'Se fullscreen'; requestAnimationFrame(fit); }
+  function setFull(on) { document.body.classList.toggle('pvfull', on); const b = $('fullBtn'); b.setAttribute('aria-pressed', String(on)); b.querySelector('.blbl').textContent = on ? 'Luk fullscreen' : 'Se fullscreen'; if (on) scrollTo(0, 0); requestAnimationFrame(() => { if (BRICKS_OK && cur()) showFrame(cur()); else fit(); }); }
   $('fullBtn').onclick = () => setFull(!document.body.classList.contains('pvfull'));
   document.addEventListener('keydown', e => { if (e.key === 'Escape' && document.body.classList.contains('pvfull') && $('picker').hidden && $('statBox').hidden) setFull(false); });
   function pvBusy(on) { $('pvOuter').classList.toggle('pvload', on); document.body.classList.toggle('pvbusy', on); }
   const scrollBox = el => { for (let n = el.parentElement; n; n = n.parentElement) { const o = getComputedStyle(n).overflowY; if (/(auto|scroll)/.test(o) && n.scrollHeight > n.clientHeight) return n; } return document.scrollingElement; };
   addEventListener('message', ev => {
-    if (pvNext && ev.source === pvNext.contentWindow) { const d = ev.data || {}; if (d.udkast === 'h' && d.h > 0) pvNextH = d.h; else if (d.udkast === 'ready') pvCommit(); return; }
+    if (pvNext && ev.source === pvNext.contentWindow) { const d = ev.data || {}; if (d.udkast === 'h' && d.h > 0 && !pvLive) pvNextH = d.h; else if (d.udkast === 'ready') pvCommit(); return; }
     if (ev.source !== pvFrame.contentWindow) return; const d = ev.data || {};
-    if (d.udkast === 'h') { if (d.h > 0 && Math.abs(d.h - pvH) > 1) { pvH = d.h; fit(); } }
+    if (d.udkast === 'h') { if (!pvLive && d.h > 0 && Math.abs(d.h - pvH) > 1) { pvH = d.h; fit(); } }
     else if (d.udkast === 'ready') { selFrame(); if (!pvNext) { clearTimeout(pvNextT); pvBusy(false); } }
     else if (d.udkast === 'sel') { selUid = selUid === d.uid ? null : d.uid; render(); }
     else if (d.udkast === 'top') { const box = scrollBox(pvFrame); const sc = pvFrame.getBoundingClientRect().width / (DEVICES[device] || 1); const y = pvFrame.getBoundingClientRect().top + d.top * sc - 130; if (box === document.scrollingElement) scrollBy({ top: y, behavior: 'smooth' }); else box.scrollBy({ top: y - box.getBoundingClientRect().top, behavior: 'smooth' }); }
@@ -386,8 +396,9 @@ async function loadTemplates(msg) {
     if ((a === 'variant' || a === 'pick') && s.part > 1) { let j = i - 1; while (j > 0 && !(p.sections[j - 1].tpl === s.tpl && p.sections[j - 1].part === 1)) j--; if (j > 0) { i = j; s = p.sections[j - 1]; } }   // del 2 af en template: skift hele templaten
     pendingAnim = { i, a };
     if (a === 'dup') { const c = JSON.parse(JSON.stringify(s)); c.uid = 's' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5); pushHist(); p.sections.splice(i, 0, c); selUid = c.uid; render(); return; }   // dublet lige under originalen
-    if (a === 'variant') { const used = p.sections.map(x => x.tpl); const hf = (state.brief || {}).heroForm; let nx = E.nextVariant(LIB, s.tpl, used);
-      if (E.categoryOf(s.tpl) === 'Header' && typeof hf === 'boolean') for (let g = 0; nx && g < 40 && E.hasForm(LIB, nx) !== hf; g++) nx = E.nextVariant(LIB, nx, used);   // heroen bliver med/uden kontaktformular, som valgt
+    if (a === 'variant') { const used = p.sections.map(x => x.tpl); const hf = (state.brief || {}).heroForm, isHero = E.categoryOf(s.tpl) === 'Header', grp = pkCatOf(s.tpl);
+      // tilfældig variant: samme gruppe (Kontaktformular forbliver med formular, CTA uden), og heroen bliver med/uden kontaktformular, som valgt
+      const nx = E.nextVariant(LIB, s.tpl, used, k => pkCatOf(k) === grp && !(isHero && typeof hf === 'boolean' && E.hasForm(LIB, k) !== hf));
       if (nx && nx !== s.tpl) swapTo(i, nx); return; }
     if (a === 'pick') { openPicker({ mode: 'swap', index: i, cat: pkCatOf(s.tpl) }); return; }
     if (a === 'del') {   // første klik: "Er du sikker?", andet klik fjerner
@@ -496,7 +507,7 @@ async function loadTemplates(msg) {
   for (const b of document.querySelectorAll('#devices button')) b.onclick = () => { device = b.dataset.d; for (const x of document.querySelectorAll('#devices button')) x.setAttribute('aria-pressed', x === b); if (BRICKS_OK && cur()) showFrame(cur()); else fit(); };
   function fit() {
     const w = DEVICES[device]; const outer = $('pvOuter'); const avail = $('canvas').clientWidth || 900;
-    if (!pvFrame.hidden) { const sc = Math.min(1, avail / w); const ch = outer.querySelector('.chrome'); pvFrame.style.cssText = `width:${w}px;height:${pvH}px;transform:scale(${sc});transform-origin:top left;border:0;display:block;background:#fff`; outer.style.width = Math.round(w * sc) + 'px'; outer.style.height = Math.round(pvH * sc + (ch ? ch.offsetHeight : 0)) + 'px'; return; }
+    if (!pvFrame.hidden) { const sc = Math.min(1, avail / w); const ch = outer.querySelector('.chrome'); pvFrame.style.cssText = `width:${w}px;height:${pvLive || pvH}px;transform:scale(${sc});transform-origin:top left;border:0;display:block;background:#fff`; outer.style.width = Math.round(w * sc) + 'px'; outer.style.height = Math.round((pvLive || pvH) * sc + (ch ? ch.offsetHeight : 0)) + 'px'; return; }
     const scale = Math.min(1, avail / w); frame.style.cssText = `width:${w}px;transform:scale(${scale});transform-origin:top left;container-type:inline-size;background:var(--bg-body,#fff);`;
     outer.style.width = Math.round(w * scale) + 'px'; outer.style.height = Math.round(frame.offsetHeight * scale) + 'px';
   }

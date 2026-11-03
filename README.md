@@ -27,6 +27,7 @@ Alle templates må gerne ligge i Drive-mappen. Reglerne ligger i værktøjet (`s
 - **Logo slider** (når den er valgt) ligger altid lige under heroen, før tekstafsnittet. **USP** og **Produkter** placeres tilfældigt, men aldrig lige under heroen. De tre kommer kun med, når de er valgt. Produkter står under **Ønsker udover standard**, de andre under **Ønsker til design**.
 - **Tekstafsnit** (standard 3, kan vælges 2–5): antal − 1 Content med H2 og brødtekst (min. 40 ord i ét tekstfelt) og til sidst et kort **CTA-afsnit**. Antallet af H2 med tekst passer altid til det valgte: slutter siden med kontaktsektionen med formular, og har den ikke selv H2 og tekst, kommer der ét Content mere.
 - **CTA-afsnit** = en kontaktsektion *uden* formular med H2, kort tekst (8–60 ord) og en knap. Værktøjet finder dem selv. "Kontaktformular" under Ønsker til design (internt typen Kontakt sektion) giver en kontaktsektion, der **skal** have en formular (findes ingen, kommer den ikke med), helt til sidst. Så er den sidens afslutning, og det afsluttende CTA-afsnit udelades (ellers står der to kontaktsektioner lige efter hinanden).
+- **Ny variant** vælger en tilfældig anden template af samme slags (helst en, der ikke allerede er i udkastet). Kontaktformular forbliver med formular, CTA uden, og heroen beholder med/uden kontaktformular.
 - I **+ Tilføj sektion**, **Vælg selv** og statistikken bruges de samme navne som på forsiden: typen Kontakt sektion vises som **Kontaktformular** (med formular) og **CTA** (uden formular).
 - "CTA" under Ønsker til design (internt "CTA sektion") giver et ekstra CTA-afsnit midt på siden (ud over det afsluttende).
 - Heroens **H1 er kundens navn**, både i preview og i JSON'en. "Prøv næste variant" på heroen holder sig til med/uden kontaktformular.
@@ -53,9 +54,9 @@ Lokalt: `python3 build.py`, derefter `python3 -m http.server 8000` og åbn http:
 
 ## Preview
 Når et udkast ændres (Ny variant, Vælg selv, flyt, slet osv.), bygges det nye preview i baggrunden, mens det gamle bliver stående. Imens ligger et overlay med "Opdaterer preview…" over previewet, og listen og knapperne er låst, så man ikke klikker videre midt i det. Når det nye preview er klar, skiftes de (nød-udvej: efter 15 sek.).
-Previewet scroller aldrig selv (det er lige så højt som siden). Derfor svarer det scripts, at brugeren har valgt *reducér bevægelse* (`prefers-reduced-motion: reduce`), så scroll-animationer (fx GSAP ScrollTrigger med pin i Kontaktsektion #7) viser deres færdige udseende i stedet for en lang tom sektion. **Byg derfor scroll-animationer, så de har en udgave uden animation** (som #7 har). Previewets højde måles på indholdet, så den også bliver mindre, når siden bliver kortere.
+I den delte visning scroller previewet aldrig selv (det er lige så højt som siden). Derfor svarer det scripts, at brugeren har valgt *reducér bevægelse* (`prefers-reduced-motion: reduce`), så scroll-animationer (fx GSAP ScrollTrigger med pin i Kontaktsektion #7) viser deres færdige udseende i stedet for en lang tom sektion. **Byg derfor scroll-animationer, så de har en udgave uden animation** (som #7 har). Previewets højde måles på indholdet, så den også bliver mindre, når siden bliver kortere.
 
-**Se fullscreen** (ved siden af Start forfra) skjuler venstre side, så previewet får hele bredden. Klik igen (Luk fullscreen) eller tryk Esc for at komme tilbage.
+**Se fullscreen** (ved siden af Start forfra) skjuler venstre side, så previewet får hele bredden, og previewet opfører sig som et rigtigt browservindue: det har skærmens højde (også for vh-enheder), man scroller inde i det, og scroll-animationer kører som på sitet. Klik igen (Luk fullscreen) eller tryk Esc for at komme tilbage.
 
 ## Statistik
 Under formularen på forsiden står et lille link **Statistik**. Det ses kun af rmu@ og mvi@best-one.dk, og Apps Scriptet tjekker også selv e-mailen (`CFG.STATS_ADMINS`).
