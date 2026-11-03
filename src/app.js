@@ -198,7 +198,7 @@ async function loadTemplates(msg) {
   if (IN_GAS) EARLY.me.then(m => { const first = String((m && m.name) || '').trim().split(/\s+/)[0]; if (first) $('hi').innerHTML = `Hej <b>${E.esc(first)}</b> 👋<br>Lad os bygge dit udkast`; }).catch(() => { });
 
   /* ---------- tjekliste: hvilke typer skal med (alle typer fra templates, undtagen hero og Content, der altid er med) ---------- */
-  for (const r of document.querySelectorAll('input[name=hero]')) r.addEventListener('change', () => { $('heroBox').classList.remove('need'); if (/header/i.test($('status').textContent)) setStatus(''); });
+  for (const r of document.querySelectorAll('input[name=hero]')) r.addEventListener('change', () => { $('heroBox').classList.remove('need'); if (/hero/i.test($('status').textContent)) setStatus(''); });
   const WANT_TIP = {
     'Ydelser': 'En sektion med kundens ydelser.',
     'Produkter': 'En sektion med produkter. Placeres et tilfældigt sted, aldrig lige under heroen.',
@@ -239,7 +239,7 @@ async function loadTemplates(msg) {
   const planToSections = f => E.sanitizePlan(f.sektioner, LIB).flatMap(x => { const secs = E.makeSections(LIB, x.tpl, x.hvorfor, tlf()); const n = parseInt(x.antal, 10); if (n > 0) { const r = E.resizeGroup(secs[0], n, CLASSES); if (r.ok) secs[0].warns = r.warn; } return secs; });
   async function generate(more) {
     const b = readBrief();
-    if (!more) { if (!selCust) { $('navn').classList.add('need'); setStatus(CUST ? 'Vælg en kunde fra listen.' : 'Kunderne kunne ikke hentes fra ClickUp. Prøv at genindlæse siden.', 'warn'); $('navn').focus(); return; } if (b.heroForm === null) { $('heroBox').classList.add('need'); setStatus('Vælg header: med eller uden kontaktformular.', 'warn'); return; } state.brief = b; } else b.navn = state.brief.navn;
+    if (!more) { if (!selCust) { $('navn').classList.add('need'); setStatus(CUST ? 'Vælg en kunde fra listen.' : 'Kunderne kunne ikke hentes fra ClickUp. Prøv at genindlæse siden.', 'warn'); $('navn').focus(); return; } if (b.heroForm === null) { $('heroBox').classList.add('need'); setStatus('Vælg hero: med eller uden kontaktformular.', 'warn'); return; } state.brief = b; } else b.navn = state.brief.navn;
     const brief = more ? state.brief : b; const n = more ? 1 : +$('count').value;
     setStatus(''); pushHist(); genBusy(true); const t0 = Date.now();
     try {
