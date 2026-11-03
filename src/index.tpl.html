@@ -274,7 +274,8 @@ body.home .status{padding:0 4px}
 .tab{border-radius:999px;border:1px solid #dedbcf;background:#fff;padding:8px 16px;font-weight:500;max-width:320px;transition:border-color .15s,box-shadow .15s}.tab:hover{border-color:#bdb9aa;box-shadow:0 2px 10px rgba(20,20,19,.06)}
 .tab[aria-pressed=true]{background:var(--ink);border-color:var(--ink);color:#fff;box-shadow:0 4px 14px rgba(20,20,19,.18)}
 .tab.more{border-style:dashed;background:transparent;color:var(--muted)}
-.tabact{display:flex;gap:8px;margin-left:auto}#resetBtn{border-radius:999px;padding:7px 16px}#resetBtn.warn{border-color:var(--err);color:var(--err);background:#eef4fa}
+.tabact{display:flex;gap:8px;margin-left:auto}#fullBtn{border-radius:999px;padding:7px 16px}#fullBtn .foff,body.pvfull #fullBtn .fon{display:none}body.pvfull #fullBtn .foff{display:inline}
+body.pvfull .app>.side,body.pvfull #resizer{display:none!important}body.pvfull .app{grid-template-columns:minmax(0,1fr)!important;max-width:none}#resetBtn{border-radius:999px;padding:7px 16px}#resetBtn.warn{border-color:var(--err);color:var(--err);background:#eef4fa}
 .bar{border-radius:18px;padding:8px 10px;box-shadow:var(--shadow);border-color:#e3e0d3}
 .seg{border:0;background:var(--soft);border-radius:999px;padding:3px}.seg button{border-radius:999px;padding:6px 15px;font-weight:500;color:var(--muted)}
 .seg button[aria-pressed=true]{background:#fff;color:var(--ink);box-shadow:0 1px 4px rgba(20,20,19,.14)}
@@ -563,7 +564,7 @@ body.home #briefCard #h2Box{margin-bottom:0}
 .btn.send.loading,.btn.send.loading:disabled{opacity:1;cursor:progress}
 .btn.send.loading .twk{display:none}
 /* ikoner i knapper */
-#devices button,#copyBtn,#resetBtn{display:inline-flex;align-items:center;gap:6px}
+#devices button,#copyBtn,#resetBtn,#fullBtn{display:inline-flex;align-items:center;gap:6px}
 svg.ic{width:16px;height:16px;flex:none;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
 #list .t small.secwarn{display:block;margin-top:4px;color:#e8b866!important;font-size:12px;opacity:1}
 #tabs .tab.name{cursor:default}
@@ -672,7 +673,7 @@ body.pvbusy #listCard,body.pvbusy #tabrow{pointer-events:none;opacity:.55;transi
       <details id="valWrap" hidden><summary id="valBadge" title="Automatisk kontrol af JSON'en før du indsætter i Bricks. Klik for listen."></summary><div id="valPanel"><p class="hint" style="margin:0 0 6px">Automatisk kontrol af JSON'en, før du indsætter i Bricks:</p><ul id="valList"></ul></div></details>
       <button class="btn primary" id="copyBtn" disabled><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="8.5" y="8.5" width="11" height="11" rx="2.2"/><path d="M15.5 8.5V6.7a2.2 2.2 0 0 0-2.2-2.2H6.7a2.2 2.2 0 0 0-2.2 2.2v6.6a2.2 2.2 0 0 0 2.2 2.2h1.8"/></svg><span class="blbl">Kopiér JSON</span></button>
       </div>
-      <div class="tabact"><button class="btn ghost" id="resetBtn" type="button" title="Ryd alt og begynd forfra"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 12a8.5 8.5 0 1 0 2.6-6.1"/><path d="M3.5 4v4.5H8"/></svg><span class="blbl">Start forfra</span></button></div>
+      <div class="tabact"><button class="btn ghost" id="fullBtn" type="button" title="Vis previewet i fuld bredde (Esc lukker)" aria-pressed="false"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path class="fon" d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/><path class="foff" d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5"/></svg><span class="blbl">Se fullscreen</span></button><button class="btn ghost" id="resetBtn" type="button" title="Ryd alt og begynd forfra"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 12a8.5 8.5 0 1 0 2.6-6.1"/><path d="M3.5 4v4.5H8"/></svg><span class="blbl">Start forfra</span></button></div>
     </div>
     <div id="canvas">
       <div class="empty" id="empty">

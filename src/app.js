@@ -100,6 +100,10 @@ async function loadTemplates(msg) {
     pvFrame.style.display = 'none'; void pvFrame.offsetHeight; pvFrame.style.display = 'block';   // tving browseren til at tegne rammen, når den kommer frem bagfra
   }
   // mens previewet opdateres: overlay med spinner, og listen/knapperne er låst, så man ikke klikker videre midt i det
+  // fullscreen: skjuler venstre side, så previewet får hele bredden
+  function setFull(on) { document.body.classList.toggle('pvfull', on); const b = $('fullBtn'); b.setAttribute('aria-pressed', String(on)); b.querySelector('.blbl').textContent = on ? 'Luk fullscreen' : 'Se fullscreen'; requestAnimationFrame(fit); }
+  $('fullBtn').onclick = () => setFull(!document.body.classList.contains('pvfull'));
+  document.addEventListener('keydown', e => { if (e.key === 'Escape' && document.body.classList.contains('pvfull') && $('picker').hidden && $('statBox').hidden) setFull(false); });
   function pvBusy(on) { $('pvOuter').classList.toggle('pvload', on); document.body.classList.toggle('pvbusy', on); }
   const scrollBox = el => { for (let n = el.parentElement; n; n = n.parentElement) { const o = getComputedStyle(n).overflowY; if (/(auto|scroll)/.test(o) && n.scrollHeight > n.clientHeight) return n; } return document.scrollingElement; };
   addEventListener('message', ev => {
@@ -306,7 +310,7 @@ async function loadTemplates(msg) {
   /* ---------- start forfra ---------- */
   let resetT = null;
   function doReset() {
-    statDrop(); state = { brief: {}, proposals: [], active: 0, guess: null }; hist = []; selUid = null; exp = null; lastHas = false; prefixTouched = false;
+    setFull(false); statDrop(); state = { brief: {}, proposals: [], active: 0, guess: null }; hist = []; selUid = null; exp = null; lastHas = false; prefixTouched = false;
     selCust = null; renderCustInfo(); for (const id of ['navn', 'prefix']) $(id).value = ''; for (const x of document.querySelectorAll('#wants input, #wants2 input')) x.checked = false; for (const [n, v] of [['h2', '3'], ['hero', 'form']]) { const d = document.querySelector(`input[name=${n}][value="${v}"]`); if (d) d.checked = true; } $('heroBox').classList.remove('need'); $('count').value = '1'; if ($('branche')) $('branche').value = ''; syncCount(); const f = document.querySelector('input[name=sidetype][value=Forside]'); if (f) f.checked = true;
     $('briefCard').open = true;
     syncPrefix(); $('prefix').hidden = true; setStatus('Startet forfra.', 'ok'); window.scrollTo({ top: 0 }); render();
