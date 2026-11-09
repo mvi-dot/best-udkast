@@ -356,7 +356,7 @@ async function loadTemplates(msg) {
   const statQ = []; let statSeen = new Set();
   function stat(ev, tpls) { if (!IN_GAS) return; for (const t of new Set([].concat(tpls).filter(Boolean))) statQ.push({ e: ev, t }); }   // gemmes lokalt, til der kopieres
   function statDrop() { statQ.length = 0; statSeen = new Set(); }   // nyt udkast eller Start forfra: det forrige blev ikke brugt
-  function statSend() { if (statQ.length) gas('logStats', [statQ.splice(0, 300)]).catch(() => { }); }
+  function statSend() { if (statQ.length) gas('logStats', statQ.splice(0, 300)).catch(() => { }); }
   if (IN_GAS) EARLY.me.then(m => { if (m && m.admin) $('statLink').hidden = false; }).catch(() => { });
   const ST_COLS = [['navn', 'Template'], ['type', 'Type'], ['vist', 'I udkast', 'Kom med i et udkast, der blev kopieret'], ['skiftet', 'Skiftet ud', 'Skiftet ud med Ny variant eller Vælg selv'], ['slettet', 'Slettet'], ['valgt', 'Valgt selv', 'Valgt med Vælg selv'], ['tilfoejet', 'Tilføjet', 'Tilføjet med + Tilføj sektion'], ['eksporteret', 'Brugt', 'Med i den kopierede JSON'], ['rate', 'Udskiftet', 'Skiftet ud eller slettet, i procent af I udkast']];
   let stData = null, stSort = { k: 'rate', dir: -1 };
