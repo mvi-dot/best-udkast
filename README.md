@@ -68,7 +68,7 @@ Previewet er et rigtigt browservindue, man scroller indeni: i den delte visning 
 **Se fullscreen** (ved siden af Start forfra) skjuler venstre side, så previewet får hele bredden, og vinduet bliver så stort, som der er plads til. Klik igen (Luk fullscreen) eller tryk Esc for at komme tilbage.
 
 ## Statistik
-Under formularen på forsiden står et lille link **Statistik**. Det ses kun af rmu@ og mvi@best-one.dk, og Apps Scriptet tjekker også selv e-mailen (`CFG.STATS_ADMINS`).
+Under formularen på forsiden står et lille link **Statistik**. Det ses kun af rmu@, mvi@ og jst@best-one.dk, og Apps Scriptet tjekker også selv e-mailen (`CFG.STATS_ADMINS`).
 Der tælles **kun, når der trykkes Kopiér JSON** – udkast, der ikke bliver brugt, er bare afprøvning og tæller ikke. Værktøjet tæller pr. template: hvor tit den kommer med i et udkast, skiftes ud (Ny variant / Vælg selv), slettes, vælges selv, tilføjes, og om den er med, når JSON'en kopieres. Der gemmes kun tal pr. template – ingen kunder eller navne. Tallene ligger i Apps Scriptets Script-egenskaber (`S:<template>`).
 Templates med mindst 5 udkast og over 50 % udskiftet står med gult. Klik på en kolonne for at sortere (klik igen for omvendt). **Download som CSV** henter tabellen i den viste sortering (semikolon-separeret, åbner direkte i dansk Excel og Google Sheets). Den røde **Nulstil** åbner en pop-up med *Nulstil alt*, *Download som CSV* (henter filen, pop-uppen bliver stående) og *Fortryd*. Klik uden for boksen eller Esc lukker.
 

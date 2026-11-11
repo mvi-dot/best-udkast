@@ -26,7 +26,7 @@ const CFG = {
     F_BRANCHE: '75762c06-2936-49a6-8915-f1780ddc20e0',
     F_HJEMMESIDE: 'd8f36f07-cf17-48dd-aab6-bb6974a7cbcc',
   },
-  STATS_ADMINS: ['rmu@best-one.dk', 'mvi@best-one.dk'],   // kun de to kan se statistikken
+  STATS_ADMINS: ['rmu@best-one.dk', 'mvi@best-one.dk', 'jst@best-one.dk'],   // kun de tre kan se statistikken
 };
 
 /* ---------- siden ---------- */
